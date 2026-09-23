@@ -34,6 +34,9 @@ ignore = ["ANN401"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ANN"]
+# N818(Error 접미사)을 끈다. CLAUDE.md 5-0 이 예외 이름을 InvalidEffortSpread 로
+# 명시하고 있고, 충돌 시 규칙 문서가 우선한다. 기반 클래스 DomainError 는 접미사를 지킨다.
+"app/domain/exceptions.py" = ["N818"]
 
 [tool.mypy]
 python_version = "3.12"
