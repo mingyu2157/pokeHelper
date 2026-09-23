@@ -58,7 +58,7 @@
 | DB | PostgreSQL 16 | 포켓몬/기술/샘플/사용률 관계형 데이터. JSONB로 가변 스펙 수용 |
 | 캐시 | Redis 7 | LLM 응답 캐싱, 수집 데이터 캐싱, rate limit |
 | ORM | SQLAlchemy 2.0 (async) + Alembic | 마이그레이션 추적 필수 |
-| 프론트 | Next.js 15 (App Router) + TypeScript | SSR로 SEO(파티 공유 페이지), 타입 공유 |
+| 프론트 | Next.js 16 (App Router) + TypeScript | SSR로 SEO(파티 공유 페이지), 타입 공유 |
 | UI | Tailwind CSS + shadcn/ui | 빠른 구축, 커스터마이징 가능 |
 | 상태관리 | TanStack Query | 서버 상태 캐싱이 대부분 |
 | LLM | Anthropic Claude API (백엔드에서만 호출) | API 키 노출 방지 |
@@ -317,6 +317,12 @@ class DamageResult:
 ---
 
 ## 6. 코딩 규칙
+
+### 실행 환경
+- **실행·테스트는 항상 컨테이너 안에서.** `docker compose exec backend pytest` 처럼 호출한다.
+  호스트에서 직접 `pytest` 를 돌리지 않는다 (버전 차이로 "내 컴에선 되는데"가 시작된다).
+- 호스트의 `backend/.venv` 는 **에디터 전용**이다. 실행 경로가 아니다.
+- compose의 익명 볼륨 `- /app/.venv`, `- /app/node_modules` 를 제거하지 않는다. 지우면 컨테이너 환경이 깨진다.
 
 ### Python
 - Python 3.12, 전 함수 타입힌트 필수
