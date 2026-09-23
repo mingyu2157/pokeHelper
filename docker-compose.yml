@@ -1,0 +1,81 @@
+# 로컬 개발용. 운영 검증은 docker-compose.prod.yml (Phase 6).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-champs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-champs}
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-champs} -d ${POSTGRES_DB:-champs}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app        # 핫리로드
+      - /app/.venv            # ★ 호스트 .venv 가 컨테이너 것을 덮어쓰지 않도록 (제거 금지)
+    ports: ["8000:8000"]
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health")'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    command: npm run dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules     # ★ 호스트 node_modules 덮어쓰기 방지 (제거 금지)
+      - /app/.next
+    ports: ["3000:3000"]
+    environment:
+      # 브라우저가 직접 호출하는 주소다. 컨테이너명(backend)이 아니라 localhost 가 맞다.
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      WATCHPACK_POLLING: "true"   # Windows 바인드 마운트에서 파일 변경 감지
+    depends_on:
+      backend: { condition: service_healthy }
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - 'fetch("http://localhost:3000").then(function(r){process.exit(r.ok?0:1)}).catch(function(){process.exit(1)})'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  pgdata:
