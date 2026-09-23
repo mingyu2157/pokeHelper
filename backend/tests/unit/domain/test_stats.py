@@ -4,6 +4,8 @@
 골든 케이스가 깨지면 기대값을 고치지 말고 구현을 고친다.
 """
 
+import math
+
 import pytest
 
 from app.domain.exceptions import InvalidBaseStat
@@ -76,6 +78,48 @@ class TestIncrementBehaviour:
             before = calc_stat(GARCHOMP_BASE_SPEED, points, NatureModifier.NEUTRAL)
             after = calc_stat(GARCHOMP_BASE_SPEED, points + 1, NatureModifier.NEUTRAL)
             assert after - before == 1
+
+
+class TestFloorNotRound:
+    """소수점은 버림이다. 반올림이 아니다.
+
+    (종족값+20+포인트)가 10으로 나눈 나머지 5일 때 정확히 .5 가 나온다.
+    포인트가 0~32를 훑으므로 모든 포켓몬이 이 경계를 여러 번 지나간다.
+
+    파이썬 기본 round() 는 은행가 반올림이라 27.5->28, 38.5->38 처럼
+    일관되지도 않는다. 아래 케이스는 버림과 반올림의 결과가 실제로 갈린다.
+    """
+
+    @pytest.mark.parametrize(
+        ("base_stat", "modifier", "exact", "floored", "if_rounded"),
+        [
+            (5, NatureModifier.UP, 27.5, 27, 28),
+            (25, NatureModifier.UP, 49.5, 49, 50),
+            (45, NatureModifier.UP, 71.5, 71, 72),
+            (15, NatureModifier.DOWN, 31.5, 31, 32),
+            (35, NatureModifier.DOWN, 49.5, 49, 50),
+        ],
+    )
+    def test_half_is_floored(self, base_stat, modifier, exact, floored, if_rounded):
+        result = calc_stat(base_stat, 0, modifier)
+        assert result == floored, f"{exact} 는 버림해서 {floored} 여야 한다"
+        assert result != if_rounded, "반올림 연산이 들어갔다"
+
+    def test_matches_math_floor_across_full_range(self):
+        """종족값 1~255 x 포인트 0~32 x 보정 3종 완전 탐색."""
+        numerators = {
+            NatureModifier.UP: 11,
+            NatureModifier.NEUTRAL: 10,
+            NatureModifier.DOWN: 9,
+        }
+        for base_stat in range(1, 256):
+            for effort_points in range(33):
+                raw = base_stat + 20 + effort_points
+                for modifier, numerator in numerators.items():
+                    expected = math.floor(raw * numerator / 10)
+                    assert calc_stat(base_stat, effort_points, modifier) == expected, (
+                        f"base={base_stat} points={effort_points} {modifier.name}"
+                    )
 
 
 class TestHp:
