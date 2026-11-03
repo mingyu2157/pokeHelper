@@ -1,4 +1,10 @@
-docs/
+# 작업 문서는 공개하지 않는다. 다만 ADR 과 결정 저널은 포트폴리오의 핵심이라
+# 저장소에 포함한다 (CLAUDE.md 10장).
+# 주의: `docs/` 로 디렉토리를 통째로 무시하면 git 이 내부로 내려가지 않아
+#       하위 경로를 되살릴 수 없다. 반드시 `docs/*` 로 써야 negation 이 먹는다.
+docs/*
+!docs/adr/
+!docs/decisions/
 CLAUDE-*.md
 
 # Python
