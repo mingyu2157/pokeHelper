@@ -25,6 +25,8 @@ FROM base AS prod
 COPY --from=deps /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 COPY ./app ./app
+# 시드 데이터(타입 상성표, 기술 수치, 한영 매핑). 계산 엔진이 읽으므로 운영 이미지에 필수.
+COPY ./data ./data
 # Phase 2 에서 alembic 도입 시 아래 두 줄을 되살린다.
 # COPY ./alembic ./alembic
 # COPY alembic.ini .
