@@ -15,3 +15,7 @@ class InvalidEffortSpread(DomainError):
 
 class InvalidBaseStat(DomainError):
     """종족값이 계산 가능한 범위를 벗어났거나 지원하지 않는 특수 케이스다."""
+
+
+class UnknownPokemonType(DomainError):
+    """타입 상성 데이터에 알 수 없는 타입 이름이 들어 있다."""
