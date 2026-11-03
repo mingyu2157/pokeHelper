@@ -16,7 +16,9 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10
+        # astral-sh 는 v7 이후 떠있는 메이저 태그를 발행하지 않는다.
+        # (v10 같은 태그가 없어서 resolve 실패) 전체 버전으로 고정한다.
+        uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
 
