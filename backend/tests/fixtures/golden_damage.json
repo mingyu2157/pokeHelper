@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "purpose": "실제 게임 또는 검증된 계산기와 대조한 데미지 케이스를 쌓는다.",
+    "rules": [
+      "케이스가 깨지면 기대값을 수정하지 않는다. 엔진을 고친다. (CLAUDE.md 6장)",
+      "보정이 하나뿐인 케이스는 ADR-003 의 A/B 안이 같은 값을 내므로 검증 가치가 없다.",
+      "자속 + 약점 + 급소처럼 배율이 3개 이상 겹치는 경계 케이스를 우선 수집한다.",
+      "source 는 어디서 얻은 값인지 적는다: in-game(실측) / calculator(계산기 대조)."
+    ],
+    "schema": {
+      "name": "케이스 설명",
+      "source": "in-game | calculator",
+      "recorded_at": "YYYY-MM-DD",
+      "attacker": {"attack_stat": "int", "special_attack_stat": "int", "types": ["type id"]},
+      "defender": {"defense_stat": "int", "special_defense_stat": "int", "hp_stat": "int", "types": ["type id"]},
+      "move": {"power": "int", "move_type": "type id", "category": "PHYSICAL | SPECIAL | STATUS"},
+      "conditions": {"weather": "CLEAR|SUN|RAIN|SAND|SNOW", "is_critical": "bool", "is_burned": "bool", "screen": "float", "field": "float", "ability": "float", "item": "float"},
+      "expected": {"min_roll": "int", "max_roll": "int"}
+    }
+  },
+  "cases": []
+}
