@@ -237,7 +237,10 @@ Lv.50 고정이라 앞 계수가 22로 고정된다.
 
 **A안 (기본값)** — 보정을 실수로 누적하고 맨 마지막에 한 번만 내림
 ```
-mod = stab * type * weather * crit * ability * item * screen * burn
+mod = stab * type * weather * crit * ability * item * screen * field
+# ★ burn 은 여기 없다. 화상은 데미지 배율이 아니라 공격 실수치를 반감한다
+#   (champions-helper: "화상 상태에서 물리 기술을 쓰면 공격이 0.5배").
+#   기초 계산 전에 적용되므로 floor 가 한 번 더 끼어들고, 경계에서 값이 달라진다.
 roll_i = floor( 기초 * mod * r_i )      for r_i in {0.85, 0.86, ..., 1.00}
 ```
 이 경우 **보정끼리의 순서는 결과에 영향이 없다.**
