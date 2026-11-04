@@ -191,6 +191,7 @@ def calculate(
     *,
     weather: Weather = Weather.CLEAR,
     is_critical: bool = False,
+    is_immune: bool = False,
     screen: float = NEUTRAL,
     field_multiplier: float = NEUTRAL,
     ability: float = NEUTRAL,
@@ -200,6 +201,10 @@ def calculate(
 
     `screen` / `field_multiplier` / `ability` / `item` 은 호출자가 결정한 배율이다.
     도메인은 어느 도구·특성이 몇 배인지 모른다.
+
+    `is_immune` 은 타입 상성 외의 무효 — 풍선, 부유 같은 도구·특성이다.
+    **무효는 배율이 아니다.** item=0.0 으로 표현하면 최소 데미지 1 규칙에 걸려
+    0 대신 1이 나간다. 그래서 별도 플래그로 받는다 (ADR-007).
     """
     if defender.hp_stat <= 0:
         raise ValueError(f"방어 측 HP 실수치는 1 이상이어야 한다: {defender.hp_stat}")
@@ -212,6 +217,18 @@ def calculate(
         ability=ability,
         item=item,
     )
+
+    if is_immune:
+        return DamageResult(
+            rolls=(0,) * ROLL_COUNT,
+            min_percent=0.0,
+            max_percent=0.0,
+            ko_summary="효과 없음",
+            ohko_chance=0.0,
+            hits_to_ko_min=0,
+            hits_to_ko_max=0,
+            applied_modifiers=modifiers.as_dict(),
+        )
 
     if move.category is MoveCategory.STATUS:
         return DamageResult(

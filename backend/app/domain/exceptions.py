@@ -19,3 +19,7 @@ class InvalidBaseStat(DomainError):
 
 class UnknownPokemonType(DomainError):
     """타입 상성 데이터에 알 수 없는 타입 이름이 들어 있다."""
+
+
+class UnknownItemEffect(DomainError):
+    """도구 데이터에 알 수 없는 효과 종류가 들어 있다."""

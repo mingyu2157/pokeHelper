@@ -1,0 +1,177 @@
+{
+  "_meta": {
+    "purpose": "도구 효과 시드 데이터. 데미지 계산에 필요한 구조만 담는다.",
+    "selection": "championsbattledata 싱글 채용률 상위 20개 (2026-11-05 기준).",
+    "rules": [
+      "한국어 명칭은 여기 두지 않는다. 한영 매핑은 name_map.json 이 담당한다 (ADR-005).",
+      "source 는 수치의 출처다. mainline-assumed 는 본가 값을 가정했을 뿐 챔피언스에서 확인되지 않았다는 뜻이다.",
+      "게임에서 확인한 항목은 source 를 verified 로 올리고 verified_at 을 적는다.",
+      "reference 는 PokéAPI 의 공식 효과 설명 원문이다. 수치 근거를 되짚을 때 쓴다."
+    ],
+    "kinds": {
+      "DAMAGE_FLAT": "모든 공격 기술의 데미지에 곱한다",
+      "DAMAGE_TYPE": "move_type 과 같은 타입의 기술에만 곱한다",
+      "DAMAGE_SUPER_EFFECTIVE": "효과굉장(2배 이상)일 때만 곱한다",
+      "DEFENSIVE_TYPE_RESIST": "방어 측. 효과굉장인 move_type 기술의 데미지에 곱한다",
+      "TYPE_IMMUNITY": "방어 측. move_type 기술을 무효화한다",
+      "SPEED": "스피드 실수치에 곱한다 (speed.py 소관)",
+      "KO_GUARD": "확정타 판정에 개입한다. 배율이 아니다",
+      "NONE": "데미지 계산과 무관하다"
+    }
+  },
+  "items": {
+    "lifeorb": {
+      "name_en": "Life Orb",
+      "kind": "DAMAGE_FLAT",
+      "multiplier": 1.3,
+      "source": "champions-helper",
+      "reference": "Holder's moves inflict 30% extra damage, but cost 10% max HP.",
+      "note": "반동 피해는 데미지 계산 범위 밖이다."
+    },
+    "expertbelt": {
+      "name_en": "Expert Belt",
+      "kind": "DAMAGE_SUPER_EFFECTIVE",
+      "multiplier": 1.2,
+      "source": "mainline-assumed",
+      "reference": "Holder's Super Effective moves do 20% extra damage."
+    },
+    "magnet": {
+      "name_en": "Magnet",
+      "kind": "DAMAGE_TYPE",
+      "move_type": "electric",
+      "multiplier": 1.2,
+      "source": "mainline-assumed",
+      "reference": "Electric-Type moves from holder do 20% more damage."
+    },
+    "mysticwater": {
+      "name_en": "Mystic Water",
+      "kind": "DAMAGE_TYPE",
+      "move_type": "water",
+      "multiplier": 1.2,
+      "source": "mainline-assumed",
+      "reference": "Water-Type moves from holder do 20% more damage."
+    },
+    "spelltag": {
+      "name_en": "Spell Tag",
+      "kind": "DAMAGE_TYPE",
+      "move_type": "ghost",
+      "multiplier": 1.2,
+      "source": "mainline-assumed",
+      "reference": "Ghost-Type moves from holder do 20% more damage."
+    },
+    "charcoal": {
+      "name_en": "Charcoal",
+      "kind": "DAMAGE_TYPE",
+      "move_type": "fire",
+      "multiplier": 1.2,
+      "source": "mainline-assumed",
+      "reference": "Fire-Type moves from holder do 20% more damage."
+    },
+    "shucaberry": {
+      "name_en": "Shuca Berry",
+      "kind": "DEFENSIVE_TYPE_RESIST",
+      "move_type": "ground",
+      "multiplier": 0.5,
+      "source": "mainline-assumed",
+      "reference": "Consumed when struck by a super-effective Ground-type attack to halve the damage.",
+      "note": "1회성. 이미 소비됐는지는 전투 상태이므로 호출자가 판단한다."
+    },
+    "airballoon": {
+      "name_en": "Air Balloon",
+      "kind": "TYPE_IMMUNITY",
+      "move_type": "ground",
+      "source": "mainline-assumed",
+      "reference": "Grants immunity to Ground-type moves, Spikes, and Toxic Spikes. Consumed when the holder takes damage from a move.",
+      "note": "다른 공격에 맞으면 터진다. 그 뒤로는 땅 기술에 정상으로 맞는다. 풍선이 아직 살아있는지는 전투 상태이므로 호출자가 판단한다."
+    },
+    "choicescarf": {
+      "name_en": "Choice Scarf",
+      "kind": "SPEED",
+      "multiplier": 1.5,
+      "source": "mainline-assumed",
+      "reference": "Increases Speed by 50%, but restricts the holder to only one move.",
+      "note": "기술 고정 제약은 선출·행동 판단 소관이다."
+    },
+    "focussash": {
+      "name_en": "Focus Sash",
+      "kind": "KO_GUARD",
+      "source": "mainline-assumed",
+      "reference": "Holder survives any single-hit attack at 1 HP if at max HP, then the item is consumed.",
+      "note": "풀피일 때만 작동한다. 확정 1타 판정을 뒤집으므로 매치업 계산에서 중요하다."
+    },
+    "leftovers": {
+      "name_en": "Leftovers",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "Restores 1/16 (6.25%) holder's max HP at the end of each turn."
+    },
+    "sitrusberry": {
+      "name_en": "Sitrus Berry",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "Consumed at 1/2 max HP to recover 1/4 max HP."
+    },
+    "lumberry": {
+      "name_en": "Lum Berry",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "Consumed to cure any status condition or confusion."
+    },
+    "rockyhelmet": {
+      "name_en": "Rocky Helmet",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "When the holder is hit by a contact move, the attacking Pokemon takes 1/6 its max HP in damage."
+    },
+    "quickclaw": {
+      "name_en": "Quick Claw",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "Holder has a 3/16 (18.75%) chance to move first."
+    },
+    "redcard": {
+      "name_en": "Red Card",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "When the holder takes damage from a move, the opponent switches out for another random party Pokemon."
+    },
+    "widelens": {
+      "name_en": "Wide Lens",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "Provides a 1/10 (10%) boost in accuracy to the holder."
+    },
+    "brightpowder": {
+      "name_en": "Bright Powder",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "Increases the holder's evasion by 1/9 (11 1/9%)."
+    },
+    "whiteherb": {
+      "name_en": "White Herb",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "Resets all lowered stats to normal at end of turn."
+    },
+    "lightclay": {
+      "name_en": "Light Clay",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "Light Screen and Reflect used by the holder last 8 rounds instead of 5.",
+      "note": "벽 자체의 배율은 screen 슬롯으로 들어간다. 이 도구는 지속 턴만 늘린다."
+    },
+    "terrainextender": {
+      "name_en": "Terrain Extender",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "Extends the holder's Terrain effects to 8 turns."
+    },
+    "scopelens": {
+      "name_en": "Scope Lens",
+      "kind": "NONE",
+      "source": "mainline-assumed",
+      "reference": "Increases the holder's critical hit rate.",
+      "note": "급소 확률만 올린다. 급소가 터졌을 때의 1.5배는 crit 슬롯이 담당한다."
+    }
+  }
+}
