@@ -113,6 +113,52 @@ class TestModifierChainIsOptionA:
         assert set(rolls) == {0}
 
 
+class TestMinimumDamageIsOne:
+    """데미지가 0으로 떨어지면 1로 올린다 (본가와 동일, 2026-11-05 개발자 확인).
+
+    단 **무효(타입 상성 0배)일 때는 0을 유지한다.** 맞지 않는 것과
+    아주 조금 맞는 것은 다르다.
+    """
+
+    def test_floor_to_zero_becomes_one(self):
+        # 기초 2 x 0.25(2타입 저항) x 0.85 = 0.425 -> floor 0 -> 1 로 올림
+        rolls = Modifiers(type_effectiveness=0.25).apply(2)
+        assert rolls[0] == 1
+        assert min(rolls) >= 1
+
+    def test_immunity_stays_zero(self):
+        rolls = Modifiers(type_effectiveness=0.0).apply(100)
+        assert set(rolls) == {0}
+
+    def test_zero_from_non_type_modifier_still_becomes_one(self):
+        """상성이 아닌 보정이 0이어도, 무효가 아니므로 1로 올린다."""
+        rolls = Modifiers(screen=0.0).apply(100)
+        assert set(rolls) == {1}
+
+    def test_normal_damage_is_unaffected(self):
+        rolls = Modifiers().apply(100)
+        assert rolls[0] == 85
+
+    def test_minimum_one_through_calculate(self, chart):
+        """약한 공격이 2타입 저항을 맞아도 0이 아니라 1 이상."""
+        result = calculate(
+            chart,
+            attacker(attack=1, types=(PokemonType.GRASS,)),
+            defender(defense=255, hp=200, types=(PokemonType.FIRE, PokemonType.FLYING)),
+            move(power=1, move_type=PokemonType.GRASS),
+        )
+        assert min(result.rolls) >= 1
+
+    def test_immune_through_calculate_is_zero(self, chart):
+        result = calculate(
+            chart,
+            attacker(),
+            defender(types=(PokemonType.GHOST,)),
+            move(move_type=PokemonType.NORMAL),
+        )
+        assert result.rolls == (0,) * 16
+
+
 class TestAppliedModifiersExposesEverything:
     """①번 결정 B안 — 1배인 보정도 전부 노출한다.
 

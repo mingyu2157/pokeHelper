@@ -36,6 +36,9 @@ CRIT_MULTIPLIER: Final[float] = 1.5
 WEATHER_BOOST: Final[float] = 1.5
 WEATHER_PENALTY: Final[float] = 0.5
 NEUTRAL: Final[float] = 1.0
+# 내림 결과가 0이어도 1로 올린다 (본가와 동일, 2026-11-05 확인).
+# 단 상성 0배(무효)는 예외로 0을 유지한다.
+MINIMUM_DAMAGE: Final[int] = 1
 
 # 난수 0.85 ~ 1.00, 16단계. 평균값 하나로 줄이지 않는다.
 ROLL_COUNT: Final[int] = 16
@@ -96,7 +99,13 @@ class Modifiers:
         ★ 보정 곱셈이 일어나는 유일한 지점이다. B안으로 바꾸려면 여기만 고친다.
         """
         multiplier = self.product
-        return tuple(math.floor(base * multiplier * roll / ROLL_SCALE) for roll in DAMAGE_ROLLS)
+        # 상성 0배(무효)는 0을 유지한다. 맞지 않는 것과 아주 조금 맞는 것은 다르다.
+        if self.type_effectiveness == 0:
+            return (0,) * ROLL_COUNT
+        return tuple(
+            max(math.floor(base * multiplier * roll / ROLL_SCALE), MINIMUM_DAMAGE)
+            for roll in DAMAGE_ROLLS
+        )
 
     def as_dict(self) -> dict[str, float]:
         """1배인 보정도 전부 노출한다.
