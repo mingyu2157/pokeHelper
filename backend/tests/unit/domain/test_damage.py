@@ -159,6 +159,45 @@ class TestMinimumDamageIsOne:
         assert result.rolls == (0,) * 16
 
 
+class TestExplicitImmunity:
+    """타입 외의 무효 — 풍선·부유 같은 도구·특성 (ADR-007).
+
+    item=0.0 으로 표현하면 최소 데미지 1 규칙에 걸려 1이 나간다.
+    풍선을 든 상대에게 지진이 1 데미지를 넣으면 안 된다.
+    """
+
+    def test_immune_flag_zeroes_damage(self, chart):
+        result = calculate(
+            chart,
+            attacker(types=(PokemonType.GROUND,)),
+            defender(types=(PokemonType.ELECTRIC,)),
+            move(move_type=PokemonType.GROUND),
+            is_immune=True,
+        )
+        assert result.rolls == (0,) * 16
+        assert result.ko_summary == "효과 없음"
+        assert result.ohko_chance == 0.0
+
+    def test_zero_item_multiplier_would_not_be_enough(self, chart):
+        """왜 별도 플래그가 필요한지 — item=0 은 1을 돌려준다."""
+        result = calculate(
+            chart,
+            attacker(types=(PokemonType.GROUND,)),
+            defender(types=(PokemonType.ELECTRIC,)),
+            move(move_type=PokemonType.GROUND),
+            item=0.0,
+        )
+        assert set(result.rolls) == {1}
+
+    def test_modifiers_are_still_reported_when_immune(self, chart):
+        result = calculate(chart, attacker(), defender(), move(), is_immune=True)
+        assert len(result.applied_modifiers) == 8
+
+    def test_not_immune_by_default(self, chart):
+        result = calculate(chart, attacker(), defender(), move())
+        assert result.rolls[0] > 0
+
+
 class TestAppliedModifiersExposesEverything:
     """①번 결정 B안 — 1배인 보정도 전부 노출한다.
 
