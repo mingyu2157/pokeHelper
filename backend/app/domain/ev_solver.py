@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from itertools import combinations, product
 from typing import Final
 
@@ -28,9 +29,11 @@ from app.domain.constants import (
 )
 from app.domain.damage import calculate
 from app.domain.effort import EffortSpread
+from app.domain.exceptions import InvalidNatureSpread
+from app.domain.indices import bulk_index
 from app.domain.models import Attacker, BaseStats, Defender, MoveSpec
 from app.domain.nature import NatureModifier, StatKey
-from app.domain.stats import calc_hp, calc_stat
+from app.domain.stats import calc_hp, calc_stat, points_to_next_magic_number
 from app.domain.typechart import PokemonType, TypeChart
 
 _POINT_RANGE: Final[range] = range(MIN_POINTS_PER_STAT, MAX_POINTS_PER_STAT + 1)
@@ -56,6 +59,25 @@ class BuildTarget:
     natures: Mapping[StatKey, NatureModifier] = field(default_factory=dict)
     types: tuple[PokemonType, ...] = ()
 
+    def __post_init__(self) -> None:
+        """성격 보정은 상승·하락 각각 한 스탯뿐이고 HP 에는 걸리지 않는다.
+
+        두 스탯이 동시에 1.1배인 포켓몬은 존재하지 않는다. 막지 않으면
+        불가능한 배분으로 계산한 수치가 사용자에게 나간다 (5-0 의 정신).
+        """
+        if StatKey.HP in self.natures:
+            raise InvalidNatureSpread("HP 는 성격 보정을 받지 않는다 (CLAUDE.md 5-1).")
+        rising = [s for s, m in self.natures.items() if m is NatureModifier.UP]
+        falling = [s for s, m in self.natures.items() if m is NatureModifier.DOWN]
+        if len(rising) > 1:
+            raise InvalidNatureSpread(
+                f"상승보정은 한 스탯에만 걸린다. 받은 스탯: {[s.name for s in rising]}"
+            )
+        if len(falling) > 1:
+            raise InvalidNatureSpread(
+                f"하락보정은 한 스탯에만 걸린다. 받은 스탯: {[s.name for s in falling]}"
+            )
+
     def modifier(self, stat: StatKey) -> NatureModifier:
         return self.natures.get(stat, NatureModifier.NEUTRAL)
 
@@ -64,6 +86,20 @@ class BuildTarget:
         if stat is StatKey.HP:
             return calc_hp(base, points)
         return calc_stat(base, points, self.modifier(stat))
+
+
+class AllocationPriority(Enum):
+    """잔여 포인트를 어디에 부을 것인가 (규칙 4).
+
+    5-4 는 "결정력 / 물리내구 / 특수내구"라고 적었는데, 결정력은 공격과 특공
+    어느 쪽인지 모호하다. 그래서 물리/특수를 나눠 명시한다.
+    """
+
+    PHYSICAL_OFFENSE = auto()
+    SPECIAL_OFFENSE = auto()
+    PHYSICAL_BULK = auto()
+    SPECIAL_BULK = auto()
+    SPEED = auto()
 
 
 @dataclass(frozen=True)
@@ -322,6 +358,150 @@ def _alternatives_for(
     return tuple(notes)
 
 
+_PRIORITY_LABELS: Final[Mapping[AllocationPriority, str]] = {
+    AllocationPriority.PHYSICAL_OFFENSE: "물리 결정력",
+    AllocationPriority.SPECIAL_OFFENSE: "특수 결정력",
+    AllocationPriority.PHYSICAL_BULK: "물리내구",
+    AllocationPriority.SPECIAL_BULK: "특수내구",
+    AllocationPriority.SPEED: "스피드",
+}
+
+_PRIORITY_STATS: Final[Mapping[AllocationPriority, tuple[StatKey, ...]]] = {
+    AllocationPriority.PHYSICAL_OFFENSE: (StatKey.ATTACK,),
+    AllocationPriority.SPECIAL_OFFENSE: (StatKey.SP_ATTACK,),
+    AllocationPriority.PHYSICAL_BULK: (StatKey.HP, StatKey.DEFENSE),
+    AllocationPriority.SPECIAL_BULK: (StatKey.HP, StatKey.SP_DEFENSE),
+    AllocationPriority.SPEED: (StatKey.SPEED,),
+}
+
+
+def _apply_magic_number(
+    target: BuildTarget, points: dict[StatKey, int], budget: int
+) -> tuple[int, Justification | None]:
+    """상승보정 스탯을 매직넘버에 착지시킨다.
+
+    성격 상승보정은 **한 스탯에만** 걸리므로 대상도 하나뿐이다.
+    직전에서 멈추면 1포인트로 실수치 2를 얻을 기회를 버린다.
+    """
+    rising = [s for s, m in target.natures.items() if m is NatureModifier.UP]
+    if not rising:
+        return budget, None
+
+    stat = rising[0]
+    current = points.get(stat, 0)
+    needed = points_to_next_magic_number(target.base_stats.of(stat), current, NatureModifier.UP)
+    if not needed or needed > budget:
+        return budget, None
+
+    before = target.actual(stat, current)
+    points[stat] = current + needed
+    after = target.actual(stat, points[stat])
+    detail = (
+        f"매직넘버 착지 — {needed}포인트로 실수치 {before} → {after} "
+        f"(+{after - before}, 버림 손실 0)"
+    )
+    return budget - needed, Justification(stat, needed, "매직넘버", detail)
+
+
+def _allocate_bulk(
+    target: BuildTarget,
+    points: dict[StatKey, int],
+    budget: int,
+    defense_stat: StatKey,
+    label: str,
+) -> tuple[int, tuple[Justification, ...]]:
+    """내구력(HP × 방어)을 최대화하는 배분. 실수치 합이 아니라 곱을 본다."""
+    hp_floor = points.get(StatKey.HP, 0)
+    def_floor = points.get(defense_stat, 0)
+
+    def value_of(hp_points: int, def_points: int) -> float:
+        return bulk_index(
+            hp_stat=target.actual(StatKey.HP, hp_points),
+            defense_stat=target.actual(defense_stat, def_points),
+        )
+
+    # 바닥값(아무것도 더 쓰지 않는 경우)에서 출발한다. 후보가 없는 경우는 생기지 않는다.
+    best = (value_of(hp_floor, def_floor), hp_floor, def_floor)
+    for hp_points in range(hp_floor, MAX_POINTS_PER_STAT + 1):
+        spent_hp = hp_points - hp_floor
+        if spent_hp > budget:
+            break
+        def_points = min(def_floor + budget - spent_hp, MAX_POINTS_PER_STAT)
+        value = value_of(hp_points, def_points)
+        if value > best[0]:
+            best = (value, hp_points, def_points)
+
+    _, hp_points, def_points = best
+    spent = (hp_points - hp_floor) + (def_points - def_floor)
+    points[StatKey.HP] = hp_points
+    points[defense_stat] = def_points
+    detail = (
+        f"{label} 최대화 — HP {target.actual(StatKey.HP, hp_points)} × "
+        f"방어 {target.actual(defense_stat, def_points)}"
+    )
+    justifications = tuple(
+        Justification(stat, points[stat], label, detail)
+        for stat in (StatKey.HP, defense_stat)
+        if points[stat] > 0
+    )
+    return budget - spent, justifications
+
+
+def _allocate_single(
+    target: BuildTarget,
+    points: dict[StatKey, int],
+    budget: int,
+    stat: StatKey,
+    label: str,
+) -> tuple[int, tuple[Justification, ...]]:
+    current = points.get(stat, 0)
+    added = min(budget, MAX_POINTS_PER_STAT - current)
+    if added <= 0:
+        return budget, ()
+    points[stat] = current + added
+    detail = f"{label} 우선 — 실수치 {target.actual(stat, points[stat])}"
+    return budget - added, (Justification(stat, points[stat], label, detail),)
+
+
+def _allocate_residual(
+    target: BuildTarget,
+    points: dict[StatKey, int],
+    priority: AllocationPriority | None,
+) -> tuple[dict[StatKey, int], tuple[Justification, ...]]:
+    """제약을 만족하고 남은 포인트를 쓴다 (규칙 4).
+
+    **우선순위를 주지 않으면 아무것도 더 쓰지 않는다.** 그 경우 호출자는
+    "제약을 만족하는 최소 투자"를 기대하므로(5-4 규칙 2), 매직넘버 착지라도
+    1포인트를 더 쓰면 약속이 깨진다.
+
+    우선순위를 줬다면 매직넘버 착지를 **먼저** 본다 — 1포인트로 실수치 2를 얻는
+    구간이라 우선순위를 거스를 만한 이득이고, 근거에 명시되면 납득할 수 있다.
+    성격 상승보정은 한 스탯에만 걸리므로 대상도 하나뿐이다.
+    """
+    allocated = dict(points)
+    if priority is None:
+        return allocated, ()
+
+    budget = MAX_TOTAL_POINTS - sum(allocated.values())
+    extra: list[Justification] = []
+
+    budget, magic = _apply_magic_number(target, allocated, budget)
+    if magic is not None:
+        extra.append(magic)
+
+    if budget <= 0:
+        return allocated, tuple(extra)
+
+    label = _PRIORITY_LABELS[priority]
+    stats = _PRIORITY_STATS[priority]
+    if len(stats) == 2:
+        budget, justifications = _allocate_bulk(target, allocated, budget, stats[1], label)
+    else:
+        budget, justifications = _allocate_single(target, allocated, budget, stats[0], label)
+    extra.extend(justifications)
+    return allocated, tuple(extra)
+
+
 # ---------------------------------------------------------------- 공개 API
 
 
@@ -329,10 +509,17 @@ def solve(
     chart: TypeChart,
     target: BuildTarget,
     constraints: Sequence[Constraint],
+    *,
+    priority: AllocationPriority | None = None,
 ) -> SolverResult:
-    """제약을 만족하는 최소 배분을 찾는다. 없으면 무엇이 충돌하는지 알린다."""
+    """제약을 만족하는 최소 배분을 찾는다. 없으면 무엇이 충돌하는지 알린다.
+
+    `priority` 를 주면 제약을 만족하고 남은 포인트까지 쓴다 (규칙 4).
+    주지 않으면 필요한 만큼만 쓰고 남긴다.
+    """
     if not constraints:
-        return Solution(spread=EffortSpread(), justifications=())
+        allocated, extra = _allocate_residual(target, {}, priority)
+        return Solution(spread=_spread_from(allocated), justifications=extra)
 
     candidate_sets = [_candidates_for(chart, target, c) for c in constraints]
     pairs = list(zip(constraints, candidate_sets, strict=True))
@@ -344,10 +531,11 @@ def solve(
         best = _best_combination(candidate_sets)
         if best is not None:
             merged, justifications, _ = best
+            allocated, extra = _allocate_residual(target, merged, priority)
             return Solution(
-                spread=_spread_from(merged),
-                justifications=justifications,
-                alternatives=_alternatives_for(constraints, merged),
+                spread=_spread_from(allocated),
+                justifications=justifications + extra,
+                alternatives=_alternatives_for(constraints, allocated),
             )
 
     return Infeasible(

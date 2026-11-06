@@ -164,3 +164,62 @@ class TestInputValidation:
     def test_zero_base_stat_is_rejected(self):
         with pytest.raises(InvalidBaseStat):
             calc_stat(0, 0, NatureModifier.NEUTRAL)
+
+
+class TestMagicNumber:
+    """상승보정에서 버림 손실이 0인 지점 (커뮤니티 용어: 매직넘버).
+
+    `종족값 + 20 + 포인트` 가 10의 배수면 `× 11/10` 이 정확히 떨어진다.
+    바로 직전에서 멈추면 1포인트로 실수치 2를 얻을 기회를 버린다.
+    """
+
+    @pytest.mark.parametrize("points", [8, 18, 28])
+    def test_landing_points(self, points):
+        from app.domain.stats import is_magic_number
+
+        assert is_magic_number(GARCHOMP_BASE_SPEED, points, NatureModifier.UP)
+
+    @pytest.mark.parametrize("points", [0, 7, 9, 17, 27, 32])
+    def test_non_landing_points(self, points):
+        from app.domain.stats import is_magic_number
+
+        assert not is_magic_number(GARCHOMP_BASE_SPEED, points, NatureModifier.UP)
+
+    def test_result_is_a_multiple_of_eleven(self):
+        from app.domain.stats import is_magic_number
+
+        for points in range(33):
+            if is_magic_number(GARCHOMP_BASE_SPEED, points, NatureModifier.UP):
+                assert calc_stat(GARCHOMP_BASE_SPEED, points, NatureModifier.UP) % 11 == 0
+
+    def test_only_applies_to_rising_nature(self):
+        from app.domain.stats import is_magic_number
+
+        assert not is_magic_number(GARCHOMP_BASE_SPEED, 8, NatureModifier.NEUTRAL)
+        assert not is_magic_number(GARCHOMP_BASE_SPEED, 8, NatureModifier.DOWN)
+
+    @pytest.mark.parametrize(
+        ("points", "expected"), [(0, 8), (7, 1), (8, 0), (17, 1), (18, 0), (32, None)]
+    )
+    def test_distance_to_next(self, points, expected):
+        from app.domain.stats import points_to_next_magic_number
+
+        assert (
+            points_to_next_magic_number(GARCHOMP_BASE_SPEED, points, NatureModifier.UP) == expected
+        )
+
+    def test_distance_is_none_without_rising_nature(self):
+        from app.domain.stats import points_to_next_magic_number
+
+        assert points_to_next_magic_number(GARCHOMP_BASE_SPEED, 7, NatureModifier.NEUTRAL) is None
+        assert points_to_next_magic_number(GARCHOMP_BASE_SPEED, 7, NatureModifier.DOWN) is None
+
+    def test_one_point_before_magic_gains_two(self):
+        """매직넘버 직전에서 1포인트를 더 주면 실수치가 2 오른다."""
+        from app.domain.stats import points_to_next_magic_number
+
+        for points in range(32):
+            if points_to_next_magic_number(GARCHOMP_BASE_SPEED, points, NatureModifier.UP) == 1:
+                before = calc_stat(GARCHOMP_BASE_SPEED, points, NatureModifier.UP)
+                after = calc_stat(GARCHOMP_BASE_SPEED, points + 1, NatureModifier.UP)
+                assert after - before == 2
