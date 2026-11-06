@@ -9,6 +9,7 @@ CLAUDE.md 5-1의 축약 공식:
 
 from app.domain.constants import (
     HP_OFFSET,
+    MAX_POINTS_PER_STAT,
     MIN_BASE_STAT,
     NATURE_DENOMINATOR,
     NATURE_DOWN_NUMERATOR,
@@ -56,3 +57,36 @@ def calc_stat(base_stat: int, effort_points: int, modifier: NatureModifier) -> i
     _require_valid_base_stat(base_stat)
     raw = base_stat + STAT_OFFSET + effort_points
     return raw * _NUMERATORS[modifier] // NATURE_DENOMINATOR
+
+
+def is_magic_number(base_stat: int, effort_points: int, modifier: NatureModifier) -> bool:
+    """상승보정에서 버림 손실이 0인 지점인가.
+
+    `종족값 + 20 + 포인트` 가 10의 배수면 `× 11/10` 이 정확히 떨어져
+    최종 실수치가 11의 배수가 된다. 커뮤니티에서 매직넘버라고 부른다.
+
+    상승보정에만 의미가 있다. 무보정은 애초에 버림이 없고,
+    하락보정은 반대로 정체 구간이 생긴다.
+    """
+    if modifier is not NatureModifier.UP:
+        return False
+    raw = base_stat + STAT_OFFSET + effort_points
+    return raw % NATURE_DENOMINATOR == 0
+
+
+def points_to_next_magic_number(
+    base_stat: int, effort_points: int, modifier: NatureModifier
+) -> int | None:
+    """다음 매직넘버까지 필요한 추가 포인트. 상승보정이 아니거나 범위를 벗어나면 None.
+
+    바로 직전 지점(`raw % 10 == 9`)에서 멈추면 1포인트로 실수치 2를 얻을 기회를 버린다.
+    """
+    if modifier is not NatureModifier.UP:
+        return None
+    raw = base_stat + STAT_OFFSET + effort_points
+    needed = (NATURE_DENOMINATOR - raw % NATURE_DENOMINATOR) % NATURE_DENOMINATOR
+    if needed == 0:
+        return 0
+    if effort_points + needed > MAX_POINTS_PER_STAT:
+        return None
+    return needed

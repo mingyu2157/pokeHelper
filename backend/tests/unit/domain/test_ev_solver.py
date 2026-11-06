@@ -13,6 +13,7 @@ import pytest
 
 from app.domain.constants import MAX_POINTS_PER_STAT, MAX_TOTAL_POINTS
 from app.domain.ev_solver import (
+    AllocationPriority,
     BuildTarget,
     Infeasible,
     KnockoutConstraint,
@@ -73,7 +74,12 @@ class TestOutspeed:
 
     def test_uses_declared_nature(self, chart):
         """판정은 포인트가 아니라 최종 실수치다 (규칙 3)."""
-        rising = target(natures={StatKey.SPEED: NatureModifier.UP})
+        rising = target(
+            natures={
+                StatKey.SPEED: NatureModifier.UP,
+                StatKey.SP_ATTACK: NatureModifier.DOWN,
+            }
+        )
         result = solve(chart, rising, [OutspeedConstraint("상대 150", 150)])
         assert isinstance(result, Solution)
         actual = calc_stat(GARCHOMP.speed, result.spread.speed, NatureModifier.UP)
@@ -363,3 +369,285 @@ class TestResultIsImmutable:
         assert isinstance(result, Solution)
         with pytest.raises(AttributeError):
             result.spread = None
+
+
+class TestNatureValidation:
+    """성격 상승보정은 한 스탯에만 걸린다 (2026-11-07 개발자 확인).
+
+    두 스탯이 동시에 1.1배인 포켓몬은 존재할 수 없다. 막지 않으면
+    불가능한 배분으로 계산한 수치가 사용자에게 나간다 — 5-0 의 정신과 같다.
+    """
+
+    def test_rejects_two_rising_stats(self, chart):
+        from app.domain.exceptions import InvalidNatureSpread
+
+        with pytest.raises(InvalidNatureSpread):
+            solve(
+                chart,
+                target(
+                    natures={
+                        StatKey.ATTACK: NatureModifier.UP,
+                        StatKey.SPEED: NatureModifier.UP,
+                    }
+                ),
+                [],
+            )
+
+    def test_rejects_two_falling_stats(self, chart):
+        from app.domain.exceptions import InvalidNatureSpread
+
+        with pytest.raises(InvalidNatureSpread):
+            solve(
+                chart,
+                target(
+                    natures={
+                        StatKey.ATTACK: NatureModifier.DOWN,
+                        StatKey.SPEED: NatureModifier.DOWN,
+                    }
+                ),
+                [],
+            )
+
+    def test_rejects_nature_on_hp(self, chart):
+        """HP 는 성격 보정을 받지 않는다 (CLAUDE.md 5-1)."""
+        from app.domain.exceptions import InvalidNatureSpread
+
+        with pytest.raises(InvalidNatureSpread):
+            solve(chart, target(natures={StatKey.HP: NatureModifier.UP}), [])
+
+    def test_rejects_rising_without_falling(self):
+        """성격은 항상 쌍이다 — 하나를 올리면 반드시 하나를 내린다."""
+        from app.domain.exceptions import InvalidNatureSpread
+
+        with pytest.raises(InvalidNatureSpread):
+            BuildTarget(base_stats=GARCHOMP, natures={StatKey.SPEED: NatureModifier.UP})
+
+    def test_rejects_falling_without_rising(self):
+        from app.domain.exceptions import InvalidNatureSpread
+
+        with pytest.raises(InvalidNatureSpread):
+            BuildTarget(base_stats=GARCHOMP, natures={StatKey.SPEED: NatureModifier.DOWN})
+
+    def test_accepts_neutral_nature(self):
+        """무보정 성격은 상승도 하락도 없다."""
+        assert BuildTarget(base_stats=GARCHOMP, natures={}) is not None
+
+    def test_accepts_one_up_and_one_down(self, chart):
+        result = solve(
+            chart,
+            target(
+                natures={
+                    StatKey.SPEED: NatureModifier.UP,
+                    StatKey.SP_ATTACK: NatureModifier.DOWN,
+                }
+            ),
+            [],
+        )
+        assert isinstance(result, Solution)
+
+
+class TestResidualAllocation:
+    """규칙 4 — 남은 포인트를 사용자가 지정한 우선순위에 분배한다."""
+
+    def test_no_priority_leaves_points_unspent(self, chart):
+        """우선순위를 안 주면 제약 만족에 필요한 만큼만 쓴다."""
+        result = solve(chart, target(), [OutspeedConstraint("상대 130", 130)])
+        assert isinstance(result, Solution)
+        assert result.spread.total == 9
+
+    def test_spends_the_remaining_budget(self, chart):
+        result = solve(
+            chart,
+            target(),
+            [OutspeedConstraint("상대 130", 130)],
+            priority=AllocationPriority.PHYSICAL_BULK,
+        )
+        assert isinstance(result, Solution)
+        assert result.spread.total == MAX_TOTAL_POINTS
+
+    def test_physical_bulk_goes_to_hp_and_defense(self, chart):
+        result = solve(chart, target(), [], priority=AllocationPriority.PHYSICAL_BULK)
+        assert isinstance(result, Solution)
+        assert result.spread.hp > 0
+        assert result.spread.defense > 0
+        assert result.spread.sp_defense == 0
+
+    def test_special_bulk_goes_to_hp_and_special_defense(self, chart):
+        result = solve(chart, target(), [], priority=AllocationPriority.SPECIAL_BULK)
+        assert isinstance(result, Solution)
+        assert result.spread.sp_defense > 0
+        assert result.spread.defense == 0
+
+    def test_bulk_allocation_maximises_the_index(self, chart):
+        """①번 — 실수치 합이 아니라 실제 내구력 공식(HP × 방어)을 최대화한다."""
+        from app.domain.indices import bulk_index
+
+        result = solve(chart, target(), [], priority=AllocationPriority.PHYSICAL_BULK)
+        assert isinstance(result, Solution)
+        t = target()
+        chosen = bulk_index(
+            hp_stat=t.actual(StatKey.HP, result.spread.hp),
+            defense_stat=t.actual(StatKey.DEFENSE, result.spread.defense),
+        )
+        for hp_points in range(MAX_POINTS_PER_STAT + 1):
+            defense_points = min(MAX_TOTAL_POINTS - hp_points, MAX_POINTS_PER_STAT)
+            if defense_points < 0:
+                continue
+            rival = bulk_index(
+                hp_stat=t.actual(StatKey.HP, hp_points),
+                defense_stat=t.actual(StatKey.DEFENSE, defense_points),
+            )
+            assert chosen >= rival
+
+    def test_offense_priority_invests_in_attack(self, chart):
+        result = solve(chart, target(), [], priority=AllocationPriority.PHYSICAL_OFFENSE)
+        assert isinstance(result, Solution)
+        assert result.spread.attack == MAX_POINTS_PER_STAT
+
+    def test_speed_priority_invests_in_speed(self, chart):
+        result = solve(chart, target(), [], priority=AllocationPriority.SPEED)
+        assert isinstance(result, Solution)
+        assert result.spread.speed == MAX_POINTS_PER_STAT
+
+    def test_allocation_is_justified(self, chart):
+        result = solve(chart, target(), [], priority=AllocationPriority.PHYSICAL_BULK)
+        assert isinstance(result, Solution)
+        assert any("물리내구" in j.constraint_label for j in result.justifications)
+
+
+class TestMagicNumberLanding:
+    """매직넘버는 상승보정 스탯 하나에만 적용된다 (성격은 한 스탯만 1.1배)."""
+
+    def test_pushes_one_point_to_land(self, chart):
+        """추월에 7포인트면 충분하지만, 1포인트 더 주면 실수치가 2 오른다."""
+        rising = target(
+            natures={StatKey.SPEED: NatureModifier.UP, StatKey.SP_ATTACK: NatureModifier.DOWN}
+        )
+        # 상승보정 스피드: p=7 -> 141, p=8 -> 143 (매직넘버)
+        result = solve(
+            chart,
+            rising,
+            [OutspeedConstraint("상대 140", 140)],
+            priority=AllocationPriority.PHYSICAL_BULK,
+        )
+        assert isinstance(result, Solution)
+        assert result.spread.speed == 8
+
+    def test_landing_is_justified(self, chart):
+        rising = target(
+            natures={StatKey.SPEED: NatureModifier.UP, StatKey.SP_ATTACK: NatureModifier.DOWN}
+        )
+        result = solve(
+            chart,
+            rising,
+            [OutspeedConstraint("상대 140", 140)],
+            priority=AllocationPriority.PHYSICAL_BULK,
+        )
+        assert isinstance(result, Solution)
+        assert any("매직넘버" in j.detail for j in result.justifications)
+
+    def test_no_landing_without_rising_nature(self, chart):
+        """무보정에는 매직넘버가 없다. 최소 포인트 그대로."""
+        result = solve(
+            chart,
+            target(),
+            [OutspeedConstraint("상대 130", 130)],
+            priority=AllocationPriority.PHYSICAL_BULK,
+        )
+        assert isinstance(result, Solution)
+        assert result.spread.speed == 9
+
+    def test_landing_respects_the_budget(self, chart):
+        rising = target(
+            natures={StatKey.SPEED: NatureModifier.UP, StatKey.SP_ATTACK: NatureModifier.DOWN}
+        )
+        result = solve(
+            chart,
+            rising,
+            [OutspeedConstraint("상대 140", 140)],
+            priority=AllocationPriority.PHYSICAL_BULK,
+        )
+        assert isinstance(result, Solution)
+        assert result.spread.total <= MAX_TOTAL_POINTS
+
+
+class TestAllocationEdges:
+    """잔여 배분의 경계 — 예산이 없거나 이미 상한인 경우."""
+
+    def test_no_room_to_land_on_magic_number(self, chart):
+        """매직넘버까지 거리가 남은 예산보다 크면 착지하지 않는다."""
+        rising = target(
+            natures={StatKey.SPEED: NatureModifier.UP, StatKey.SP_ATTACK: NatureModifier.DOWN}
+        )
+        constraints = [
+            OutspeedConstraint("추월", 134),  # 상승보정 0포인트가 134 -> 1포인트 필요
+            SurviveConstraint(
+                "얼음 버티기",
+                opponent=opponent_attacker(attack=200, types=(PokemonType.ICE,)),
+                move=ice_move(),
+            ),
+            KnockoutConstraint("확정 1타", opponent=opponent_defender(hp=100), move=physical()),
+        ]
+        result = solve(chart, rising, constraints, priority=AllocationPriority.SPEED)
+        if isinstance(result, Solution):
+            assert result.spread.total <= MAX_TOTAL_POINTS
+
+    def test_budget_exhausted_by_constraints(self, chart):
+        """제약이 예산을 다 쓰면 잔여 배분이 아무것도 하지 않는다."""
+        constraints = [
+            SurviveConstraint(
+                "얼음 버티기",
+                opponent=opponent_attacker(attack=200, types=(PokemonType.ICE,)),
+                move=ice_move(),
+            ),
+            OutspeedConstraint("추월 150", 150),
+        ]
+        result = solve(chart, target(), constraints, priority=AllocationPriority.SPECIAL_BULK)
+        assert isinstance(result, Solution)
+        assert result.spread.total <= MAX_TOTAL_POINTS
+
+    def test_priority_stat_already_at_maximum(self, chart):
+        """제약이 이미 스탯을 32까지 밀어놨으면 더 못 넣는다."""
+        constraints = [
+            KnockoutConstraint("확정 1타", opponent=opponent_defender(hp=104), move=physical())
+        ]
+        result = solve(chart, target(), constraints, priority=AllocationPriority.PHYSICAL_OFFENSE)
+        assert isinstance(result, Solution)
+        assert result.spread.attack == MAX_POINTS_PER_STAT
+
+    def test_magic_landing_consumes_entire_budget(self, chart):
+        """매직넘버 착지로 예산이 정확히 0이 되면 그 뒤 배분은 없다."""
+        rising = target(
+            natures={StatKey.SPEED: NatureModifier.UP, StatKey.SP_ATTACK: NatureModifier.DOWN}
+        )
+        constraints = [
+            SurviveConstraint(
+                "얼음 버티기",
+                opponent=opponent_attacker(attack=200, types=(PokemonType.ICE,)),
+                move=ice_move(),
+            ),
+            OutspeedConstraint("추월 160", 160),
+        ]
+        result = solve(chart, rising, constraints, priority=AllocationPriority.SPEED)
+        if isinstance(result, Solution):
+            assert result.spread.total <= MAX_TOTAL_POINTS
+
+    def test_constraints_consume_the_entire_budget(self, chart):
+        """제약이 66 을 정확히 다 쓰면 우선순위를 줘도 더 넣을 게 없다."""
+        constraints = [
+            SurviveConstraint(
+                "얼음 버티기",
+                opponent=opponent_attacker(attack=200, types=(PokemonType.ICE,)),
+                move=ice_move(),
+            ),
+            OutspeedConstraint("추월 151", 151),
+        ]
+        without = solve(chart, target(), constraints)
+        assert isinstance(without, Solution)
+        assert without.spread.total == MAX_TOTAL_POINTS
+
+        with_priority = solve(
+            chart, target(), constraints, priority=AllocationPriority.PHYSICAL_BULK
+        )
+        assert isinstance(with_priority, Solution)
+        assert with_priority.spread == without.spread

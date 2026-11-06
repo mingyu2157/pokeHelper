@@ -23,3 +23,10 @@ class UnknownPokemonType(DomainError):
 
 class UnknownItemEffect(DomainError):
     """도구 데이터에 알 수 없는 효과 종류가 들어 있다."""
+
+
+class InvalidNatureSpread(DomainError):
+    """성격 보정이 불가능한 조합이다.
+
+    상승·하락 보정은 각각 한 스탯에만 걸리고, HP 는 보정을 받지 않는다.
+    """
