@@ -60,7 +60,11 @@ class BuildTarget:
     types: tuple[PokemonType, ...] = ()
 
     def __post_init__(self) -> None:
-        """성격 보정은 상승·하락 각각 한 스탯뿐이고 HP 에는 걸리지 않는다.
+        """성격 보정 조합이 실제로 존재할 수 있는지 검증한다.
+
+        - 상승·하락은 각각 한 스탯뿐이다
+        - **항상 쌍이다** — 하나를 올리면 반드시 하나를 내린다 (무보정이면 둘 다 없다)
+        - HP 는 보정을 받지 않는다
 
         두 스탯이 동시에 1.1배인 포켓몬은 존재하지 않는다. 막지 않으면
         불가능한 배분으로 계산한 수치가 사용자에게 나간다 (5-0 의 정신).
@@ -76,6 +80,12 @@ class BuildTarget:
         if len(falling) > 1:
             raise InvalidNatureSpread(
                 f"하락보정은 한 스탯에만 걸린다. 받은 스탯: {[s.name for s in falling]}"
+            )
+        if len(rising) != len(falling):
+            raise InvalidNatureSpread(
+                "성격 보정은 항상 쌍이다 — 하나를 올리면 반드시 하나를 내린다 "
+                "(무보정 성격이면 둘 다 없다). "
+                f"상승 {[s.name for s in rising]} / 하락 {[s.name for s in falling]}"
             )
 
     def modifier(self, stat: StatKey) -> NatureModifier:

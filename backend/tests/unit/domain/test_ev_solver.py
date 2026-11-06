@@ -74,7 +74,12 @@ class TestOutspeed:
 
     def test_uses_declared_nature(self, chart):
         """판정은 포인트가 아니라 최종 실수치다 (규칙 3)."""
-        rising = target(natures={StatKey.SPEED: NatureModifier.UP})
+        rising = target(
+            natures={
+                StatKey.SPEED: NatureModifier.UP,
+                StatKey.SP_ATTACK: NatureModifier.DOWN,
+            }
+        )
         result = solve(chart, rising, [OutspeedConstraint("상대 150", 150)])
         assert isinstance(result, Solution)
         actual = calc_stat(GARCHOMP.speed, result.spread.speed, NatureModifier.UP)
@@ -410,6 +415,23 @@ class TestNatureValidation:
         with pytest.raises(InvalidNatureSpread):
             solve(chart, target(natures={StatKey.HP: NatureModifier.UP}), [])
 
+    def test_rejects_rising_without_falling(self):
+        """성격은 항상 쌍이다 — 하나를 올리면 반드시 하나를 내린다."""
+        from app.domain.exceptions import InvalidNatureSpread
+
+        with pytest.raises(InvalidNatureSpread):
+            BuildTarget(base_stats=GARCHOMP, natures={StatKey.SPEED: NatureModifier.UP})
+
+    def test_rejects_falling_without_rising(self):
+        from app.domain.exceptions import InvalidNatureSpread
+
+        with pytest.raises(InvalidNatureSpread):
+            BuildTarget(base_stats=GARCHOMP, natures={StatKey.SPEED: NatureModifier.DOWN})
+
+    def test_accepts_neutral_nature(self):
+        """무보정 성격은 상승도 하락도 없다."""
+        assert BuildTarget(base_stats=GARCHOMP, natures={}) is not None
+
     def test_accepts_one_up_and_one_down(self, chart):
         result = solve(
             chart,
@@ -498,7 +520,9 @@ class TestMagicNumberLanding:
 
     def test_pushes_one_point_to_land(self, chart):
         """추월에 7포인트면 충분하지만, 1포인트 더 주면 실수치가 2 오른다."""
-        rising = target(natures={StatKey.SPEED: NatureModifier.UP})
+        rising = target(
+            natures={StatKey.SPEED: NatureModifier.UP, StatKey.SP_ATTACK: NatureModifier.DOWN}
+        )
         # 상승보정 스피드: p=7 -> 141, p=8 -> 143 (매직넘버)
         result = solve(
             chart,
@@ -510,7 +534,9 @@ class TestMagicNumberLanding:
         assert result.spread.speed == 8
 
     def test_landing_is_justified(self, chart):
-        rising = target(natures={StatKey.SPEED: NatureModifier.UP})
+        rising = target(
+            natures={StatKey.SPEED: NatureModifier.UP, StatKey.SP_ATTACK: NatureModifier.DOWN}
+        )
         result = solve(
             chart,
             rising,
@@ -532,7 +558,9 @@ class TestMagicNumberLanding:
         assert result.spread.speed == 9
 
     def test_landing_respects_the_budget(self, chart):
-        rising = target(natures={StatKey.SPEED: NatureModifier.UP})
+        rising = target(
+            natures={StatKey.SPEED: NatureModifier.UP, StatKey.SP_ATTACK: NatureModifier.DOWN}
+        )
         result = solve(
             chart,
             rising,
@@ -548,7 +576,9 @@ class TestAllocationEdges:
 
     def test_no_room_to_land_on_magic_number(self, chart):
         """매직넘버까지 거리가 남은 예산보다 크면 착지하지 않는다."""
-        rising = target(natures={StatKey.SPEED: NatureModifier.UP})
+        rising = target(
+            natures={StatKey.SPEED: NatureModifier.UP, StatKey.SP_ATTACK: NatureModifier.DOWN}
+        )
         constraints = [
             OutspeedConstraint("추월", 134),  # 상승보정 0포인트가 134 -> 1포인트 필요
             SurviveConstraint(
@@ -587,7 +617,9 @@ class TestAllocationEdges:
 
     def test_magic_landing_consumes_entire_budget(self, chart):
         """매직넘버 착지로 예산이 정확히 0이 되면 그 뒤 배분은 없다."""
-        rising = target(natures={StatKey.SPEED: NatureModifier.UP})
+        rising = target(
+            natures={StatKey.SPEED: NatureModifier.UP, StatKey.SP_ATTACK: NatureModifier.DOWN}
+        )
         constraints = [
             SurviveConstraint(
                 "얼음 버티기",
