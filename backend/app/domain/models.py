@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
 
+from app.domain.nature import StatKey
 from app.domain.typechart import PokemonType
 
 
@@ -61,3 +62,31 @@ class Defender:
         if category is MoveCategory.SPECIAL:
             return self.special_defense_stat
         return self.defense_stat
+
+
+@dataclass(frozen=True)
+class BaseStats:
+    """포켓몬 고유 종족값 6개. 노력치·성격이 적용되기 전 값이다."""
+
+    hp: int
+    attack: int
+    defense: int
+    sp_attack: int
+    sp_defense: int
+    speed: int
+
+    def of(self, stat: StatKey) -> int:
+        return {
+            StatKey.HP: self.hp,
+            StatKey.ATTACK: self.attack,
+            StatKey.DEFENSE: self.defense,
+            StatKey.SP_ATTACK: self.sp_attack,
+            StatKey.SP_DEFENSE: self.sp_defense,
+            StatKey.SPEED: self.speed,
+        }[stat]
+
+    def offensive_key(self, category: MoveCategory) -> StatKey:
+        return StatKey.SP_ATTACK if category is MoveCategory.SPECIAL else StatKey.ATTACK
+
+    def defensive_key(self, category: MoveCategory) -> StatKey:
+        return StatKey.SP_DEFENSE if category is MoveCategory.SPECIAL else StatKey.DEFENSE
