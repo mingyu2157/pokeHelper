@@ -30,3 +30,7 @@ class InvalidNatureSpread(DomainError):
 
     상승·하락 보정은 각각 한 스탯에만 걸리고, HP 는 보정을 받지 않는다.
     """
+
+
+class UnknownNature(DomainError):
+    """성격 데이터에 알 수 없는 이름이나 스탯이 들어 있다."""
