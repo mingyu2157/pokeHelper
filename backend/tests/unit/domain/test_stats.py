@@ -223,3 +223,77 @@ class TestMagicNumber:
                 before = calc_stat(GARCHOMP_BASE_SPEED, points, NatureModifier.UP)
                 after = calc_stat(GARCHOMP_BASE_SPEED, points + 1, NatureModifier.UP)
                 assert after - before == 2
+
+
+class TestRankStage:
+    """랭크(능력 변화) 배율. 본가와 같다 (2026-11-10 개발자 확인).
+
+    능력치는 (2+n)/2 배, 하락은 2/(2+n) 배.
+    명중률·회피율은 (3+n)/3 로 표가 다르지만 데미지 계산에는 쓰지 않는다.
+
+    분수라서 정수 연산으로 정확히 계산할 수 있다.
+    """
+
+    @pytest.mark.parametrize(
+        ("stage", "expected"),
+        [
+            (6, 400),
+            (5, 350),
+            (4, 300),
+            (3, 250),
+            (2, 200),
+            (1, 150),
+            (0, 100),
+            (-1, 66),
+            (-2, 50),
+            (-3, 40),
+            (-4, 33),
+            (-5, 28),
+            (-6, 25),
+        ],
+    )
+    def test_matches_the_published_table(self, stage, expected):
+        """실수치 100 기준. 위키 표의 퍼센트와 맞아야 한다."""
+        from app.domain.stats import apply_rank_stage
+
+        assert apply_rank_stage(100, stage) == expected
+
+    def test_zero_stage_changes_nothing(self):
+        from app.domain.stats import apply_rank_stage
+
+        for stat in (1, 57, 154, 332):
+            assert apply_rank_stage(stat, 0) == stat
+
+    def test_rounds_down(self):
+        from app.domain.stats import apply_rank_stage
+
+        # 101 × 3/2 = 151.5 -> 151
+        assert apply_rank_stage(101, 1) == 151
+        # 100 × 2/3 = 66.67 -> 66
+        assert apply_rank_stage(100, -1) == 66
+
+    def test_never_drops_below_one(self):
+        from app.domain.stats import apply_rank_stage
+
+        assert apply_rank_stage(1, -6) == 1
+
+    def test_is_monotonic(self):
+        from app.domain.stats import apply_rank_stage
+
+        values = [apply_rank_stage(154, s) for s in range(-6, 7)]
+        assert values == sorted(values)
+
+    @pytest.mark.parametrize("stage", [-7, 7, 100])
+    def test_rejects_out_of_range_stage(self, stage):
+        from app.domain.exceptions import InvalidRankStage
+        from app.domain.stats import apply_rank_stage
+
+        with pytest.raises(InvalidRankStage):
+            apply_rank_stage(100, stage)
+
+    def test_rejects_invalid_stat(self):
+        from app.domain.exceptions import InvalidBaseStat
+        from app.domain.stats import apply_rank_stage
+
+        with pytest.raises(InvalidBaseStat):
+            apply_rank_stage(0, 1)
