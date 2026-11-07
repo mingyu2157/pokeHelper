@@ -10,9 +10,27 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, Field
+
+# ── 입력 상한 ────────────────────────────────────────────────────────────
+# 근거: championsbattledata 폼 447개 전수 조사 (2026-11-10).
+#   종족값 최대 250 (Mega Aggron 방어), HP 최대 235 (Snorlax)
+#   HP 실수치 상한   = 235 + 75 + 32 = 342
+#   기타 실수치 상한 = floor((250 + 20 + 32) * 1.1) = 332
+#
+# **느슨한 상한이다.** 입력받는 실수치는 랭크업·도구가 이미 반영된 값이라
+# (ADR-007) 순수 상한의 몇 배가 될 수 있다 — 랭크업 6단계(x4)에 구애띠(x1.5)면
+# 약 1,992 다. 그래서 오타(99999)만 막는 수준으로 잡는다.
+# 랭크업·도구를 별도 필드로 받게 되면 그때 엄격하게 조인다.
+MAX_BASE_STAT: Final[int] = 255
+MAX_ACTUAL_STAT: Final[int] = 2000
+MAX_MOVE_POWER: Final[int] = 300
+# 최대 만족 부분집합 탐색이 2^n 이라 제약 수에 상한이 필요하다.
+MAX_CONSTRAINTS: Final[int] = 8
+# 확정 n타 — 실전에서 n 이 커질 일이 없다.
+MAX_HITS: Final[int] = 8
 
 StatName = Literal["HP", "ATTACK", "DEFENSE", "SP_ATTACK", "SP_DEFENSE", "SPEED"]
 PriorityName = Literal[
@@ -23,17 +41,21 @@ MoveCategoryName = Literal["physical", "special", "status"]
 TypeList = Annotated[list[str], Field(min_length=1, max_length=2)]
 
 
+BaseStatValue = Annotated[int, Field(gt=0, le=MAX_BASE_STAT)]
+ActualStatValue = Annotated[int, Field(gt=0, le=MAX_ACTUAL_STAT)]
+
+
 class BaseStatsIn(BaseModel):
-    hp: int = Field(gt=0)
-    attack: int = Field(gt=0)
-    defense: int = Field(gt=0)
-    sp_attack: int = Field(gt=0)
-    sp_defense: int = Field(gt=0)
-    speed: int = Field(gt=0)
+    hp: BaseStatValue
+    attack: BaseStatValue
+    defense: BaseStatValue
+    sp_attack: BaseStatValue
+    sp_defense: BaseStatValue
+    speed: BaseStatValue
 
 
 class MoveIn(BaseModel):
-    power: int = Field(ge=0)
+    power: int = Field(ge=0, le=MAX_MOVE_POWER)
     type: str
     category: MoveCategoryName
 
@@ -41,8 +63,8 @@ class MoveIn(BaseModel):
 class AttackerIn(BaseModel):
     """상대 공격 측. 도구·랭크가 이미 반영된 실수치다 (ADR-007)."""
 
-    attack_stat: int = Field(gt=0)
-    special_attack_stat: int = Field(gt=0)
+    attack_stat: ActualStatValue
+    special_attack_stat: ActualStatValue
     types: TypeList
     is_burned: bool = False
 
@@ -50,16 +72,16 @@ class AttackerIn(BaseModel):
 class DefenderIn(BaseModel):
     """상대 방어 측. 도구·랭크가 이미 반영된 실수치다 (ADR-007)."""
 
-    defense_stat: int = Field(gt=0)
-    special_defense_stat: int = Field(gt=0)
-    hp_stat: int = Field(gt=0)
+    defense_stat: ActualStatValue
+    special_defense_stat: ActualStatValue
+    hp_stat: ActualStatValue
     types: TypeList
 
 
 class OutspeedIn(BaseModel):
     kind: Literal["outspeed"]
     label: str
-    target_speed: int = Field(gt=0)
+    target_speed: ActualStatValue
 
 
 class KnockoutIn(BaseModel):
@@ -67,7 +89,7 @@ class KnockoutIn(BaseModel):
     label: str
     opponent: DefenderIn
     move: MoveIn
-    hits: int = Field(default=1, ge=1)
+    hits: int = Field(default=1, ge=1, le=MAX_HITS)
 
 
 class SurviveIn(BaseModel):
@@ -75,7 +97,7 @@ class SurviveIn(BaseModel):
     label: str
     opponent: AttackerIn
     move: MoveIn
-    hits: int = Field(default=1, ge=1)
+    hits: int = Field(default=1, ge=1, le=MAX_HITS)
 
 
 ConstraintIn = Annotated[OutspeedIn | KnockoutIn | SurviveIn, Field(discriminator="kind")]
@@ -92,7 +114,7 @@ class EvTuneRequest(BaseModel):
         default=None,
         description="남은 포인트를 부을 곳. 생략하면 제약 만족에 필요한 만큼만 쓴다.",
     )
-    constraints: list[ConstraintIn] = Field(default_factory=list)
+    constraints: list[ConstraintIn] = Field(default_factory=list, max_length=MAX_CONSTRAINTS)
 
 
 class SpreadOut(BaseModel):
