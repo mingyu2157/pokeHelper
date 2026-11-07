@@ -1,0 +1,111 @@
+{
+  "_meta": {
+    "source": "https://pokeapi.co/api/v2/nature",
+    "generated_by": "backend/scripts/generate_natures.py",
+    "note": "한국어 명칭은 담지 않는다. 한영 매핑은 name_map.json 이 담당한다 (ADR-005). raised/lowered 가 둘 다 null 이면 무보정 성격이다.",
+    "count": 25,
+    "neutral_count": 5
+  },
+  "natures": {
+    "adamant": {
+      "raised": "ATTACK",
+      "lowered": "SP_ATTACK"
+    },
+    "bashful": {
+      "raised": null,
+      "lowered": null
+    },
+    "bold": {
+      "raised": "DEFENSE",
+      "lowered": "ATTACK"
+    },
+    "brave": {
+      "raised": "ATTACK",
+      "lowered": "SPEED"
+    },
+    "calm": {
+      "raised": "SP_DEFENSE",
+      "lowered": "ATTACK"
+    },
+    "careful": {
+      "raised": "SP_DEFENSE",
+      "lowered": "SP_ATTACK"
+    },
+    "docile": {
+      "raised": null,
+      "lowered": null
+    },
+    "gentle": {
+      "raised": "SP_DEFENSE",
+      "lowered": "DEFENSE"
+    },
+    "hardy": {
+      "raised": null,
+      "lowered": null
+    },
+    "hasty": {
+      "raised": "SPEED",
+      "lowered": "DEFENSE"
+    },
+    "impish": {
+      "raised": "DEFENSE",
+      "lowered": "SP_ATTACK"
+    },
+    "jolly": {
+      "raised": "SPEED",
+      "lowered": "SP_ATTACK"
+    },
+    "lax": {
+      "raised": "DEFENSE",
+      "lowered": "SP_DEFENSE"
+    },
+    "lonely": {
+      "raised": "ATTACK",
+      "lowered": "DEFENSE"
+    },
+    "mild": {
+      "raised": "SP_ATTACK",
+      "lowered": "DEFENSE"
+    },
+    "modest": {
+      "raised": "SP_ATTACK",
+      "lowered": "ATTACK"
+    },
+    "naive": {
+      "raised": "SPEED",
+      "lowered": "SP_DEFENSE"
+    },
+    "naughty": {
+      "raised": "ATTACK",
+      "lowered": "SP_DEFENSE"
+    },
+    "quiet": {
+      "raised": "SP_ATTACK",
+      "lowered": "SPEED"
+    },
+    "quirky": {
+      "raised": null,
+      "lowered": null
+    },
+    "rash": {
+      "raised": "SP_ATTACK",
+      "lowered": "SP_DEFENSE"
+    },
+    "relaxed": {
+      "raised": "DEFENSE",
+      "lowered": "SPEED"
+    },
+    "sassy": {
+      "raised": "SP_DEFENSE",
+      "lowered": "SPEED"
+    },
+    "serious": {
+      "raised": null,
+      "lowered": null
+    },
+    "timid": {
+      "raised": "SPEED",
+      "lowered": "ATTACK"
+    }
+  }
+}
