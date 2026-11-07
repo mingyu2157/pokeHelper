@@ -6,8 +6,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.calc import router as calc_router
 from app.api.v1.health import router as health_router
 from app.core.config import get_settings
+from app.core.exceptions import register_handlers
 
 settings = get_settings()
 
@@ -25,5 +27,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 도메인 예외를 422 로 옮긴다. 불가능한 입력은 서버 오류가 아니다.
+register_handlers(app)
+
 # /health 는 로드밸런서가 때리는 경로라 버전 프리픽스 없이 루트에 둔다.
 app.include_router(health_router)
+app.include_router(calc_router)
