@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -24,19 +25,39 @@ from typing import Final
 
 from app.domain.constants import (
     MAX_POINTS_PER_STAT,
+    MAX_RANK_STAGE,
     MAX_TOTAL_POINTS,
     MIN_POINTS_PER_STAT,
+    MIN_RANK_STAGE,
 )
-from app.domain.damage import calculate
+from app.domain.damage import Weather, calculate
 from app.domain.effort import EffortSpread
-from app.domain.exceptions import InvalidNatureSpread
+from app.domain.exceptions import (
+    InvalidNatureSpread,
+    InvalidRankStage,
+    UnknownItemEffect,
+)
 from app.domain.indices import bulk_index
+from app.domain.items import (
+    ItemCatalog,
+    ItemEffect,
+    ItemEffectKind,
+    defensive_multiplier,
+    grants_immunity,
+    offensive_multiplier,
+)
 from app.domain.models import Attacker, BaseStats, Defender, MoveSpec
 from app.domain.nature import NatureModifier, StatKey
-from app.domain.stats import calc_hp, calc_stat, points_to_next_magic_number
-from app.domain.typechart import PokemonType, TypeChart
+from app.domain.stats import (
+    apply_rank_stage,
+    calc_hp,
+    calc_stat,
+    points_to_next_magic_number,
+)
+from app.domain.typechart import PokemonType, TypeChart, effectiveness
 
 _POINT_RANGE: Final[range] = range(MIN_POINTS_PER_STAT, MAX_POINTS_PER_STAT + 1)
+NEUTRAL_MULTIPLIER: Final[float] = 1.0
 
 _STAT_FIELDS: Final[Mapping[StatKey, str]] = {
     StatKey.HP: "hp",
@@ -58,6 +79,8 @@ class BuildTarget:
     base_stats: BaseStats
     natures: Mapping[StatKey, NatureModifier] = field(default_factory=dict)
     types: tuple[PokemonType, ...] = ()
+    item_id: str | None = None
+    rank_stages: Mapping[StatKey, int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """성격 보정 조합이 실제로 존재할 수 있는지 검증한다.
@@ -81,6 +104,14 @@ class BuildTarget:
             raise InvalidNatureSpread(
                 f"하락보정은 한 스탯에만 걸린다. 받은 스탯: {[s.name for s in falling]}"
             )
+        if StatKey.HP in self.rank_stages:
+            raise InvalidRankStage("HP 에는 랭크가 없다.")
+        for stat, stage in self.rank_stages.items():
+            if not MIN_RANK_STAGE <= stage <= MAX_RANK_STAGE:
+                raise InvalidRankStage(
+                    f"{stat.name}: 랭크 단계는 {MIN_RANK_STAGE} ~ {MAX_RANK_STAGE} "
+                    f"범위다. 받은 값: {stage}"
+                )
         if len(rising) != len(falling):
             raise InvalidNatureSpread(
                 "성격 보정은 항상 쌍이다 — 하나를 올리면 반드시 하나를 내린다 "
@@ -92,10 +123,27 @@ class BuildTarget:
         return self.natures.get(stat, NatureModifier.NEUTRAL)
 
     def actual(self, stat: StatKey, points: int) -> int:
+        """랭크까지 반영한 실수치. 랭크는 스탯 단계 보정이다 (ADR-007)."""
         base = self.base_stats.of(stat)
         if stat is StatKey.HP:
             return calc_hp(base, points)
-        return calc_stat(base, points, self.modifier(stat))
+        raw = calc_stat(base, points, self.modifier(stat))
+        stage = self.rank_stages.get(stat, 0)
+        return apply_rank_stage(raw, stage) if stage else raw
+
+
+@dataclass(frozen=True)
+class BattleContext:
+    """대면 상황. 제약 전체에 공통으로 걸린다.
+
+    벽·필드는 배율로 받는다. 챔피언스의 정확한 수치가 확인된 건 벽(0.5)뿐이고
+    필드는 자료가 없어서, 도메인이 값을 정하지 않는다 (ADR-007).
+    """
+
+    weather: Weather = Weather.CLEAR
+    is_critical: bool = False
+    screen: float = 1.0
+    field_multiplier: float = 1.0
 
 
 class AllocationPriority(Enum):
@@ -128,6 +176,8 @@ class KnockoutConstraint:
     opponent: Defender
     move: MoveSpec
     hits: int = 1
+    opponent_item_id: str | None = None
+    opponent_rank_stage: int = 0
 
 
 @dataclass(frozen=True)
@@ -138,6 +188,8 @@ class SurviveConstraint:
     opponent: Attacker
     move: MoveSpec
     hits: int = 1
+    opponent_item_id: str | None = None
+    opponent_rank_stage: int = 0
 
 
 type Constraint = OutspeedConstraint | KnockoutConstraint | SurviveConstraint
@@ -212,15 +264,36 @@ class _Candidate:
         return sum(self.points.values())
 
 
+def _effect(catalog: ItemCatalog, item_id: str | None) -> ItemEffect | None:
+    """도구 효과 조회. 모르는 도구는 무시하지 않고 실패시킨다.
+
+    조용히 넘기면 "생명의구슬을 들었는데 반영이 안 된" 계산이 나간다.
+    """
+    if item_id is None:
+        return None
+    effect = catalog.get(item_id)
+    if effect is None:
+        raise UnknownItemEffect(f"알 수 없는 도구: {item_id!r}")
+    return effect
+
+
+def _speed_multiplier(effect: ItemEffect | None) -> float:
+    if effect is not None and effect.kind is ItemEffectKind.SPEED:
+        return effect.multiplier
+    return NEUTRAL_MULTIPLIER
+
+
 def _spread_from(points: Mapping[StatKey, int]) -> EffortSpread:
     return EffortSpread(**{_STAT_FIELDS[stat]: value for stat, value in points.items()})
 
 
 def _outspeed_candidates(
-    target: BuildTarget, constraint: OutspeedConstraint
+    target: BuildTarget,
+    constraint: OutspeedConstraint,
+    speed_multiplier: float,
 ) -> tuple[_Candidate, ...]:
     for points in _POINT_RANGE:
-        actual = target.actual(StatKey.SPEED, points)
+        actual = math.floor(target.actual(StatKey.SPEED, points) * speed_multiplier)
         if actual > constraint.target_speed:
             detail = f"{constraint.label}({constraint.target_speed}) 추월 — 실수치 {actual}"
             return (
@@ -235,18 +308,45 @@ def _outspeed_candidates(
 
 
 def _knockout_candidates(
-    chart: TypeChart, target: BuildTarget, constraint: KnockoutConstraint
+    chart: TypeChart,
+    catalog: ItemCatalog,
+    target: BuildTarget,
+    constraint: KnockoutConstraint,
+    context: BattleContext,
 ) -> tuple[_Candidate, ...]:
     stat = target.base_stats.offensive_key(constraint.move.category)
+    move_type = constraint.move.move_type
+    opponent = _ranked_defender(constraint)
+    effectiveness_value = effectiveness(chart, move_type, opponent.types)
+
+    our_item = _effect(catalog, target.item_id)
+    their_item = _effect(catalog, constraint.opponent_item_id)
+    if grants_immunity(their_item, move_type):
+        return ()
+
+    item_multiplier = offensive_multiplier(
+        our_item, move_type, effectiveness_value
+    ) * defensive_multiplier(their_item, move_type, effectiveness_value)
+
     for points in _POINT_RANGE:
         attack = target.actual(stat, points)
         attacker = Attacker(attack_stat=attack, special_attack_stat=attack, types=target.types)
-        result = calculate(chart, attacker, constraint.opponent, constraint.move)
-        if result.rolls[0] * constraint.hits >= constraint.opponent.hp_stat:
+        result = calculate(
+            chart,
+            attacker,
+            opponent,
+            constraint.move,
+            weather=context.weather,
+            is_critical=context.is_critical,
+            screen=context.screen,
+            field_multiplier=context.field_multiplier,
+            item=item_multiplier,
+        )
+        if result.rolls[0] * constraint.hits >= opponent.hp_stat:
             detail = (
                 f"{constraint.label} 확정 {constraint.hits}타 — "
                 f"최소 roll {result.rolls[0]} × {constraint.hits} "
-                f"≥ HP {constraint.opponent.hp_stat}"
+                f"≥ HP {opponent.hp_stat}"
             )
             return (
                 _Candidate(
@@ -258,7 +358,11 @@ def _knockout_candidates(
 
 
 def _survive_candidates(
-    chart: TypeChart, target: BuildTarget, constraint: SurviveConstraint
+    chart: TypeChart,
+    catalog: ItemCatalog,
+    target: BuildTarget,
+    constraint: SurviveConstraint,
+    context: BattleContext,
 ) -> tuple[_Candidate, ...]:
     """HP 와 방어 두 축이라 파레토 전선을 만든다.
 
@@ -266,6 +370,26 @@ def _survive_candidates(
     총 투자가 더 적거나 같으면서 다른 축도 더 적은 안만 남긴다.
     """
     defense_stat = target.base_stats.defensive_key(constraint.move.category)
+    move_type = constraint.move.move_type
+    effectiveness_value = effectiveness(chart, move_type, target.types)
+
+    our_item = _effect(catalog, target.item_id)
+    their_item = _effect(catalog, constraint.opponent_item_id)
+    if grants_immunity(our_item, move_type):
+        # 무효면 투자 없이 버틴다.
+        detail = f"{constraint.label} 무효 — 도구가 {move_type.value} 기술을 막는다"
+        return (
+            _Candidate(
+                points={},
+                justifications=(Justification(StatKey.HP, 0, constraint.label, detail),),
+            ),
+        )
+
+    item_multiplier = offensive_multiplier(
+        their_item, move_type, effectiveness_value
+    ) * defensive_multiplier(our_item, move_type, effectiveness_value)
+    attacker = _ranked_attacker(constraint)
+
     frontier: list[_Candidate] = []
     best_defense_points = MAX_POINTS_PER_STAT + 1
 
@@ -279,7 +403,17 @@ def _survive_candidates(
                 hp_stat=hp,
                 types=target.types,
             )
-            result = calculate(chart, constraint.opponent, defender, constraint.move)
+            result = calculate(
+                chart,
+                attacker,
+                defender,
+                constraint.move,
+                weather=context.weather,
+                is_critical=context.is_critical,
+                screen=context.screen,
+                field_multiplier=context.field_multiplier,
+                item=item_multiplier,
+            )
             if result.rolls[-1] * constraint.hits < hp:
                 detail = (
                     f"{constraint.label} {constraint.hits}회 버팀 — "
@@ -307,14 +441,47 @@ def _survive_candidates(
     return tuple(frontier)
 
 
+def _ranked_attacker(constraint: SurviveConstraint) -> Attacker:
+    """상대 공격 측에 랭크를 적용한다. 용의춤 쌓은 상대를 표현한다."""
+    stage = constraint.opponent_rank_stage
+    if not stage:
+        return constraint.opponent
+    original = constraint.opponent
+    return Attacker(
+        attack_stat=apply_rank_stage(original.attack_stat, stage),
+        special_attack_stat=apply_rank_stage(original.special_attack_stat, stage),
+        types=original.types,
+        is_burned=original.is_burned,
+    )
+
+
+def _ranked_defender(constraint: KnockoutConstraint) -> Defender:
+    """상대 방어 측에 랭크를 적용한다. HP 는 랭크가 없다."""
+    stage = constraint.opponent_rank_stage
+    if not stage:
+        return constraint.opponent
+    original = constraint.opponent
+    return Defender(
+        defense_stat=apply_rank_stage(original.defense_stat, stage),
+        special_defense_stat=apply_rank_stage(original.special_defense_stat, stage),
+        hp_stat=original.hp_stat,
+        types=original.types,
+    )
+
+
 def _candidates_for(
-    chart: TypeChart, target: BuildTarget, constraint: Constraint
+    chart: TypeChart,
+    catalog: ItemCatalog,
+    target: BuildTarget,
+    constraint: Constraint,
+    context: BattleContext,
 ) -> tuple[_Candidate, ...]:
     if isinstance(constraint, OutspeedConstraint):
-        return _outspeed_candidates(target, constraint)
+        speed = _speed_multiplier(_effect(catalog, target.item_id))
+        return _outspeed_candidates(target, constraint, speed)
     if isinstance(constraint, KnockoutConstraint):
-        return _knockout_candidates(chart, target, constraint)
-    return _survive_candidates(chart, target, constraint)
+        return _knockout_candidates(chart, catalog, target, constraint, context)
+    return _survive_candidates(chart, catalog, target, constraint, context)
 
 
 def _combine(choices: Sequence[_Candidate]) -> tuple[dict[StatKey, int], int]:
@@ -517,21 +684,34 @@ def _allocate_residual(
 
 def solve(
     chart: TypeChart,
+    catalog: ItemCatalog,
     target: BuildTarget,
     constraints: Sequence[Constraint],
     *,
     priority: AllocationPriority | None = None,
+    context: BattleContext | None = None,
 ) -> SolverResult:
     """제약을 만족하는 최소 배분을 찾는다. 없으면 무엇이 충돌하는지 알린다.
 
     `priority` 를 주면 제약을 만족하고 남은 포인트까지 쓴다 (규칙 4).
     주지 않으면 필요한 만큼만 쓰고 남긴다.
+
+    `context` 는 날씨·급소·벽·필드처럼 제약 전체에 공통으로 걸리는 대면 상황이다.
+    도구는 `BuildTarget.item_id` 와 각 제약의 `opponent_item_id` 로 받는다.
     """
+    battle = context or BattleContext()
+
+    # 도구를 먼저 해석한다. 제약이 없어도 잘못된 입력은 통과시키지 않는다.
+    _effect(catalog, target.item_id)
+    for constraint in constraints:
+        if not isinstance(constraint, OutspeedConstraint):
+            _effect(catalog, constraint.opponent_item_id)
+
     if not constraints:
         allocated, extra = _allocate_residual(target, {}, priority)
         return Solution(spread=_spread_from(allocated), justifications=extra)
 
-    candidate_sets = [_candidates_for(chart, target, c) for c in constraints]
+    candidate_sets = [_candidates_for(chart, catalog, target, c, battle) for c in constraints]
     pairs = list(zip(constraints, candidate_sets, strict=True))
 
     impossible = tuple(c.label for c, candidates in pairs if not candidates)
@@ -552,13 +732,11 @@ def solve(
         budget=MAX_TOTAL_POINTS,
         per_constraint_points=per_constraint,
         impossible=impossible,
-        options=_maximal_options(chart, target, constraints, candidate_sets),
+        options=_maximal_options(constraints, candidate_sets),
     )
 
 
 def _maximal_options(
-    chart: TypeChart,
-    target: BuildTarget,
     constraints: Sequence[Constraint],
     candidate_sets: Sequence[tuple[_Candidate, ...]],
 ) -> tuple[Option, ...]:

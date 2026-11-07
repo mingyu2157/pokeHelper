@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from typing import Final
 
-from app.core.seed import nature_catalog, type_chart
+from app.core.seed import item_catalog, nature_catalog, type_chart
 from app.domain import ev_solver
+from app.domain.damage import Weather
 from app.domain.ev_solver import (
     AllocationPriority,
+    BattleContext,
     BuildTarget,
     Constraint,
     Infeasible,
@@ -26,6 +28,7 @@ from app.domain.nature import StatKey
 from app.domain.typechart import PokemonType
 from app.schemas.ev_tune import (
     AttackerIn,
+    BattleContextIn,
     ConstraintIn,
     DefenderIn,
     EvTuneInfeasible,
@@ -57,12 +60,41 @@ _CATEGORIES: Final[dict[str, MoveCategory]] = {
     "status": MoveCategory.STATUS,
 }
 
+_WEATHER: Final[dict[str, Weather]] = {
+    "clear": Weather.CLEAR,
+    "sun": Weather.SUN,
+    "rain": Weather.RAIN,
+    "sand": Weather.SAND,
+    "snow": Weather.SNOW,
+}
+
 # 어떤 요청에도 해당하는 전제. 숫자만 주고 전제를 숨기면 근거가 아니라 주장이 된다 (1-3).
 _BASE_ASSUMPTIONS: Final[tuple[str, ...]] = (
     "데미지 보정 체인은 A안(ADR-003)을 따른다. 게임 내 실측으로 확정되지 않은 잠정 결정이다.",
-    "도구·특성·날씨·벽·필드 보정은 적용하지 않았다. 해석 계층이 아직 없다.",
     "상대 스펙은 요청에 주어진 실수치를 그대로 사용했다. 메타 표본에서 추정하지 않았다.",
+    "특성 보정은 적용하지 않았다. 특성 시드 데이터가 아직 없다.",
+    "모래바람·설경은 데미지 배율이 아니라 스탯 단계 효과라 반영되지 않는다. "
+    "챔피언스 수치가 확인되지 않았다.",
 )
+
+_ITEM_ASSUMPTION: Final[str] = (
+    "도구 수치 대부분은 본가 기준 가정값이다(items.json 의 source: mainline-assumed). "
+    "챔피언스에서 확인된 것은 생명의구슬 1.3 뿐이다."
+)
+
+
+def _assumptions_for(request: EvTuneRequest) -> list[str]:
+    """이 요청에 실제로 해당하는 전제만 싣는다.
+
+    해당 없는 문장을 늘 붙이면 사용자가 읽지 않게 된다.
+    """
+    notes = list(_BASE_ASSUMPTIONS)
+    uses_item = request.item is not None or any(
+        getattr(c, "opponent_item", None) is not None for c in request.constraints
+    )
+    if uses_item:
+        notes.append(_ITEM_ASSUMPTION)
+    return notes
 
 
 def _parse_type(raw: str) -> PokemonType:
@@ -102,6 +134,15 @@ def _to_defender(data: DefenderIn) -> Defender:
     )
 
 
+def _to_context(data: BattleContextIn) -> BattleContext:
+    return BattleContext(
+        weather=_WEATHER[data.weather],
+        is_critical=data.is_critical,
+        screen=data.screen,
+        field_multiplier=data.field_multiplier,
+    )
+
+
 def _to_constraint(data: ConstraintIn) -> Constraint:
     if isinstance(data, OutspeedIn):
         return OutspeedConstraint(label=data.label, target_speed=data.target_speed)
@@ -111,6 +152,8 @@ def _to_constraint(data: ConstraintIn) -> Constraint:
             opponent=_to_defender(data.opponent),
             move=_to_move(data.move),
             hits=data.hits,
+            opponent_item_id=data.opponent_item,
+            opponent_rank_stage=data.opponent_rank_stage,
         )
     if isinstance(data, SurviveIn):
         return SurviveConstraint(
@@ -118,6 +161,8 @@ def _to_constraint(data: ConstraintIn) -> Constraint:
             opponent=_to_attacker(data.opponent),
             move=_to_move(data.move),
             hits=data.hits,
+            opponent_item_id=data.opponent_item,
+            opponent_rank_stage=data.opponent_rank_stage,
         )
     raise AssertionError(f"처리되지 않은 제약 종류: {type(data).__name__}")
 
@@ -156,12 +201,21 @@ def tune(request: EvTuneRequest) -> EvTuneSolution | EvTuneInfeasible:
         base_stats=BaseStats(**request.base_stats.model_dump()),
         natures=natures,  # type: ignore[arg-type]
         types=_parse_types(request.types),
+        item_id=request.item,
+        rank_stages={StatKey[name]: stage for name, stage in request.rank_stages.items()},
     )
     constraints = [_to_constraint(c) for c in request.constraints]
     priority = AllocationPriority[request.priority] if request.priority else None
 
-    result = ev_solver.solve(type_chart(), target, constraints, priority=priority)
-    assumptions = list(_BASE_ASSUMPTIONS)
+    result = ev_solver.solve(
+        type_chart(),
+        item_catalog(),
+        target,
+        constraints,
+        priority=priority,
+        context=_to_context(request.context),
+    )
+    assumptions = _assumptions_for(request)
 
     if isinstance(result, Solution):
         return EvTuneSolution(

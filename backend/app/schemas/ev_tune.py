@@ -31,12 +31,21 @@ MAX_MOVE_POWER: Final[int] = 300
 MAX_CONSTRAINTS: Final[int] = 8
 # 확정 n타 — 실전에서 n 이 커질 일이 없다.
 MAX_HITS: Final[int] = 8
+# 랭크(능력 변화)는 -6 ~ +6 이다.
+MAX_RANK_STAGE: Final[int] = 6
+# 벽·필드 배율. 0 은 무효를 뜻하므로 받지 않는다 — 무효는 도구·타입으로 표현한다.
+MIN_MULTIPLIER: Final[float] = 0.1
+MAX_MULTIPLIER: Final[float] = 4.0
 
 StatName = Literal["HP", "ATTACK", "DEFENSE", "SP_ATTACK", "SP_DEFENSE", "SPEED"]
 PriorityName = Literal[
     "PHYSICAL_OFFENSE", "SPECIAL_OFFENSE", "PHYSICAL_BULK", "SPECIAL_BULK", "SPEED"
 ]
 MoveCategoryName = Literal["physical", "special", "status"]
+WeatherName = Literal["clear", "sun", "rain", "sand", "snow"]
+
+RankStage = Annotated[int, Field(ge=-MAX_RANK_STAGE, le=MAX_RANK_STAGE)]
+Multiplier = Annotated[float, Field(ge=MIN_MULTIPLIER, le=MAX_MULTIPLIER)]
 
 TypeList = Annotated[list[str], Field(min_length=1, max_length=2)]
 
@@ -78,6 +87,20 @@ class DefenderIn(BaseModel):
     types: TypeList
 
 
+class BattleContextIn(BaseModel):
+    """대면 상황. 제약 전체에 공통으로 걸린다."""
+
+    weather: WeatherName = "clear"
+    is_critical: bool = False
+    screen: Multiplier = Field(
+        default=1.0,
+        description="벽 배율. 리플렉터·빛의장막·오로라베일은 모두 0.5 다.",
+    )
+    field_multiplier: Multiplier = Field(
+        default=1.0, description="필드 배율. 챔피언스 수치가 확인되지 않아 호출자가 정한다."
+    )
+
+
 class OutspeedIn(BaseModel):
     kind: Literal["outspeed"]
     label: str
@@ -90,6 +113,8 @@ class KnockoutIn(BaseModel):
     opponent: DefenderIn
     move: MoveIn
     hits: int = Field(default=1, ge=1, le=MAX_HITS)
+    opponent_item: str | None = None
+    opponent_rank_stage: RankStage = 0
 
 
 class SurviveIn(BaseModel):
@@ -98,6 +123,8 @@ class SurviveIn(BaseModel):
     opponent: AttackerIn
     move: MoveIn
     hits: int = Field(default=1, ge=1, le=MAX_HITS)
+    opponent_item: str | None = None
+    opponent_rank_stage: RankStage = 0
 
 
 ConstraintIn = Annotated[OutspeedIn | KnockoutIn | SurviveIn, Field(discriminator="kind")]
@@ -114,6 +141,11 @@ class EvTuneRequest(BaseModel):
         default=None,
         description="남은 포인트를 부을 곳. 생략하면 제약 만족에 필요한 만큼만 쓴다.",
     )
+    item: str | None = Field(default=None, description="우리 도구 영문 식별자 (예: lifeorb).")
+    rank_stages: dict[StatName, RankStage] = Field(
+        default_factory=dict, description="랭크(능력 변화). HP 는 받지 않는다."
+    )
+    context: BattleContextIn = Field(default_factory=BattleContextIn)
     constraints: list[ConstraintIn] = Field(default_factory=list, max_length=MAX_CONSTRAINTS)
 
 

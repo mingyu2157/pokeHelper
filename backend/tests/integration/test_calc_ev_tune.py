@@ -224,9 +224,22 @@ class TestAssumptions:
         assumptions = client.post(ENDPOINT, json=payload()).json()["assumptions"]
         assert any("ADR-003" in a for a in assumptions)
 
-    def test_mentions_missing_modifiers(self, client):
+    def test_no_longer_claims_items_are_ignored(self, client):
+        """보정 배선 후 — 도구가 적용되므로 그 전제는 사라져야 한다."""
         assumptions = client.post(ENDPOINT, json=payload()).json()["assumptions"]
-        assert any("도구" in a and "적용" in a for a in assumptions)
+        assert not any("도구" in a and "적용하지 않았다" in a for a in assumptions)
+
+    def test_mentions_abilities_are_still_missing(self, client):
+        """특성은 여전히 반영되지 않는다. 시드 데이터가 없다."""
+        assumptions = client.post(ENDPOINT, json=payload()).json()["assumptions"]
+        assert any("특성" in a and "적용하지 않았다" in a for a in assumptions)
+
+    def test_item_assumption_appears_only_when_items_are_used(self, client):
+        """해당 없는 전제를 늘 붙이면 사용자가 읽지 않게 된다."""
+        without = client.post(ENDPOINT, json=payload()).json()["assumptions"]
+        with_item = client.post(ENDPOINT, json=payload(item="lifeorb")).json()["assumptions"]
+        assert not any("mainline-assumed" in a for a in without)
+        assert any("mainline-assumed" in a for a in with_item)
 
     def test_infeasible_responses_carry_assumptions_too(self, client):
         body = client.post(

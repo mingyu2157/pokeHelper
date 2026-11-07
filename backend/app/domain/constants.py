@@ -31,3 +31,12 @@ MAX_TOTAL_POINTS: Final[int] = 66
 # 이 값이 들어오면 계산이 아니라 데이터 오류로 취급한다.
 MIN_BASE_STAT: Final[int] = 1
 SHEDINJA_BASE_HP: Final[int] = 1
+
+# 랭크(능력 변화). 본가와 동일하다 (2026-11-10 확인).
+#   능력치: +n -> (2+n)/2 배,  -n -> 2/(2+n) 배
+#   명중·회피는 (3+n)/3 으로 표가 다르지만 데미지 계산에는 쓰지 않는다.
+# 분수라서 정수 연산으로 정확히 계산할 수 있다.
+MAX_RANK_STAGE: Final[int] = 6
+MIN_RANK_STAGE: Final[int] = -6
+RANK_BASE: Final[int] = 2
+MIN_ACTUAL_STAT: Final[int] = 1

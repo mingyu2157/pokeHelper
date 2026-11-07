@@ -10,14 +10,18 @@ CLAUDE.md 5-1의 축약 공식:
 from app.domain.constants import (
     HP_OFFSET,
     MAX_POINTS_PER_STAT,
+    MAX_RANK_STAGE,
+    MIN_ACTUAL_STAT,
     MIN_BASE_STAT,
+    MIN_RANK_STAGE,
     NATURE_DENOMINATOR,
     NATURE_DOWN_NUMERATOR,
     NATURE_UP_NUMERATOR,
+    RANK_BASE,
     SHEDINJA_BASE_HP,
     STAT_OFFSET,
 )
-from app.domain.exceptions import InvalidBaseStat
+from app.domain.exceptions import InvalidBaseStat, InvalidRankStage
 from app.domain.nature import NatureModifier
 
 _NUMERATORS: dict[NatureModifier, int] = {
@@ -90,3 +94,25 @@ def points_to_next_magic_number(
     if effort_points + needed > MAX_POINTS_PER_STAT:
         return None
     return needed
+
+
+def apply_rank_stage(actual_stat: int, stage: int) -> int:
+    """랭크 단계를 실수치에 적용한다.
+
+    상승은 `(2+n)/2` 배, 하락은 `2/(2+n)` 배다 (본가와 동일, 2026-11-10 확인).
+    분수를 그대로 정수 연산으로 쓴다 — float 를 거치면 경계에서 어긋난다.
+
+    **이것은 스탯 단계 보정이다** (ADR-007). 데미지에 곱하는 배율이 아니라
+    기초 계산에 들어가는 실수치 자체를 바꾼다.
+    """
+    if actual_stat < MIN_ACTUAL_STAT:
+        raise InvalidBaseStat(f"실수치는 {MIN_ACTUAL_STAT} 이상이어야 한다: {actual_stat}")
+    if not MIN_RANK_STAGE <= stage <= MAX_RANK_STAGE:
+        raise InvalidRankStage(f"랭크 단계는 {MIN_RANK_STAGE} ~ {MAX_RANK_STAGE} 범위다: {stage}")
+
+    if stage >= 0:
+        numerator, denominator = RANK_BASE + stage, RANK_BASE
+    else:
+        numerator, denominator = RANK_BASE, RANK_BASE - stage
+
+    return max(actual_stat * numerator // denominator, MIN_ACTUAL_STAT)

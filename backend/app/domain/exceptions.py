@@ -34,3 +34,7 @@ class InvalidNatureSpread(DomainError):
 
 class UnknownNature(DomainError):
     """성격 데이터에 알 수 없는 이름이나 스탯이 들어 있다."""
+
+
+class InvalidRankStage(DomainError):
+    """랭크 단계가 -6 ~ +6 범위를 벗어났다."""
