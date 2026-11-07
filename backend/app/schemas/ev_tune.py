@@ -15,19 +15,33 @@ from typing import Annotated, Final, Literal
 from pydantic import BaseModel, Field
 
 # ── 입력 상한 ────────────────────────────────────────────────────────────
-# 근거: championsbattledata 폼 447개 전수 조사 (2026-11-10).
-#   종족값 최대 250 (Mega Aggron 방어), HP 최대 235 (Snorlax)
-#   HP 실수치 상한   = 235 + 75 + 32 = 342
-#   기타 실수치 상한 = floor((250 + 20 + 32) * 1.1) = 332
-#
 # **실수치는 보정 전 순수 값이다.** 랭크·도구는 별도 필드로 받고 엔진이 적용한다.
 # 보정된 값을 실수치에 직접 넣으면 랭크가 두 번 걸린다.
 #
-# 종족값 상한만 관측값 250 이 아니라 255 로 둔다 — 챔피언스에 포켓몬이 계속
-# 추가되므로 시리즈 이론 상한까지 열어둔다.
+# 종족값 상한은 관측값이 아니라 시리즈 이론 상한 255 로 둔다 — 챔피언스에
+# 포켓몬이 계속 추가되므로 열어둔다. (현재 로스터 최대: HP 160 Snorlax,
+# 방어 200 Steelix, 공격 165 Rampardos, 스피드 142 Dragapult)
+#
+# 실수치 상한은 **종족값 상한에서 유도한다.** 따로 박아두면 하나를 바꿀 때
+# 다른 쪽이 조용히 어긋난다.
+#   HP   = 종족값 + 75 + 최대 포인트
+#   기타 = floor((종족값 + 20 + 최대 포인트) * 1.1)   ← 상승보정 포함
+#
+# ⚠️ 2026-11-08 정정: 이전 값(342/332)은 championsbattledata 의 hp/attack 을
+# 종족값으로 착각해 계산한 것이었다. 그 값은 노력치 0·무보정 **실수치**라
+# 오프셋이 이미 포함돼 있었고, 결과적으로 +75/+20 을 두 번 더했다.
+# 자세한 내용은 scripts/generate_pokemon.py 참조.
 MAX_BASE_STAT: Final[int] = 255
-MAX_ACTUAL_HP: Final[int] = 342
-MAX_ACTUAL_STAT: Final[int] = 332
+_MAX_EFFORT_POINTS: Final[int] = 32
+_HP_OFFSET: Final[int] = 75
+_STAT_OFFSET: Final[int] = 20
+_RISING_NATURE_NUMERATOR: Final[int] = 11
+_RISING_NATURE_DENOMINATOR: Final[int] = 10
+
+MAX_ACTUAL_HP: Final[int] = MAX_BASE_STAT + _HP_OFFSET + _MAX_EFFORT_POINTS
+MAX_ACTUAL_STAT: Final[int] = (
+    (MAX_BASE_STAT + _STAT_OFFSET + _MAX_EFFORT_POINTS) * _RISING_NATURE_NUMERATOR
+) // _RISING_NATURE_DENOMINATOR
 MAX_MOVE_POWER: Final[int] = 300
 # 최대 만족 부분집합 탐색이 2^n 이라 제약 수에 상한이 필요하다.
 MAX_CONSTRAINTS: Final[int] = 8
