@@ -20,12 +20,14 @@ from pydantic import BaseModel, Field
 #   HP 실수치 상한   = 235 + 75 + 32 = 342
 #   기타 실수치 상한 = floor((250 + 20 + 32) * 1.1) = 332
 #
-# **느슨한 상한이다.** 입력받는 실수치는 랭크업·도구가 이미 반영된 값이라
-# (ADR-007) 순수 상한의 몇 배가 될 수 있다 — 랭크업 6단계(x4)에 구애띠(x1.5)면
-# 약 1,992 다. 그래서 오타(99999)만 막는 수준으로 잡는다.
-# 랭크업·도구를 별도 필드로 받게 되면 그때 엄격하게 조인다.
+# **실수치는 보정 전 순수 값이다.** 랭크·도구는 별도 필드로 받고 엔진이 적용한다.
+# 보정된 값을 실수치에 직접 넣으면 랭크가 두 번 걸린다.
+#
+# 종족값 상한만 관측값 250 이 아니라 255 로 둔다 — 챔피언스에 포켓몬이 계속
+# 추가되므로 시리즈 이론 상한까지 열어둔다.
 MAX_BASE_STAT: Final[int] = 255
-MAX_ACTUAL_STAT: Final[int] = 2000
+MAX_ACTUAL_HP: Final[int] = 342
+MAX_ACTUAL_STAT: Final[int] = 332
 MAX_MOVE_POWER: Final[int] = 300
 # 최대 만족 부분집합 탐색이 2^n 이라 제약 수에 상한이 필요하다.
 MAX_CONSTRAINTS: Final[int] = 8
@@ -52,6 +54,7 @@ TypeList = Annotated[list[str], Field(min_length=1, max_length=2)]
 
 BaseStatValue = Annotated[int, Field(gt=0, le=MAX_BASE_STAT)]
 ActualStatValue = Annotated[int, Field(gt=0, le=MAX_ACTUAL_STAT)]
+ActualHpValue = Annotated[int, Field(gt=0, le=MAX_ACTUAL_HP)]
 
 
 class BaseStatsIn(BaseModel):
@@ -70,7 +73,7 @@ class MoveIn(BaseModel):
 
 
 class AttackerIn(BaseModel):
-    """상대 공격 측. 도구·랭크가 이미 반영된 실수치다 (ADR-007)."""
+    """상대 공격 측. **보정 전 순수 실수치**다 — 랭크·도구는 제약의 별도 필드로 받는다."""
 
     attack_stat: ActualStatValue
     special_attack_stat: ActualStatValue
@@ -79,11 +82,11 @@ class AttackerIn(BaseModel):
 
 
 class DefenderIn(BaseModel):
-    """상대 방어 측. 도구·랭크가 이미 반영된 실수치다 (ADR-007)."""
+    """상대 방어 측. **보정 전 순수 실수치**다 — 랭크·도구는 제약의 별도 필드로 받는다."""
 
     defense_stat: ActualStatValue
     special_defense_stat: ActualStatValue
-    hp_stat: ActualStatValue
+    hp_stat: ActualHpValue
     types: TypeList
 
 
@@ -104,7 +107,11 @@ class BattleContextIn(BaseModel):
 class OutspeedIn(BaseModel):
     kind: Literal["outspeed"]
     label: str
-    target_speed: ActualStatValue
+    target_speed: ActualStatValue = Field(
+        description="상대의 보정 전 스피드 실수치. 도구·랭크는 아래 필드로 받는다."
+    )
+    opponent_item: str | None = None
+    opponent_rank_stage: RankStage = 0
 
 
 class KnockoutIn(BaseModel):

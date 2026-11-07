@@ -971,3 +971,15 @@ class TestRankStageWiring:
             assert hardened.spread.attack > plain.spread.attack
         else:
             assert isinstance(hardened, Infeasible)
+
+    def test_opponent_rank_stage_out_of_range_is_rejected(self, chart, catalog):
+        """상대 랭크도 범위를 벗어나면 막는다. 받는 지점에서 검증한다."""
+        from app.domain.exceptions import InvalidRankStage
+
+        with pytest.raises(InvalidRankStage):
+            solve(
+                chart,
+                catalog,
+                target(),
+                [OutspeedConstraint("상대", 120, opponent_rank_stage=7)],
+            )

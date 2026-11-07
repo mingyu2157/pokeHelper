@@ -162,10 +162,16 @@ class AllocationPriority(Enum):
 
 @dataclass(frozen=True)
 class OutspeedConstraint:
-    """상대 스피드 실수치를 넘는다. 동속은 추월이 아니다."""
+    """상대 스피드 실수치를 넘는다. 동속은 추월이 아니다.
+
+    `target_speed` 는 **보정 전 순수 실수치**다. 상대의 도구·랭크는
+    별도 필드로 받고 엔진이 적용한다 — 보정된 값을 직접 넣으면 두 번 걸린다.
+    """
 
     label: str
     target_speed: int
+    opponent_item_id: str | None = None
+    opponent_rank_stage: int = 0
 
 
 @dataclass(frozen=True)
@@ -287,15 +293,25 @@ def _spread_from(points: Mapping[StatKey, int]) -> EffortSpread:
     return EffortSpread(**{_STAT_FIELDS[stat]: value for stat, value in points.items()})
 
 
+def _effective_target_speed(catalog: ItemCatalog, constraint: OutspeedConstraint) -> int:
+    """상대의 랭크·도구를 반영한 실제 스피드."""
+    speed = constraint.target_speed
+    if constraint.opponent_rank_stage:
+        speed = apply_rank_stage(speed, constraint.opponent_rank_stage)
+    multiplier = _speed_multiplier(_effect(catalog, constraint.opponent_item_id))
+    return math.floor(speed * multiplier)
+
+
 def _outspeed_candidates(
     target: BuildTarget,
     constraint: OutspeedConstraint,
     speed_multiplier: float,
+    effective_target: int,
 ) -> tuple[_Candidate, ...]:
     for points in _POINT_RANGE:
         actual = math.floor(target.actual(StatKey.SPEED, points) * speed_multiplier)
-        if actual > constraint.target_speed:
-            detail = f"{constraint.label}({constraint.target_speed}) 추월 — 실수치 {actual}"
+        if actual > effective_target:
+            detail = f"{constraint.label}({effective_target}) 추월 — 실수치 {actual}"
             return (
                 _Candidate(
                     points={StatKey.SPEED: points},
@@ -478,7 +494,9 @@ def _candidates_for(
 ) -> tuple[_Candidate, ...]:
     if isinstance(constraint, OutspeedConstraint):
         speed = _speed_multiplier(_effect(catalog, target.item_id))
-        return _outspeed_candidates(target, constraint, speed)
+        return _outspeed_candidates(
+            target, constraint, speed, _effective_target_speed(catalog, constraint)
+        )
     if isinstance(constraint, KnockoutConstraint):
         return _knockout_candidates(chart, catalog, target, constraint, context)
     return _survive_candidates(chart, catalog, target, constraint, context)
@@ -704,8 +722,12 @@ def solve(
     # 도구를 먼저 해석한다. 제약이 없어도 잘못된 입력은 통과시키지 않는다.
     _effect(catalog, target.item_id)
     for constraint in constraints:
-        if not isinstance(constraint, OutspeedConstraint):
-            _effect(catalog, constraint.opponent_item_id)
+        _effect(catalog, constraint.opponent_item_id)
+        if not MIN_RANK_STAGE <= constraint.opponent_rank_stage <= MAX_RANK_STAGE:
+            raise InvalidRankStage(
+                f"{constraint.label}: 랭크 단계는 {MIN_RANK_STAGE} ~ "
+                f"{MAX_RANK_STAGE} 범위다. 받은 값: {constraint.opponent_rank_stage}"
+            )
 
     if not constraints:
         allocated, extra = _allocate_residual(target, {}, priority)

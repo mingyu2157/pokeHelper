@@ -71,7 +71,8 @@ _WEATHER: Final[dict[str, Weather]] = {
 # 어떤 요청에도 해당하는 전제. 숫자만 주고 전제를 숨기면 근거가 아니라 주장이 된다 (1-3).
 _BASE_ASSUMPTIONS: Final[tuple[str, ...]] = (
     "데미지 보정 체인은 A안(ADR-003)을 따른다. 게임 내 실측으로 확정되지 않은 잠정 결정이다.",
-    "상대 스펙은 요청에 주어진 실수치를 그대로 사용했다. 메타 표본에서 추정하지 않았다.",
+    "상대 스펙은 요청에 주어진 보정 전 실수치에 랭크·도구를 적용한 값이다. "
+    "메타 표본에서 추정하지 않았다.",
     "특성 보정은 적용하지 않았다. 특성 시드 데이터가 아직 없다.",
     "모래바람·설경은 데미지 배율이 아니라 스탯 단계 효과라 반영되지 않는다. "
     "챔피언스 수치가 확인되지 않았다.",
@@ -145,7 +146,12 @@ def _to_context(data: BattleContextIn) -> BattleContext:
 
 def _to_constraint(data: ConstraintIn) -> Constraint:
     if isinstance(data, OutspeedIn):
-        return OutspeedConstraint(label=data.label, target_speed=data.target_speed)
+        return OutspeedConstraint(
+            label=data.label,
+            target_speed=data.target_speed,
+            opponent_item_id=data.opponent_item,
+            opponent_rank_stage=data.opponent_rank_stage,
+        )
     if isinstance(data, KnockoutIn):
         return KnockoutConstraint(
             label=data.label,
