@@ -299,3 +299,153 @@ class TestInternalGuards:
 
         with _pytest.raises(AssertionError):
             _to_constraint(object())  # type: ignore[arg-type]
+
+
+class TestInputBounds:
+    """현실적인 상한 — 오타를 막되 극단적 조정은 통과시킨다.
+
+    상한 근거는 championsbattledata 폼 447개 전수 조사다 (2026-11-10).
+    종족값 최대 250(Mega Aggron 방어), HP 최대 235(Snorlax).
+
+    **느슨한 상한이다.** 입력받는 실수치는 이미 랭크업·도구가 반영된 값이라
+    (ADR-007) 순수 상한의 몇 배가 될 수 있다. 엄격한 상한은 보정 연결 작업에서
+    랭크업·도구를 별도 필드로 받게 되면 그때 조인다.
+    """
+
+    @pytest.mark.parametrize("value", [256, 999, 99999])
+    def test_base_stat_above_the_cap_is_rejected(self, client, value):
+        response = client.post(ENDPOINT, json=payload(base_stats={**GARCHOMP, "attack": value}))
+        assert response.status_code == 422
+
+    @pytest.mark.parametrize("value", [250, 255])
+    def test_realistic_base_stats_are_accepted(self, client, value):
+        """250 은 Mega Aggron 방어로 실재한다.
+
+        상한을 관측값 250 이 아니라 255 로 둔 이유: 챔피언스에 포켓몬이 계속
+        추가되므로 시리즈 이론 상한까지 열어둔다. 250 으로 조이면 나중에
+        종족값 255 짜리가 추가될 때 조용히 거부된다.
+        """
+        response = client.post(ENDPOINT, json=payload(base_stats={**GARCHOMP, "defense": value}))
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize("field", ["attack_stat", "special_attack_stat"])
+    def test_opponent_attack_above_the_cap_is_rejected(self, client, field):
+        opponent = {"attack_stat": 200, "special_attack_stat": 200, "types": ["ice"]}
+        opponent[field] = 99999
+        response = client.post(
+            ENDPOINT,
+            json=payload(
+                constraints=[
+                    {
+                        "kind": "survive",
+                        "label": "버티기",
+                        "opponent": opponent,
+                        "move": {"power": 50, "type": "ice", "category": "physical"},
+                    }
+                ]
+            ),
+        )
+        assert response.status_code == 422
+
+    def test_rank_boosted_stat_is_still_accepted(self, client):
+        """랭크업 6단계 + 구애띠면 1,992 까지 나온다. 막으면 실사용이 깨진다."""
+        response = client.post(
+            ENDPOINT,
+            json=payload(
+                constraints=[
+                    {
+                        "kind": "survive",
+                        "label": "용의춤 쌓은 상대",
+                        "opponent": {
+                            "attack_stat": 1992,
+                            "special_attack_stat": 200,
+                            "types": ["ice"],
+                        },
+                        "move": {"power": 50, "type": "ice", "category": "physical"},
+                    }
+                ]
+            ),
+        )
+        assert response.status_code in (200, 422)
+        if response.status_code == 422:
+            pytest.fail("랭크업·도구가 반영된 실수치를 막으면 안 된다")
+
+    def test_opponent_hp_above_the_cap_is_rejected(self, client):
+        response = client.post(
+            ENDPOINT,
+            json=payload(
+                constraints=[
+                    {
+                        "kind": "knockout",
+                        "label": "상대",
+                        "opponent": {
+                            "defense_stat": 100,
+                            "special_defense_stat": 100,
+                            "hp_stat": 99999,
+                            "types": ["normal"],
+                        },
+                        "move": {"power": 100, "type": "ground", "category": "physical"},
+                    }
+                ]
+            ),
+        )
+        assert response.status_code == 422
+
+    def test_move_power_above_the_cap_is_rejected(self, client):
+        response = client.post(
+            ENDPOINT,
+            json=payload(
+                constraints=[
+                    {
+                        "kind": "knockout",
+                        "label": "상대",
+                        "opponent": {
+                            "defense_stat": 100,
+                            "special_defense_stat": 100,
+                            "hp_stat": 150,
+                            "types": ["normal"],
+                        },
+                        "move": {"power": 9999, "type": "ground", "category": "physical"},
+                    }
+                ]
+            ),
+        )
+        assert response.status_code == 422
+
+    def test_target_speed_above_the_cap_is_rejected(self, client):
+        response = client.post(
+            ENDPOINT,
+            json=payload(
+                constraints=[{"kind": "outspeed", "label": "상대", "target_speed": 99999}]
+            ),
+        )
+        assert response.status_code == 422
+
+    def test_too_many_constraints_is_rejected(self, client):
+        """최대 부분집합 탐색이 2^n 이라 제약 수에 상한이 필요하다."""
+        many = [
+            {"kind": "outspeed", "label": f"상대 {i}", "target_speed": 100 + i} for i in range(20)
+        ]
+        response = client.post(ENDPOINT, json=payload(constraints=many))
+        assert response.status_code == 422
+
+    def test_hits_above_the_cap_is_rejected(self, client):
+        response = client.post(
+            ENDPOINT,
+            json=payload(
+                constraints=[
+                    {
+                        "kind": "survive",
+                        "label": "버티기",
+                        "opponent": {
+                            "attack_stat": 200,
+                            "special_attack_stat": 200,
+                            "types": ["ice"],
+                        },
+                        "move": {"power": 50, "type": "ice", "category": "physical"},
+                        "hits": 999,
+                    }
+                ]
+            ),
+        )
+        assert response.status_code == 422
