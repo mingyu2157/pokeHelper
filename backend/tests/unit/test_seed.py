@@ -5,7 +5,7 @@
 세 카탈로그가 모두 로드되는지 미리 확인한다.
 """
 
-from app.core.seed import item_catalog, nature_catalog, type_chart
+from app.core.seed import item_catalog, nature_catalog, pokedex, type_chart
 from app.domain.items import ItemEffectKind
 from app.domain.nature import StatKey
 from app.domain.typechart import PokemonType, effectiveness
@@ -28,6 +28,11 @@ class TestLoaders:
         assert catalog.get("jolly").raised is StatKey.SPEED
         assert len(catalog.names()) == 25
 
+    def test_pokedex_loads(self):
+        dex = pokedex()
+        assert dex.get("garchomp").base_stats.speed == 102
+        assert len(dex.ids()) > 200
+
 
 class TestCaching:
     """정적 데이터라 프로세스당 한 번만 읽는다."""
@@ -36,3 +41,4 @@ class TestCaching:
         assert type_chart() is type_chart()
         assert item_catalog() is item_catalog()
         assert nature_catalog() is nature_catalog()
+        assert pokedex() is pokedex()

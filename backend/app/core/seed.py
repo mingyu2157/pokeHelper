@@ -16,6 +16,7 @@ from typing import Any, Final
 
 from app.domain.items import ItemCatalog
 from app.domain.nature import NatureCatalog
+from app.domain.pokedex import Pokedex
 from app.domain.typechart import TypeChart
 
 DATA_DIR: Final[Path] = Path(__file__).resolve().parent.parent.parent / "data"
@@ -40,3 +41,8 @@ def item_catalog() -> ItemCatalog:
 @lru_cache(maxsize=1)
 def nature_catalog() -> NatureCatalog:
     return NatureCatalog.from_mapping(_load("natures.json")["natures"])
+
+
+@lru_cache(maxsize=1)
+def pokedex() -> Pokedex:
+    return Pokedex.from_mapping(_load("pokemon.json")["pokemon"])

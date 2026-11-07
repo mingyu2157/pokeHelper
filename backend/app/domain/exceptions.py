@@ -38,3 +38,7 @@ class UnknownNature(DomainError):
 
 class InvalidRankStage(DomainError):
     """랭크 단계가 -6 ~ +6 범위를 벗어났다."""
+
+
+class UnknownPokemon(DomainError):
+    """마스터 시드에 없는 포켓몬이다."""

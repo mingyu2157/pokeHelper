@@ -8,6 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.schemas.ev_tune import (
+    MAX_ACTUAL_HP,
+    MAX_ACTUAL_STAT,
+    MAX_BASE_STAT,
+)
 
 ENDPOINT = "/api/v1/calc/ev-tune"
 
@@ -319,22 +324,20 @@ class TestInternalGuards:
 class TestInputBounds:
     """엄격한 상한 — 실수치는 **보정 전 순수 값**이다.
 
-    상한 근거는 championsbattledata 폼 447개 전수 조사다 (2026-11-10).
-    종족값 최대 250(Mega Aggron 방어), HP 최대 235(Snorlax).
-
-      HP 실수치   ≤ 235 + 75 + 32          = 342
-      기타 실수치 ≤ floor((250+20+32)×1.1) = 332
+    상한값을 여기에 하드코딩하지 않는다. 스키마 상수에서 가져와야
+    상수가 바뀔 때 테스트가 같이 따라간다. 실제로 한 번 어긋난 적이 있다
+    (championsbattledata 의 hp/attack 을 종족값으로 착각해 오프셋을 두 번 더함).
 
     랭크·도구는 **별도 필드**로 받고 엔진이 적용한다. 보정된 값을 실수치에
     직접 넣으면 랭크가 두 번 걸린다.
     """
 
-    @pytest.mark.parametrize("value", [256, 999, 99999])
+    @pytest.mark.parametrize("value", [MAX_BASE_STAT + 1, 999, 99999])
     def test_base_stat_above_the_cap_is_rejected(self, client, value):
         response = client.post(ENDPOINT, json=payload(base_stats={**GARCHOMP, "attack": value}))
         assert response.status_code == 422
 
-    @pytest.mark.parametrize("value", [250, 255])
+    @pytest.mark.parametrize("value", [250, MAX_BASE_STAT])
     def test_realistic_base_stats_are_accepted(self, client, value):
         """250 은 Mega Aggron 방어로 실재한다.
 
@@ -348,7 +351,7 @@ class TestInputBounds:
     @pytest.mark.parametrize("field", ["attack_stat", "special_attack_stat"])
     def test_opponent_attack_above_the_cap_is_rejected(self, client, field):
         opponent = {"attack_stat": 200, "special_attack_stat": 200, "types": ["ice"]}
-        opponent[field] = 333
+        opponent[field] = MAX_ACTUAL_STAT + 1
         response = client.post(
             ENDPOINT,
             json=payload(
@@ -408,7 +411,10 @@ class TestInputBounds:
         )
         assert via_rank_field.status_code == 200
 
-    @pytest.mark.parametrize(("field", "value"), [("hp_stat", 343), ("defense_stat", 333)])
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("hp_stat", MAX_ACTUAL_HP + 1), ("defense_stat", MAX_ACTUAL_STAT + 1)],
+    )
     def test_actual_stat_above_the_pure_cap_is_rejected(self, client, field, value):
         opponent = {
             "defense_stat": 100,
@@ -432,9 +438,12 @@ class TestInputBounds:
         )
         assert response.status_code == 422
 
-    @pytest.mark.parametrize(("field", "value"), [("hp_stat", 342), ("defense_stat", 332)])
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("hp_stat", MAX_ACTUAL_HP), ("defense_stat", MAX_ACTUAL_STAT)],
+    )
     def test_pure_cap_itself_is_accepted(self, client, field, value):
-        """상한값 자체는 실재한다 — Snorlax HP, Mega Aggron 방어."""
+        """상한값 자체는 받아들여야 한다. 경계에서 거부하면 정당한 입력이 막힌다."""
         opponent = {
             "defense_stat": 100,
             "special_defense_stat": 100,
@@ -460,7 +469,15 @@ class TestInputBounds:
     def test_outspeed_target_above_the_pure_cap_is_rejected(self, client):
         response = client.post(
             ENDPOINT,
-            json=payload(constraints=[{"kind": "outspeed", "label": "상대", "target_speed": 333}]),
+            json=payload(
+                constraints=[
+                    {
+                        "kind": "outspeed",
+                        "label": "상대",
+                        "target_speed": MAX_ACTUAL_STAT + 1,
+                    }
+                ]
+            ),
         )
         assert response.status_code == 422
 
@@ -475,7 +492,7 @@ class TestInputBounds:
                         "opponent": {
                             "defense_stat": 100,
                             "special_defense_stat": 100,
-                            "hp_stat": 343,
+                            "hp_stat": MAX_ACTUAL_HP + 1,
                             "types": ["normal"],
                         },
                         "move": {"power": 100, "type": "ground", "category": "physical"},
