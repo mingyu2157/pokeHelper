@@ -1,0 +1,2075 @@
+{
+  "_meta": {
+    "sources": [
+      "https://op.gg/ko/pokemon-champions/moves",
+      "https://champions-helper.com/data/moves.json",
+      "https://smartnuo.com/api/move"
+    ],
+    "generated_by": "backend/scripts/generate_moves.py",
+    "key": "showdown 식 기술 id -> 한국 서버 명칭",
+    "note": "Phase 2-3 한영 매핑의 기술 부분. 세 출처를 대조해 생성했다. 퍼지 매칭 금지 — 정확 일치 조회만 한다 (§8-4).",
+    "count": 515
+  },
+  "moves": {
+    "accelerock": {
+      "ko": "액셀록",
+      "slug": "accelerock"
+    },
+    "acidarmor": {
+      "ko": "녹기",
+      "slug": "acid-armor"
+    },
+    "acidspray": {
+      "ko": "애시드봄",
+      "slug": "acid-spray"
+    },
+    "acrobatics": {
+      "ko": "애크러뱃",
+      "slug": "acrobatics"
+    },
+    "acupressure": {
+      "ko": "경혈찌르기",
+      "slug": "acupressure"
+    },
+    "aerialace": {
+      "ko": "제비반환",
+      "slug": "aerial-ace"
+    },
+    "afteryou": {
+      "ko": "당신먼저",
+      "slug": "after-you"
+    },
+    "agility": {
+      "ko": "고속이동",
+      "slug": "agility"
+    },
+    "aircutter": {
+      "ko": "에어커터",
+      "slug": "air-cutter"
+    },
+    "airslash": {
+      "ko": "에어슬래시",
+      "slug": "air-slash"
+    },
+    "alluringvoice": {
+      "ko": "매혹의보이스",
+      "slug": "alluring-voice"
+    },
+    "allyswitch": {
+      "ko": "사이드체인지",
+      "slug": "ally-switch"
+    },
+    "amnesia": {
+      "ko": "망각술",
+      "slug": "amnesia"
+    },
+    "ancientpower": {
+      "ko": "원시의힘",
+      "slug": "ancient-power"
+    },
+    "appleacid": {
+      "ko": "사과산",
+      "slug": "apple-acid"
+    },
+    "aquacutter": {
+      "ko": "아쿠아커터",
+      "slug": "aqua-cutter"
+    },
+    "aquajet": {
+      "ko": "아쿠아제트",
+      "slug": "aqua-jet"
+    },
+    "aquaring": {
+      "ko": "아쿠아링",
+      "slug": "aqua-ring"
+    },
+    "aquastep": {
+      "ko": "아쿠아스텝",
+      "slug": "aqua-step"
+    },
+    "aquatail": {
+      "ko": "아쿠아테일",
+      "slug": "aqua-tail"
+    },
+    "armorcannon": {
+      "ko": "아머캐논",
+      "slug": "armor-cannon"
+    },
+    "aromaticmist": {
+      "ko": "아로마미스트",
+      "slug": "aromatic-mist"
+    },
+    "assurance": {
+      "ko": "승부굳히기",
+      "slug": "assurance"
+    },
+    "attract": {
+      "ko": "헤롱헤롱",
+      "slug": "attract"
+    },
+    "aurasphere": {
+      "ko": "파동탄",
+      "slug": "aura-sphere"
+    },
+    "aurawheel": {
+      "ko": "오라휠",
+      "slug": "aura-wheel"
+    },
+    "auroraveil": {
+      "ko": "오로라베일",
+      "slug": "aurora-veil"
+    },
+    "avalanche": {
+      "ko": "눈사태",
+      "slug": "avalanche"
+    },
+    "axekick": {
+      "ko": "발꿈치찍기",
+      "slug": "axe-kick"
+    },
+    "babydolleyes": {
+      "ko": "초롱초롱눈동자",
+      "slug": "baby-doll-eyes"
+    },
+    "banefulbunker": {
+      "ko": "토치카",
+      "slug": "baneful-bunker"
+    },
+    "barbbarrage": {
+      "ko": "독침천발",
+      "slug": "barb-barrage"
+    },
+    "batonpass": {
+      "ko": "배턴터치",
+      "slug": "baton-pass"
+    },
+    "beakblast": {
+      "ko": "부리캐논",
+      "slug": "beak-blast"
+    },
+    "beatup": {
+      "ko": "집단구타",
+      "slug": "beat-up"
+    },
+    "belch": {
+      "ko": "트림",
+      "slug": "belch"
+    },
+    "bellydrum": {
+      "ko": "배북",
+      "slug": "belly-drum"
+    },
+    "bind": {
+      "ko": "조이기",
+      "slug": "bind"
+    },
+    "bite": {
+      "ko": "물기",
+      "slug": "bite"
+    },
+    "bitterblade": {
+      "ko": "원념의칼",
+      "slug": "bitter-blade"
+    },
+    "bittermalice": {
+      "ko": "천추지한",
+      "slug": "bitter-malice"
+    },
+    "blastburn": {
+      "ko": "블라스트번",
+      "slug": "blast-burn"
+    },
+    "blazekick": {
+      "ko": "블레이즈킥",
+      "slug": "blaze-kick"
+    },
+    "blizzard": {
+      "ko": "눈보라",
+      "slug": "blizzard"
+    },
+    "block": {
+      "ko": "블록",
+      "slug": "block"
+    },
+    "bodypress": {
+      "ko": "바디프레스",
+      "slug": "body-press"
+    },
+    "bodyslam": {
+      "ko": "누르기",
+      "slug": "body-slam"
+    },
+    "bonerush": {
+      "ko": "본러시",
+      "slug": "bone-rush"
+    },
+    "boomburst": {
+      "ko": "폭음파",
+      "slug": "boomburst"
+    },
+    "bounce": {
+      "ko": "뛰어오르기",
+      "slug": "bounce"
+    },
+    "bravebird": {
+      "ko": "브레이브버드",
+      "slug": "brave-bird"
+    },
+    "breakingswipe": {
+      "ko": "와이드브레이커",
+      "slug": "breaking-swipe"
+    },
+    "brickbreak": {
+      "ko": "깨트리기",
+      "slug": "brick-break"
+    },
+    "brutalswing": {
+      "ko": "세차게휘두르기",
+      "slug": "brutal-swing"
+    },
+    "bugbite": {
+      "ko": "벌레먹기",
+      "slug": "bug-bite"
+    },
+    "bugbuzz": {
+      "ko": "벌레의야단법석",
+      "slug": "bug-buzz"
+    },
+    "bulkup": {
+      "ko": "벌크업",
+      "slug": "bulk-up"
+    },
+    "bulldoze": {
+      "ko": "땅고르기",
+      "slug": "bulldoze"
+    },
+    "bulletpunch": {
+      "ko": "불릿펀치",
+      "slug": "bullet-punch"
+    },
+    "bulletseed": {
+      "ko": "씨기관총",
+      "slug": "bullet-seed"
+    },
+    "burningjealousy": {
+      "ko": "질투의불꽃",
+      "slug": "burning-jealousy"
+    },
+    "burnup": {
+      "ko": "불사르기",
+      "slug": "burn-up"
+    },
+    "calmmind": {
+      "ko": "명상",
+      "slug": "calm-mind"
+    },
+    "ceaselessedge": {
+      "ko": "비검천중파",
+      "slug": "ceaseless-edge"
+    },
+    "charge": {
+      "ko": "충전",
+      "slug": "charge"
+    },
+    "chargebeam": {
+      "ko": "차지빔",
+      "slug": "charge-beam"
+    },
+    "charm": {
+      "ko": "애교부리기",
+      "slug": "charm"
+    },
+    "chillingwater": {
+      "ko": "찬물끼얹기",
+      "slug": "chilling-water"
+    },
+    "chillyreception": {
+      "ko": "썰렁개그",
+      "slug": "chilly-reception"
+    },
+    "circlethrow": {
+      "ko": "배대뒤치기",
+      "slug": "circle-throw"
+    },
+    "clangingscales": {
+      "ko": "스케일노이즈",
+      "slug": "clanging-scales"
+    },
+    "clangoroussoul": {
+      "ko": "소울비트",
+      "slug": "clangorous-soul"
+    },
+    "clearsmog": {
+      "ko": "클리어스모그",
+      "slug": "clear-smog"
+    },
+    "closecombat": {
+      "ko": "인파이트",
+      "slug": "close-combat"
+    },
+    "coaching": {
+      "ko": "코칭",
+      "slug": "coaching"
+    },
+    "coil": {
+      "ko": "똬리틀기",
+      "slug": "coil"
+    },
+    "comeuppance": {
+      "ko": "앙갚음",
+      "slug": "comeuppance"
+    },
+    "confuseray": {
+      "ko": "이상한빛",
+      "slug": "confuse-ray"
+    },
+    "copycat": {
+      "ko": "흉내쟁이",
+      "slug": "copycat"
+    },
+    "corrosivegas": {
+      "ko": "부식가스",
+      "slug": "corrosive-gas"
+    },
+    "cosmicpower": {
+      "ko": "코스믹파워",
+      "slug": "cosmic-power"
+    },
+    "cottonguard": {
+      "ko": "코튼가드",
+      "slug": "cotton-guard"
+    },
+    "cottonspore": {
+      "ko": "목화포자",
+      "slug": "cotton-spore"
+    },
+    "counter": {
+      "ko": "카운터",
+      "slug": "counter"
+    },
+    "courtchange": {
+      "ko": "코트체인지",
+      "slug": "court-change"
+    },
+    "covet": {
+      "ko": "탐내기",
+      "slug": "covet"
+    },
+    "crabhammer": {
+      "ko": "집게해머",
+      "slug": "crabhammer"
+    },
+    "crosschop": {
+      "ko": "크로스촙",
+      "slug": "cross-chop"
+    },
+    "crosspoison": {
+      "ko": "크로스포이즌",
+      "slug": "cross-poison"
+    },
+    "crunch": {
+      "ko": "깨물어부수기",
+      "slug": "crunch"
+    },
+    "crushclaw": {
+      "ko": "브레이크클로",
+      "slug": "crush-claw"
+    },
+    "curse": {
+      "ko": "저주",
+      "slug": "curse"
+    },
+    "darkestlariat": {
+      "ko": "DD래리어트",
+      "slug": "darkest-lariat"
+    },
+    "darkpulse": {
+      "ko": "악의파동",
+      "slug": "dark-pulse"
+    },
+    "dazzlinggleam": {
+      "ko": "매지컬샤인",
+      "slug": "dazzling-gleam"
+    },
+    "decorate": {
+      "ko": "데코레이션",
+      "slug": "decorate"
+    },
+    "defog": {
+      "ko": "안개제거",
+      "slug": "defog"
+    },
+    "destinybond": {
+      "ko": "길동무",
+      "slug": "destiny-bond"
+    },
+    "detect": {
+      "ko": "판별",
+      "slug": "detect"
+    },
+    "dig": {
+      "ko": "구멍파기",
+      "slug": "dig"
+    },
+    "direclaw": {
+      "ko": "페이탈클로",
+      "slug": "dire-claw"
+    },
+    "disable": {
+      "ko": "사슬묶기",
+      "slug": "disable"
+    },
+    "discharge": {
+      "ko": "방전",
+      "slug": "discharge"
+    },
+    "dive": {
+      "ko": "다이빙",
+      "slug": "dive"
+    },
+    "doubleedge": {
+      "ko": "이판사판태클",
+      "slug": "double-edge"
+    },
+    "doublehit": {
+      "ko": "더블어택",
+      "slug": "double-hit"
+    },
+    "doubleshock": {
+      "ko": "전광쌍격",
+      "slug": "double-shock"
+    },
+    "doubleteam": {
+      "ko": "그림자분신",
+      "slug": "double-team"
+    },
+    "dracometeor": {
+      "ko": "용성군",
+      "slug": "draco-meteor"
+    },
+    "dragoncheer": {
+      "ko": "드래곤옐",
+      "slug": "dragon-cheer"
+    },
+    "dragonclaw": {
+      "ko": "드래곤클로",
+      "slug": "dragon-claw"
+    },
+    "dragondance": {
+      "ko": "용의춤",
+      "slug": "dragon-dance"
+    },
+    "dragondarts": {
+      "ko": "드래곤애로",
+      "slug": "dragon-darts"
+    },
+    "dragonpulse": {
+      "ko": "용의파동",
+      "slug": "dragon-pulse"
+    },
+    "dragonrush": {
+      "ko": "드래곤다이브",
+      "slug": "dragon-rush"
+    },
+    "dragontail": {
+      "ko": "드래곤테일",
+      "slug": "dragon-tail"
+    },
+    "drainingkiss": {
+      "ko": "드레인키스",
+      "slug": "draining-kiss"
+    },
+    "drainpunch": {
+      "ko": "드레인펀치",
+      "slug": "drain-punch"
+    },
+    "drillpeck": {
+      "ko": "회전부리",
+      "slug": "drill-peck"
+    },
+    "drillrun": {
+      "ko": "드릴라이너",
+      "slug": "drill-run"
+    },
+    "drumbeating": {
+      "ko": "드럼어택",
+      "slug": "drum-beating"
+    },
+    "dualwingbeat": {
+      "ko": "더블윙",
+      "slug": "dual-wingbeat"
+    },
+    "dynamicpunch": {
+      "ko": "폭발펀치",
+      "slug": "dynamic-punch"
+    },
+    "earthpower": {
+      "ko": "대지의힘",
+      "slug": "earth-power"
+    },
+    "earthquake": {
+      "ko": "지진",
+      "slug": "earthquake"
+    },
+    "eerieimpulse": {
+      "ko": "괴전파",
+      "slug": "eerie-impulse"
+    },
+    "eeriespell": {
+      "ko": "섬뜩한주문",
+      "slug": "eerie-spell"
+    },
+    "electricterrain": {
+      "ko": "일렉트릭필드",
+      "slug": "electric-terrain"
+    },
+    "electrify": {
+      "ko": "송전",
+      "slug": "electrify"
+    },
+    "electroball": {
+      "ko": "일렉트릭볼",
+      "slug": "electro-ball"
+    },
+    "electroshot": {
+      "ko": "일렉트로빔",
+      "slug": "electro-shot"
+    },
+    "electroweb": {
+      "ko": "일렉트릭네트",
+      "slug": "electroweb"
+    },
+    "encore": {
+      "ko": "앙코르",
+      "slug": "encore"
+    },
+    "endeavor": {
+      "ko": "죽기살기",
+      "slug": "endeavor"
+    },
+    "endure": {
+      "ko": "버티기",
+      "slug": "endure"
+    },
+    "energyball": {
+      "ko": "에너지볼",
+      "slug": "energy-ball"
+    },
+    "entrainment": {
+      "ko": "동료만들기",
+      "slug": "entrainment"
+    },
+    "eruption": {
+      "ko": "분화",
+      "slug": "eruption"
+    },
+    "expandingforce": {
+      "ko": "와이드포스",
+      "slug": "expanding-force"
+    },
+    "explosion": {
+      "ko": "대폭발",
+      "slug": "explosion"
+    },
+    "extrasensory": {
+      "ko": "신통력",
+      "slug": "extrasensory"
+    },
+    "extremespeed": {
+      "ko": "신속",
+      "slug": "extreme-speed"
+    },
+    "facade": {
+      "ko": "객기",
+      "slug": "facade"
+    },
+    "fairylock": {
+      "ko": "페어리록",
+      "slug": "fairy-lock"
+    },
+    "fakeout": {
+      "ko": "속이기",
+      "slug": "fake-out"
+    },
+    "faketears": {
+      "ko": "거짓울음",
+      "slug": "fake-tears"
+    },
+    "featherdance": {
+      "ko": "깃털댄스",
+      "slug": "feather-dance"
+    },
+    "feint": {
+      "ko": "페인트",
+      "slug": "feint"
+    },
+    "fellstinger": {
+      "ko": "마지막일침",
+      "slug": "fell-stinger"
+    },
+    "ficklebeam": {
+      "ko": "변덕레이저",
+      "slug": "fickle-beam"
+    },
+    "fierydance": {
+      "ko": "불꽃춤",
+      "slug": "fiery-dance"
+    },
+    "finalgambit": {
+      "ko": "목숨걸기",
+      "slug": "final-gambit"
+    },
+    "fireblast": {
+      "ko": "불대문자",
+      "slug": "fire-blast"
+    },
+    "firefang": {
+      "ko": "불꽃엄니",
+      "slug": "fire-fang"
+    },
+    "firelash": {
+      "ko": "불꽃채찍",
+      "slug": "fire-lash"
+    },
+    "firepunch": {
+      "ko": "불꽃펀치",
+      "slug": "fire-punch"
+    },
+    "firespin": {
+      "ko": "회오리불꽃",
+      "slug": "fire-spin"
+    },
+    "firstimpression": {
+      "ko": "만나자마자",
+      "slug": "first-impression"
+    },
+    "fissure": {
+      "ko": "땅가르기",
+      "slug": "fissure"
+    },
+    "flail": {
+      "ko": "바둥바둥",
+      "slug": "flail"
+    },
+    "flamecharge": {
+      "ko": "니트로차지",
+      "slug": "flame-charge"
+    },
+    "flamethrower": {
+      "ko": "화염방사",
+      "slug": "flamethrower"
+    },
+    "flareblitz": {
+      "ko": "플레어드라이브",
+      "slug": "flare-blitz"
+    },
+    "flashcannon": {
+      "ko": "러스터캐논",
+      "slug": "flash-cannon"
+    },
+    "flatter": {
+      "ko": "부추기기",
+      "slug": "flatter"
+    },
+    "fling": {
+      "ko": "내던지기",
+      "slug": "fling"
+    },
+    "flipturn": {
+      "ko": "퀵턴",
+      "slug": "flip-turn"
+    },
+    "flowertrick": {
+      "ko": "트릭플라워",
+      "slug": "flower-trick"
+    },
+    "fly": {
+      "ko": "공중날기",
+      "slug": "fly"
+    },
+    "flyingpress": {
+      "ko": "플라잉프레스",
+      "slug": "flying-press"
+    },
+    "focusblast": {
+      "ko": "기합구슬",
+      "slug": "focus-blast"
+    },
+    "focusenergy": {
+      "ko": "기충전",
+      "slug": "focus-energy"
+    },
+    "focuspunch": {
+      "ko": "힘껏펀치",
+      "slug": "focus-punch"
+    },
+    "followme": {
+      "ko": "날따름",
+      "slug": "follow-me"
+    },
+    "forestscurse": {
+      "ko": "숲의저주",
+      "slug": "forests-curse"
+    },
+    "foulplay": {
+      "ko": "속임수",
+      "slug": "foul-play"
+    },
+    "freezedry": {
+      "ko": "프리즈드라이",
+      "slug": "freeze-dry"
+    },
+    "frenzyplant": {
+      "ko": "하드플랜트",
+      "slug": "frenzy-plant"
+    },
+    "frostbreath": {
+      "ko": "얼음숨결",
+      "slug": "frost-breath"
+    },
+    "futuresight": {
+      "ko": "미래예지",
+      "slug": "future-sight"
+    },
+    "gastroacid": {
+      "ko": "위액",
+      "slug": "gastro-acid"
+    },
+    "gigadrain": {
+      "ko": "기가드레인",
+      "slug": "giga-drain"
+    },
+    "gigaimpact": {
+      "ko": "기가임팩트",
+      "slug": "giga-impact"
+    },
+    "gigatonhammer": {
+      "ko": "거대해머",
+      "slug": "gigaton-hammer"
+    },
+    "glaiverush": {
+      "ko": "대검돌격",
+      "slug": "glaive-rush"
+    },
+    "glare": {
+      "ko": "뱀눈초리",
+      "slug": "glare"
+    },
+    "grassknot": {
+      "ko": "풀묶기",
+      "slug": "grass-knot"
+    },
+    "grassyglide": {
+      "ko": "그래스슬라이더",
+      "slug": "grassy-glide"
+    },
+    "grassyterrain": {
+      "ko": "그래스필드",
+      "slug": "grassy-terrain"
+    },
+    "gravapple": {
+      "ko": "G의힘",
+      "slug": "grav-apple"
+    },
+    "gravity": {
+      "ko": "중력",
+      "slug": "gravity"
+    },
+    "growth": {
+      "ko": "성장",
+      "slug": "growth"
+    },
+    "guardsplit": {
+      "ko": "가드셰어",
+      "slug": "guard-split"
+    },
+    "guardswap": {
+      "ko": "가드스왑",
+      "slug": "guard-swap"
+    },
+    "guillotine": {
+      "ko": "가위자르기",
+      "slug": "guillotine"
+    },
+    "gunkshot": {
+      "ko": "더스트슈트",
+      "slug": "gunk-shot"
+    },
+    "gyroball": {
+      "ko": "자이로볼",
+      "slug": "gyro-ball"
+    },
+    "hammerarm": {
+      "ko": "암해머",
+      "slug": "hammer-arm"
+    },
+    "hardpress": {
+      "ko": "하드프레스",
+      "slug": "hard-press"
+    },
+    "haze": {
+      "ko": "흑안개",
+      "slug": "haze"
+    },
+    "headlongrush": {
+      "ko": "들이받기",
+      "slug": "headlong-rush"
+    },
+    "headsmash": {
+      "ko": "양날박치기",
+      "slug": "head-smash"
+    },
+    "healbell": {
+      "ko": "치료방울",
+      "slug": "heal-bell"
+    },
+    "healingwish": {
+      "ko": "치유소원",
+      "slug": "healing-wish"
+    },
+    "healpulse": {
+      "ko": "치유파동",
+      "slug": "heal-pulse"
+    },
+    "heatcrash": {
+      "ko": "히트스탬프",
+      "slug": "heat-crash"
+    },
+    "heatwave": {
+      "ko": "열풍",
+      "slug": "heat-wave"
+    },
+    "heavyslam": {
+      "ko": "헤비봄버",
+      "slug": "heavy-slam"
+    },
+    "helpinghand": {
+      "ko": "도우미",
+      "slug": "helping-hand"
+    },
+    "hex": {
+      "ko": "병상첨병",
+      "slug": "hex"
+    },
+    "highhorsepower": {
+      "ko": "10만마력",
+      "slug": "high-horsepower"
+    },
+    "highjumpkick": {
+      "ko": "무릎차기",
+      "slug": "high-jump-kick"
+    },
+    "horndrill": {
+      "ko": "뿔드릴",
+      "slug": "horn-drill"
+    },
+    "hornleech": {
+      "ko": "우드혼",
+      "slug": "horn-leech"
+    },
+    "howl": {
+      "ko": "멀리짖기",
+      "slug": "howl"
+    },
+    "hurricane": {
+      "ko": "폭풍",
+      "slug": "hurricane"
+    },
+    "hydrocannon": {
+      "ko": "하이드로캐논",
+      "slug": "hydro-cannon"
+    },
+    "hydropump": {
+      "ko": "하이드로펌프",
+      "slug": "hydro-pump"
+    },
+    "hyperbeam": {
+      "ko": "파괴광선",
+      "slug": "hyper-beam"
+    },
+    "hypervoice": {
+      "ko": "하이퍼보이스",
+      "slug": "hyper-voice"
+    },
+    "hypnosis": {
+      "ko": "최면술",
+      "slug": "hypnosis"
+    },
+    "icebeam": {
+      "ko": "냉동빔",
+      "slug": "ice-beam"
+    },
+    "icefang": {
+      "ko": "얼음엄니",
+      "slug": "ice-fang"
+    },
+    "icehammer": {
+      "ko": "아이스해머",
+      "slug": "ice-hammer"
+    },
+    "icepunch": {
+      "ko": "냉동펀치",
+      "slug": "ice-punch"
+    },
+    "iceshard": {
+      "ko": "얼음뭉치",
+      "slug": "ice-shard"
+    },
+    "icespinner": {
+      "ko": "아이스스피너",
+      "slug": "ice-spinner"
+    },
+    "iciclecrash": {
+      "ko": "고드름떨구기",
+      "slug": "icicle-crash"
+    },
+    "iciclespear": {
+      "ko": "고드름침",
+      "slug": "icicle-spear"
+    },
+    "icywind": {
+      "ko": "얼어붙은바람",
+      "slug": "icy-wind"
+    },
+    "imprison": {
+      "ko": "봉인",
+      "slug": "imprison"
+    },
+    "infernalparade": {
+      "ko": "백귀야행",
+      "slug": "infernal-parade"
+    },
+    "inferno": {
+      "ko": "연옥",
+      "slug": "inferno"
+    },
+    "infestation": {
+      "ko": "엉겨붙기",
+      "slug": "infestation"
+    },
+    "ingrain": {
+      "ko": "뿌리박기",
+      "slug": "ingrain"
+    },
+    "instruct": {
+      "ko": "지휘",
+      "slug": "instruct"
+    },
+    "irondefense": {
+      "ko": "철벽",
+      "slug": "iron-defense"
+    },
+    "ironhead": {
+      "ko": "아이언헤드",
+      "slug": "iron-head"
+    },
+    "irontail": {
+      "ko": "아이언테일",
+      "slug": "iron-tail"
+    },
+    "jawlock": {
+      "ko": "물고버티기",
+      "slug": "jaw-lock"
+    },
+    "jetpunch": {
+      "ko": "제트펀치",
+      "slug": "jet-punch"
+    },
+    "kingsshield": {
+      "ko": "킹실드",
+      "slug": "kings-shield"
+    },
+    "knockoff": {
+      "ko": "탁쳐서떨구기",
+      "slug": "knock-off"
+    },
+    "kowtowcleave": {
+      "ko": "도각참",
+      "slug": "kowtow-cleave"
+    },
+    "lashout": {
+      "ko": "분풀이",
+      "slug": "lash-out"
+    },
+    "lastresort": {
+      "ko": "비장의무기",
+      "slug": "last-resort"
+    },
+    "lastrespects": {
+      "ko": "성묘",
+      "slug": "last-respects"
+    },
+    "lavaplume": {
+      "ko": "분연",
+      "slug": "lava-plume"
+    },
+    "leafblade": {
+      "ko": "리프블레이드",
+      "slug": "leaf-blade"
+    },
+    "leafstorm": {
+      "ko": "리프스톰",
+      "slug": "leaf-storm"
+    },
+    "leechlife": {
+      "ko": "흡혈",
+      "slug": "leech-life"
+    },
+    "leechseed": {
+      "ko": "씨뿌리기",
+      "slug": "leech-seed"
+    },
+    "lifedew": {
+      "ko": "생명의물방울",
+      "slug": "life-dew"
+    },
+    "lightofruin": {
+      "ko": "파멸의빛",
+      "slug": "light-of-ruin"
+    },
+    "lightscreen": {
+      "ko": "빛의장막",
+      "slug": "light-screen"
+    },
+    "liquidation": {
+      "ko": "아쿠아브레이크",
+      "slug": "liquidation"
+    },
+    "lockon": {
+      "ko": "록온",
+      "slug": "lock-on"
+    },
+    "lowkick": {
+      "ko": "안다리걸기",
+      "slug": "low-kick"
+    },
+    "lowsweep": {
+      "ko": "로킥",
+      "slug": "low-sweep"
+    },
+    "luminacrash": {
+      "ko": "루미나콜리전",
+      "slug": "lumina-crash"
+    },
+    "lunge": {
+      "ko": "덤벼들기",
+      "slug": "lunge"
+    },
+    "machpunch": {
+      "ko": "마하펀치",
+      "slug": "mach-punch"
+    },
+    "magicpowder": {
+      "ko": "마법가루",
+      "slug": "magic-powder"
+    },
+    "magicroom": {
+      "ko": "매직룸",
+      "slug": "magic-room"
+    },
+    "magneticflux": {
+      "ko": "자기장조작",
+      "slug": "magnetic-flux"
+    },
+    "magnetrise": {
+      "ko": "전자부유",
+      "slug": "magnet-rise"
+    },
+    "makeitrain": {
+      "ko": "골드러시",
+      "slug": "make-it-rain"
+    },
+    "matchagotcha": {
+      "ko": "휘적휘적포",
+      "slug": "matcha-gotcha"
+    },
+    "meanlook": {
+      "ko": "검은눈빛",
+      "slug": "mean-look"
+    },
+    "megahorn": {
+      "ko": "메가혼",
+      "slug": "megahorn"
+    },
+    "megakick": {
+      "ko": "메가톤킥",
+      "slug": "mega-kick"
+    },
+    "memento": {
+      "ko": "추억의선물",
+      "slug": "memento"
+    },
+    "metalburst": {
+      "ko": "메탈버스트",
+      "slug": "metal-burst"
+    },
+    "metalsound": {
+      "ko": "금속음",
+      "slug": "metal-sound"
+    },
+    "meteorassault": {
+      "ko": "스타어설트",
+      "slug": "meteor-assault"
+    },
+    "meteorbeam": {
+      "ko": "메테오빔",
+      "slug": "meteor-beam"
+    },
+    "meteormash": {
+      "ko": "코멧펀치",
+      "slug": "meteor-mash"
+    },
+    "milkdrink": {
+      "ko": "우유마시기",
+      "slug": "milk-drink"
+    },
+    "minimize": {
+      "ko": "작아지기",
+      "slug": "minimize"
+    },
+    "mirrorcoat": {
+      "ko": "미러코트",
+      "slug": "mirror-coat"
+    },
+    "mistyexplosion": {
+      "ko": "미스트버스트",
+      "slug": "misty-explosion"
+    },
+    "mistyterrain": {
+      "ko": "미스트필드",
+      "slug": "misty-terrain"
+    },
+    "moonblast": {
+      "ko": "문포스",
+      "slug": "moonblast"
+    },
+    "moonlight": {
+      "ko": "달빛",
+      "slug": "moonlight"
+    },
+    "morningsun": {
+      "ko": "아침햇살",
+      "slug": "morning-sun"
+    },
+    "mortalspin": {
+      "ko": "킬러스핀",
+      "slug": "mortal-spin"
+    },
+    "mountaingale": {
+      "ko": "빙산바람",
+      "slug": "mountain-gale"
+    },
+    "muddywater": {
+      "ko": "탁류",
+      "slug": "muddy-water"
+    },
+    "mudshot": {
+      "ko": "머드샷",
+      "slug": "mud-shot"
+    },
+    "mudslap": {
+      "ko": "진흙뿌리기",
+      "slug": "mud-slap"
+    },
+    "mysticalfire": {
+      "ko": "매지컬플레임",
+      "slug": "mystical-fire"
+    },
+    "nastyplot": {
+      "ko": "나쁜음모",
+      "slug": "nasty-plot"
+    },
+    "nightdaze": {
+      "ko": "나이트버스트",
+      "slug": "night-daze"
+    },
+    "nightshade": {
+      "ko": "나이트헤드",
+      "slug": "night-shade"
+    },
+    "nightslash": {
+      "ko": "깜짝베기",
+      "slug": "night-slash"
+    },
+    "nobleroar": {
+      "ko": "부르짖기",
+      "slug": "noble-roar"
+    },
+    "noretreat": {
+      "ko": "배수의진",
+      "slug": "no-retreat"
+    },
+    "nuzzle": {
+      "ko": "볼부비부비",
+      "slug": "nuzzle"
+    },
+    "octolock": {
+      "ko": "문어굳히기",
+      "slug": "octolock"
+    },
+    "outrage": {
+      "ko": "역린",
+      "slug": "outrage"
+    },
+    "overdrive": {
+      "ko": "오버드라이브",
+      "slug": "overdrive"
+    },
+    "overheat": {
+      "ko": "오버히트",
+      "slug": "overheat"
+    },
+    "painsplit": {
+      "ko": "아픔나누기",
+      "slug": "pain-split"
+    },
+    "paraboliccharge": {
+      "ko": "파라볼라차지",
+      "slug": "parabolic-charge"
+    },
+    "partingshot": {
+      "ko": "막말내뱉기",
+      "slug": "parting-shot"
+    },
+    "payback": {
+      "ko": "보복",
+      "slug": "payback"
+    },
+    "perishsong": {
+      "ko": "멸망의노래",
+      "slug": "perish-song"
+    },
+    "petalblizzard": {
+      "ko": "꽃보라",
+      "slug": "petal-blizzard"
+    },
+    "petaldance": {
+      "ko": "꽃잎댄스",
+      "slug": "petal-dance"
+    },
+    "phantomforce": {
+      "ko": "고스트다이브",
+      "slug": "phantom-force"
+    },
+    "pinmissile": {
+      "ko": "바늘미사일",
+      "slug": "pin-missile"
+    },
+    "playrough": {
+      "ko": "치근거리기",
+      "slug": "play-rough"
+    },
+    "pluck": {
+      "ko": "쪼아대기",
+      "slug": "pluck"
+    },
+    "poisonfang": {
+      "ko": "맹독엄니",
+      "slug": "poison-fang"
+    },
+    "poisonjab": {
+      "ko": "독찌르기",
+      "slug": "poison-jab"
+    },
+    "poisonpowder": {
+      "ko": "독가루",
+      "slug": "poison-powder"
+    },
+    "pollenpuff": {
+      "ko": "꽃가루경단",
+      "slug": "pollen-puff"
+    },
+    "poltergeist": {
+      "ko": "폴터가이스트",
+      "slug": "poltergeist"
+    },
+    "populationbomb": {
+      "ko": "찍찍베기",
+      "slug": "population-bomb"
+    },
+    "pounce": {
+      "ko": "달려들기",
+      "slug": "pounce"
+    },
+    "pound": {
+      "ko": "막치기",
+      "slug": "pound"
+    },
+    "powergem": {
+      "ko": "파워젬",
+      "slug": "power-gem"
+    },
+    "powershift": {
+      "ko": "파워시프트",
+      "slug": "power-shift"
+    },
+    "powersplit": {
+      "ko": "파워셰어",
+      "slug": "power-split"
+    },
+    "powerswap": {
+      "ko": "파워스왑",
+      "slug": "power-swap"
+    },
+    "powertrick": {
+      "ko": "파워트릭",
+      "slug": "power-trick"
+    },
+    "powertrip": {
+      "ko": "기어오르기",
+      "slug": "power-trip"
+    },
+    "powerwhip": {
+      "ko": "파워휩",
+      "slug": "power-whip"
+    },
+    "protect": {
+      "ko": "방어",
+      "slug": "protect"
+    },
+    "psychic": {
+      "ko": "사이코키네시스",
+      "slug": "psychic"
+    },
+    "psychicfangs": {
+      "ko": "사이코팽",
+      "slug": "psychic-fangs"
+    },
+    "psychicnoise": {
+      "ko": "사이코노이즈",
+      "slug": "psychic-noise"
+    },
+    "psychicterrain": {
+      "ko": "사이코필드",
+      "slug": "psychic-terrain"
+    },
+    "psychocut": {
+      "ko": "사이코커터",
+      "slug": "psycho-cut"
+    },
+    "psychup": {
+      "ko": "자기암시",
+      "slug": "psych-up"
+    },
+    "psyshieldbash": {
+      "ko": "배리어러시",
+      "slug": "psyshield-bash"
+    },
+    "psyshock": {
+      "ko": "사이코쇼크",
+      "slug": "psyshock"
+    },
+    "pyroball": {
+      "ko": "화염볼",
+      "slug": "pyro-ball"
+    },
+    "quash": {
+      "ko": "순서미루기",
+      "slug": "quash"
+    },
+    "quickattack": {
+      "ko": "전광석화",
+      "slug": "quick-attack"
+    },
+    "quickguard": {
+      "ko": "패스트가드",
+      "slug": "quick-guard"
+    },
+    "quiverdance": {
+      "ko": "나비춤",
+      "slug": "quiver-dance"
+    },
+    "ragefist": {
+      "ko": "분노의주먹",
+      "slug": "rage-fist"
+    },
+    "ragepowder": {
+      "ko": "분노가루",
+      "slug": "rage-powder"
+    },
+    "ragingbull": {
+      "ko": "레이징불",
+      "slug": "raging-bull"
+    },
+    "ragingfury": {
+      "ko": "대격분",
+      "slug": "raging-fury"
+    },
+    "raindance": {
+      "ko": "비바라기",
+      "slug": "rain-dance"
+    },
+    "rapidspin": {
+      "ko": "고속스핀",
+      "slug": "rapid-spin"
+    },
+    "razorshell": {
+      "ko": "셸블레이드",
+      "slug": "razor-shell"
+    },
+    "recover": {
+      "ko": "HP회복",
+      "slug": "recover"
+    },
+    "recycle": {
+      "ko": "리사이클",
+      "slug": "recycle"
+    },
+    "reflect": {
+      "ko": "리플렉터",
+      "slug": "reflect"
+    },
+    "reflecttype": {
+      "ko": "미러타입",
+      "slug": "reflect-type"
+    },
+    "rest": {
+      "ko": "잠자기",
+      "slug": "rest"
+    },
+    "reversal": {
+      "ko": "기사회생",
+      "slug": "reversal"
+    },
+    "revivalblessing": {
+      "ko": "회생의기도",
+      "slug": "revival-blessing"
+    },
+    "risingvoltage": {
+      "ko": "라이징볼트",
+      "slug": "rising-voltage"
+    },
+    "roar": {
+      "ko": "울부짖기",
+      "slug": "roar"
+    },
+    "rockblast": {
+      "ko": "록블라스트",
+      "slug": "rock-blast"
+    },
+    "rockpolish": {
+      "ko": "록커트",
+      "slug": "rock-polish"
+    },
+    "rockslide": {
+      "ko": "스톤샤워",
+      "slug": "rock-slide"
+    },
+    "rocktomb": {
+      "ko": "암석봉인",
+      "slug": "rock-tomb"
+    },
+    "rockwrecker": {
+      "ko": "암석포",
+      "slug": "rock-wrecker"
+    },
+    "roleplay": {
+      "ko": "역할",
+      "slug": "role-play"
+    },
+    "roost": {
+      "ko": "날개쉬기",
+      "slug": "roost"
+    },
+    "round": {
+      "ko": "돌림노래",
+      "slug": "round"
+    },
+    "sacredsword": {
+      "ko": "성스러운칼",
+      "slug": "sacred-sword"
+    },
+    "safeguard": {
+      "ko": "신비의부적",
+      "slug": "safeguard"
+    },
+    "saltcure": {
+      "ko": "소금절이",
+      "slug": "salt-cure"
+    },
+    "sandstorm": {
+      "ko": "모래바람",
+      "slug": "sandstorm"
+    },
+    "sandtomb": {
+      "ko": "모래지옥",
+      "slug": "sand-tomb"
+    },
+    "scald": {
+      "ko": "열탕",
+      "slug": "scald"
+    },
+    "scaleshot": {
+      "ko": "스케일샷",
+      "slug": "scale-shot"
+    },
+    "scaryface": {
+      "ko": "겁나는얼굴",
+      "slug": "scary-face"
+    },
+    "scorchingsands": {
+      "ko": "열사의대지",
+      "slug": "scorching-sands"
+    },
+    "screech": {
+      "ko": "싫은소리",
+      "slug": "screech"
+    },
+    "seedbomb": {
+      "ko": "씨폭탄",
+      "slug": "seed-bomb"
+    },
+    "seismictoss": {
+      "ko": "지구던지기",
+      "slug": "seismic-toss"
+    },
+    "selfdestruct": {
+      "ko": "자폭",
+      "slug": "self-destruct"
+    },
+    "shadowball": {
+      "ko": "섀도볼",
+      "slug": "shadow-ball"
+    },
+    "shadowclaw": {
+      "ko": "섀도클로",
+      "slug": "shadow-claw"
+    },
+    "shadowpunch": {
+      "ko": "섀도펀치",
+      "slug": "shadow-punch"
+    },
+    "shadowsneak": {
+      "ko": "야습",
+      "slug": "shadow-sneak"
+    },
+    "shedtail": {
+      "ko": "꼬리자르기",
+      "slug": "shed-tail"
+    },
+    "sheercold": {
+      "ko": "절대영도",
+      "slug": "sheer-cold"
+    },
+    "shellsidearm": {
+      "ko": "셸암즈",
+      "slug": "shell-side-arm"
+    },
+    "shellsmash": {
+      "ko": "껍질깨기",
+      "slug": "shell-smash"
+    },
+    "shelter": {
+      "ko": "농성",
+      "slug": "shelter"
+    },
+    "shiftgear": {
+      "ko": "기어체인지",
+      "slug": "shift-gear"
+    },
+    "simplebeam": {
+      "ko": "심플빔",
+      "slug": "simple-beam"
+    },
+    "sing": {
+      "ko": "노래하기",
+      "slug": "sing"
+    },
+    "skillswap": {
+      "ko": "스킬스왑",
+      "slug": "skill-swap"
+    },
+    "skittersmack": {
+      "ko": "엄습하는일격",
+      "slug": "skitter-smack"
+    },
+    "skyattack": {
+      "ko": "불새",
+      "slug": "sky-attack"
+    },
+    "slackoff": {
+      "ko": "게으름피우기",
+      "slug": "slack-off"
+    },
+    "slash": {
+      "ko": "베어가르기",
+      "slug": "slash"
+    },
+    "sleeppowder": {
+      "ko": "수면가루",
+      "slug": "sleep-powder"
+    },
+    "sleeptalk": {
+      "ko": "잠꼬대",
+      "slug": "sleep-talk"
+    },
+    "sludgebomb": {
+      "ko": "오물폭탄",
+      "slug": "sludge-bomb"
+    },
+    "sludgewave": {
+      "ko": "오물웨이브",
+      "slug": "sludge-wave"
+    },
+    "smackdown": {
+      "ko": "떨어뜨리기",
+      "slug": "smack-down"
+    },
+    "smartstrike": {
+      "ko": "스마트혼",
+      "slug": "smart-strike"
+    },
+    "snaptrap": {
+      "ko": "집게덫",
+      "slug": "snap-trap"
+    },
+    "snarl": {
+      "ko": "바크아웃",
+      "slug": "snarl"
+    },
+    "snipeshot": {
+      "ko": "노려맞히기",
+      "slug": "snipe-shot"
+    },
+    "snore": {
+      "ko": "코골기",
+      "slug": "snore"
+    },
+    "snowscape": {
+      "ko": "설경",
+      "slug": "snowscape"
+    },
+    "soak": {
+      "ko": "물붓기",
+      "slug": "soak"
+    },
+    "softboiled": {
+      "ko": "알낳기",
+      "slug": "soft-boiled"
+    },
+    "solarbeam": {
+      "ko": "솔라빔",
+      "slug": "solar-beam"
+    },
+    "solarblade": {
+      "ko": "솔라블레이드",
+      "slug": "solar-blade"
+    },
+    "sparklingaria": {
+      "ko": "물거품아리아",
+      "slug": "sparkling-aria"
+    },
+    "speedswap": {
+      "ko": "스피드스왑",
+      "slug": "speed-swap"
+    },
+    "spicyextract": {
+      "ko": "하바네로엑기스",
+      "slug": "spicy-extract"
+    },
+    "spikes": {
+      "ko": "압정뿌리기",
+      "slug": "spikes"
+    },
+    "spikyshield": {
+      "ko": "니들가드",
+      "slug": "spiky-shield"
+    },
+    "spiritbreak": {
+      "ko": "소울크래시",
+      "slug": "spirit-break"
+    },
+    "spiritshackle": {
+      "ko": "그림자꿰매기",
+      "slug": "spirit-shackle"
+    },
+    "spite": {
+      "ko": "원한",
+      "slug": "spite"
+    },
+    "spitup": {
+      "ko": "토해내기",
+      "slug": "spit-up"
+    },
+    "spore": {
+      "ko": "버섯포자",
+      "slug": "spore"
+    },
+    "stealthrock": {
+      "ko": "스텔스록",
+      "slug": "stealth-rock"
+    },
+    "steelbeam": {
+      "ko": "철제광선",
+      "slug": "steel-beam"
+    },
+    "steelroller": {
+      "ko": "아이언롤러",
+      "slug": "steel-roller"
+    },
+    "steelwing": {
+      "ko": "강철날개",
+      "slug": "steel-wing"
+    },
+    "stickyweb": {
+      "ko": "끈적끈적네트",
+      "slug": "sticky-web"
+    },
+    "stockpile": {
+      "ko": "비축하기",
+      "slug": "stockpile"
+    },
+    "stompingtantrum": {
+      "ko": "분함의발구르기",
+      "slug": "stomping-tantrum"
+    },
+    "stoneaxe": {
+      "ko": "암석액스",
+      "slug": "stone-axe"
+    },
+    "stoneedge": {
+      "ko": "스톤에지",
+      "slug": "stone-edge"
+    },
+    "storedpower": {
+      "ko": "어시스트파워",
+      "slug": "stored-power"
+    },
+    "stormthrow": {
+      "ko": "업어후리기",
+      "slug": "storm-throw"
+    },
+    "strengthsap": {
+      "ko": "힘흡수",
+      "slug": "strength-sap"
+    },
+    "stringshot": {
+      "ko": "실뿜기",
+      "slug": "string-shot"
+    },
+    "struggle": {
+      "ko": "발버둥",
+      "slug": "struggle"
+    },
+    "strugglebug": {
+      "ko": "벌레의저항",
+      "slug": "struggle-bug"
+    },
+    "stuffcheeks": {
+      "ko": "볼가득넣기",
+      "slug": "stuff-cheeks"
+    },
+    "stunspore": {
+      "ko": "저리가루",
+      "slug": "stun-spore"
+    },
+    "substitute": {
+      "ko": "대타출동",
+      "slug": "substitute"
+    },
+    "suckerpunch": {
+      "ko": "기습",
+      "slug": "sucker-punch"
+    },
+    "sunnyday": {
+      "ko": "쾌청",
+      "slug": "sunny-day"
+    },
+    "supercellslam": {
+      "ko": "썬더다이브",
+      "slug": "supercell-slam"
+    },
+    "superfang": {
+      "ko": "분노의앞니",
+      "slug": "super-fang"
+    },
+    "superpower": {
+      "ko": "엄청난힘",
+      "slug": "superpower"
+    },
+    "surf": {
+      "ko": "파도타기",
+      "slug": "surf"
+    },
+    "swagger": {
+      "ko": "뽐내기",
+      "slug": "swagger"
+    },
+    "swallow": {
+      "ko": "꿀꺽",
+      "slug": "swallow"
+    },
+    "sweetkiss": {
+      "ko": "천사의키스",
+      "slug": "sweet-kiss"
+    },
+    "sweetscent": {
+      "ko": "달콤한향기",
+      "slug": "sweet-scent"
+    },
+    "switcheroo": {
+      "ko": "바꿔치기",
+      "slug": "switcheroo"
+    },
+    "swordsdance": {
+      "ko": "칼춤",
+      "slug": "swords-dance"
+    },
+    "synthesis": {
+      "ko": "광합성",
+      "slug": "synthesis"
+    },
+    "syrupbomb": {
+      "ko": "시럽봄",
+      "slug": "syrup-bomb"
+    },
+    "tailslap": {
+      "ko": "스위프뺨치기",
+      "slug": "tail-slap"
+    },
+    "tailwind": {
+      "ko": "순풍",
+      "slug": "tailwind"
+    },
+    "taunt": {
+      "ko": "도발",
+      "slug": "taunt"
+    },
+    "tearfullook": {
+      "ko": "눈물그렁그렁",
+      "slug": "tearful-look"
+    },
+    "teatime": {
+      "ko": "다과회",
+      "slug": "teatime"
+    },
+    "teeterdance": {
+      "ko": "흔들흔들댄스",
+      "slug": "teeter-dance"
+    },
+    "temperflare": {
+      "ko": "열불내기",
+      "slug": "temper-flare"
+    },
+    "terrainpulse": {
+      "ko": "대지의파동",
+      "slug": "terrain-pulse"
+    },
+    "thief": {
+      "ko": "도둑질",
+      "slug": "thief"
+    },
+    "thrash": {
+      "ko": "난동부리기",
+      "slug": "thrash"
+    },
+    "throatchop": {
+      "ko": "지옥찌르기",
+      "slug": "throat-chop"
+    },
+    "thunder": {
+      "ko": "번개",
+      "slug": "thunder"
+    },
+    "thunderbolt": {
+      "ko": "10만볼트",
+      "slug": "thunderbolt"
+    },
+    "thunderfang": {
+      "ko": "번개엄니",
+      "slug": "thunder-fang"
+    },
+    "thunderpunch": {
+      "ko": "번개펀치",
+      "slug": "thunder-punch"
+    },
+    "thunderwave": {
+      "ko": "전기자석파",
+      "slug": "thunder-wave"
+    },
+    "tickle": {
+      "ko": "간지르기",
+      "slug": "tickle"
+    },
+    "tidyup": {
+      "ko": "정리정돈",
+      "slug": "tidy-up"
+    },
+    "topsyturvy": {
+      "ko": "뒤집어엎기",
+      "slug": "topsy-turvy"
+    },
+    "torchsong": {
+      "ko": "플레어송",
+      "slug": "torch-song"
+    },
+    "torment": {
+      "ko": "트집",
+      "slug": "torment"
+    },
+    "toxic": {
+      "ko": "맹독",
+      "slug": "toxic"
+    },
+    "toxicspikes": {
+      "ko": "독압정",
+      "slug": "toxic-spikes"
+    },
+    "toxicthread": {
+      "ko": "독실",
+      "slug": "toxic-thread"
+    },
+    "trailblaze": {
+      "ko": "개척하기",
+      "slug": "trailblaze"
+    },
+    "transform": {
+      "ko": "변신",
+      "slug": "transform"
+    },
+    "triattack": {
+      "ko": "트라이어택",
+      "slug": "tri-attack"
+    },
+    "trick": {
+      "ko": "트릭",
+      "slug": "trick"
+    },
+    "trickortreat": {
+      "ko": "핼러윈",
+      "slug": "trick-or-treat"
+    },
+    "trickroom": {
+      "ko": "트릭룸",
+      "slug": "trick-room"
+    },
+    "triplearrows": {
+      "ko": "3연화살",
+      "slug": "triple-arrows"
+    },
+    "tripleaxel": {
+      "ko": "트리플악셀",
+      "slug": "triple-axel"
+    },
+    "tropkick": {
+      "ko": "트로피컬킥",
+      "slug": "trop-kick"
+    },
+    "twinbeam": {
+      "ko": "트윈빔",
+      "slug": "twin-beam"
+    },
+    "upperhand": {
+      "ko": "기선제압",
+      "slug": "upper-hand"
+    },
+    "uproar": {
+      "ko": "소란피기",
+      "slug": "uproar"
+    },
+    "uturn": {
+      "ko": "유턴",
+      "slug": "u-turn"
+    },
+    "vacuumwave": {
+      "ko": "진공파",
+      "slug": "vacuum-wave"
+    },
+    "venoshock": {
+      "ko": "베놈쇼크",
+      "slug": "venoshock"
+    },
+    "voltswitch": {
+      "ko": "볼트체인지",
+      "slug": "volt-switch"
+    },
+    "volttackle": {
+      "ko": "볼트태클",
+      "slug": "volt-tackle"
+    },
+    "waterfall": {
+      "ko": "폭포오르기",
+      "slug": "waterfall"
+    },
+    "waterpulse": {
+      "ko": "물의파동",
+      "slug": "water-pulse"
+    },
+    "watershuriken": {
+      "ko": "물수리검",
+      "slug": "water-shuriken"
+    },
+    "waterspout": {
+      "ko": "해수스파우팅",
+      "slug": "water-spout"
+    },
+    "wavecrash": {
+      "ko": "웨이브태클",
+      "slug": "wave-crash"
+    },
+    "weatherball": {
+      "ko": "웨더볼",
+      "slug": "weather-ball"
+    },
+    "whirlpool": {
+      "ko": "바다회오리",
+      "slug": "whirlpool"
+    },
+    "whirlwind": {
+      "ko": "날려버리기",
+      "slug": "whirlwind"
+    },
+    "wideguard": {
+      "ko": "와이드가드",
+      "slug": "wide-guard"
+    },
+    "wildcharge": {
+      "ko": "와일드볼트",
+      "slug": "wild-charge"
+    },
+    "willowisp": {
+      "ko": "도깨비불",
+      "slug": "will-o-wisp"
+    },
+    "wish": {
+      "ko": "희망사항",
+      "slug": "wish"
+    },
+    "wonderroom": {
+      "ko": "원더룸",
+      "slug": "wonder-room"
+    },
+    "woodhammer": {
+      "ko": "우드해머",
+      "slug": "wood-hammer"
+    },
+    "worryseed": {
+      "ko": "고민씨",
+      "slug": "worry-seed"
+    },
+    "wrap": {
+      "ko": "김밥말이",
+      "slug": "wrap"
+    },
+    "xscissor": {
+      "ko": "시저크로스",
+      "slug": "x-scissor"
+    },
+    "yawn": {
+      "ko": "하품",
+      "slug": "yawn"
+    },
+    "zapcannon": {
+      "ko": "전자포",
+      "slug": "zap-cannon"
+    },
+    "zenheadbutt": {
+      "ko": "사념의박치기",
+      "slug": "zen-headbutt"
+    },
+    "zingzap": {
+      "ko": "찌리리따끔따끔",
+      "slug": "zing-zap"
+    }
+  }
+}
