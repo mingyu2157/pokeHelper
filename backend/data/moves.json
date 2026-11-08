@@ -4,12 +4,24 @@
     "generated_by": "backend/scripts/generate_moves.py",
     "key": "showdown 식 기술 id (영숫자만 남긴 소문자). 사용률 API 의 영문 표시명과 조인한다.",
     "note": "챔피언스 기술 수치는 본가와 다르다. 밸런스 패치로 위력·명중이 조정되고 PP 는 {1,8,12,16,20} 로 정규화돼 있다. 본가 데이터로 대체하면 안 된다 (ADR-009). 위력 null = 고정 위력 없음(자이로볼·지구던지기처럼 상황에 따라 결정). 명중 null = 명중 판정 없음. 한글명은 name_map_moves.json 소관 (ADR-005).",
-    "inferred_flags": {
-      "flags": [
-        "minimize_boosted",
-        "airborne"
-      ],
-      "note": "본가에 대응하는 이름 붙은 플래그가 없어 멤버 구성으로 추론했다. minimize_boosted=작아지기 상대 2배 그룹, airborne=공중에 뜨는 기술. 게임 내 미검증이므로 계산에 쓰기 전에 확인이 필요하다."
+    "flags_named_by_us": {
+      "minimize_boosted": {
+        "opgg_label": "압박",
+        "members": 6,
+        "meaning": "상대가 '작아지기'로 회피율을 올린 상태를 무시하고 명중하며 위력이 2배가 되는 기술 그룹.",
+        "evidence": "op.gg 설명문에 \"상대가 작아지기를 사용했다면 명중하며 데미지는 2배다\"가 명시돼 있다.",
+        "confirmed_by_user": true,
+        "usable_as_a_group": true
+      },
+      "rises": {
+        "opgg_label": "상승",
+        "members": 5,
+        "meaning": "op.gg 가 '상승'으로 묶었다는 사실만 나타낸다. 기계적 공통점은 없다.",
+        "evidence": "사용자 확인(2026-11-08) 결과 멤버가 세 갈래로 갈린다. (1) 공중날기·튕겨오르기 = 1턴차 상승으로 회피 후 2턴차 데미지, 예외 기술 있음(미확인). (2) 전자부유 = 5턴간 '부유' 특성, 땅 타입 무효. (3) 무릎차기·플라잉프레스 = 효과 없음(설명문 표현만).",
+        "confirmed_by_user": true,
+        "usable_as_a_group": false
+      },
+      "note": "본가에는 이 두 그룹에 이름 붙은 플래그가 없어 영문 키를 이 프로젝트가 정했다. 해석이 끼어든 지점이므로 근거를 함께 남긴다. usable_as_a_group=false 인 플래그로는 엔진이 아무 판단도 하지 않는다."
     },
     "cross_checks": {
       "champions_helper": {
@@ -663,7 +675,7 @@
       "priority": 0,
       "contact": true,
       "flags": [
-        "airborne"
+        "rises"
       ],
       "target": "selected"
     },
@@ -2148,7 +2160,7 @@
       "priority": 0,
       "contact": true,
       "flags": [
-        "airborne"
+        "rises"
       ],
       "target": "selected"
     },
@@ -2162,8 +2174,8 @@
       "priority": 0,
       "contact": true,
       "flags": [
-        "airborne",
-        "minimize_boosted"
+        "minimize_boosted",
+        "rises"
       ],
       "target": "selected"
     },
@@ -2689,7 +2701,7 @@
       "priority": 0,
       "contact": true,
       "flags": [
-        "airborne"
+        "rises"
       ],
       "target": "selected"
     },
@@ -3365,7 +3377,7 @@
       "priority": 0,
       "contact": false,
       "flags": [
-        "airborne"
+        "rises"
       ],
       "target": "self"
     },
