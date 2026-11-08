@@ -165,6 +165,53 @@ class TestChampionsValuesAreNotMainline:
         assert movedex.get("crosspoison").has_flag("slicing")
 
 
+class TestFlagsWeNamedOurselves:
+    """★ op.gg 의 '압박'·'상승' 은 본가에 영문 이름이 없어 우리가 키를 정했다.
+
+    데이터에 해석이 끼어든 유일한 지점이라 멤버를 골든으로 고정한다.
+    출처가 분류를 바꾸면 조용히 넘어가지 말고 여기서 깨져야 한다.
+    """
+
+    def test_minimize_boosted_members(self, movedex):
+        """상대의 '작아지기'를 무시하고 명중하며 위력 2배. 그룹으로 쓸 수 있다."""
+        assert {entry.move_id for entry in movedex.with_flag("minimize_boosted")} == {
+            "bodyslam",
+            "dragonrush",
+            "supercellslam",
+            "flyingpress",
+            "heavyslam",
+            "heatcrash",
+        }
+
+    def test_rises_members(self, movedex):
+        """'상승'은 **기계적 공통점이 없다.** 멤버가 세 갈래로 갈린다.
+
+        공중날기·튕겨오르기 = 1턴차 회피 후 2턴차 데미지
+        전자부유           = 5턴간 '부유' 특성 (땅 타입 무효)
+        무릎차기·플라잉프레스 = 효과 없음 (설명문 표현만)
+
+        그래서 이 플래그로는 아무 판단도 하지 않는다. 이름도 성질을 주장하지 않는
+        `rises` 다 — `airborne` 은 없는 공통 성질을 주장해서 바꿨다.
+        """
+        assert {entry.move_id for entry in movedex.with_flag("rises")} == {
+            "fly",
+            "bounce",
+            "highjumpkick",
+            "magnetrise",
+            "flyingpress",
+        }
+
+    def test_airborne_is_not_used_as_a_flag_name(self, raw_data):
+        """없는 공통 성질을 주장하는 이름이 다시 들어오면 막는다."""
+        assert "airborne" not in json.dumps(raw_data["moves"])
+
+    def test_metadata_records_which_groups_are_usable(self, raw_data):
+        """플래그를 계산에 쓸 수 있는지를 데이터가 직접 말해야 한다."""
+        named = raw_data["_meta"]["flags_named_by_us"]
+        assert named["minimize_boosted"]["usable_as_a_group"] is True
+        assert named["rises"]["usable_as_a_group"] is False
+
+
 class TestLookup:
     def test_returns_an_entry(self, movedex):
         entry = movedex.get("earthquake")
