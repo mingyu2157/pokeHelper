@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from app.domain.items import ItemCatalog
+from app.domain.movedex import MoveDex
 from app.domain.nature import NatureCatalog
 from app.domain.pokedex import Pokedex
 from app.domain.typechart import TypeChart
@@ -46,3 +47,8 @@ def nature_catalog() -> NatureCatalog:
 @lru_cache(maxsize=1)
 def pokedex() -> Pokedex:
     return Pokedex.from_mapping(_load("pokemon.json")["pokemon"])
+
+
+@lru_cache(maxsize=1)
+def move_dex() -> MoveDex:
+    return MoveDex.from_mapping(_load("moves.json")["moves"])

@@ -2,10 +2,10 @@
 
 도메인이 파일을 읽지 않으므로(ADR-007) 여기가 JSON → 도메인 객체 경계다.
 데이터가 깨지면 앱이 뜨는 순간이 아니라 **첫 요청에서** 터지므로,
-세 카탈로그가 모두 로드되는지 미리 확인한다.
+모든 카탈로그가 로드되는지 미리 확인한다.
 """
 
-from app.core.seed import item_catalog, nature_catalog, pokedex, type_chart
+from app.core.seed import item_catalog, move_dex, nature_catalog, pokedex, type_chart
 from app.domain.items import ItemEffectKind
 from app.domain.nature import StatKey
 from app.domain.typechart import PokemonType, effectiveness
@@ -33,6 +33,13 @@ class TestLoaders:
         assert dex.get("garchomp").base_stats.speed == 102
         assert len(dex.ids()) > 200
 
+    def test_move_dex_loads(self):
+        dex = move_dex()
+        earthquake = dex.get("earthquake")
+        assert earthquake.power == 100
+        assert earthquake.move_type is PokemonType.GROUND
+        assert len(dex.ids()) > 500
+
 
 class TestCaching:
     """정적 데이터라 프로세스당 한 번만 읽는다."""
@@ -42,3 +49,4 @@ class TestCaching:
         assert item_catalog() is item_catalog()
         assert nature_catalog() is nature_catalog()
         assert pokedex() is pokedex()
+        assert move_dex() is move_dex()

@@ -42,3 +42,24 @@ class InvalidRankStage(DomainError):
 
 class UnknownPokemon(DomainError):
     """마스터 시드에 없는 포켓몬이다."""
+
+
+class UnknownMove(DomainError):
+    """마스터 시드에 없는 기술이다."""
+
+
+class UnknownMoveCategory(DomainError):
+    """기술 데이터에 알 수 없는 분류가 들어 있다."""
+
+
+class MoveHasNoFixedPower(DomainError):
+    """위력이 상황에 따라 결정되는 기술을 고정 위력처럼 쓰려 했다.
+
+    자이로볼·지구던지기·카운터처럼 위력이 스피드·체중·받은 데미지로 정해지는 기술이다.
+    호출자가 위력을 계산해 넘겨야 한다. **0 으로 때우면 안 된다** — 데미지가 0 이
+    아니라 '아직 모른다'이고, 그 둘을 섞으면 "이 기술로는 안 쓰러진다"는 틀린 답이 나온다.
+    """
+
+
+class MoveIsNotDamaging(DomainError):
+    """변화 기술로 데미지를 계산하려 했다."""
