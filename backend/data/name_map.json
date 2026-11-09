@@ -1,0 +1,2161 @@
+{
+  "_meta": {
+    "sources": {
+      "korean_names": "https://pokeapi.co/api/v2/pokemon-species/{slug}",
+      "pokeapi_bridge": "https://smartnuo.com/api/pokemon",
+      "identity_check": "https://pokeapi.co/api/v2/pokemon/{slug}"
+    },
+    "generated_by": "backend/scripts/generate_name_map.py",
+    "key": "showdown_id -> 한국 서버 명칭",
+    "note": "자동 확정 조건: 종족값 6개 일치 + 타입 일치 + 종 한국어명 존재 + Base 폼. 폼은 공식 표기가 조합이 필요해 사람 검수를 거친다 (ADR-005). 퍼지 매칭 금지 — 정확 일치 조회만 한다.",
+    "confirmed": 263,
+    "pending": 0,
+    "total": 263
+  },
+  "pokemon": {
+    "abomasnow": {
+      "ko": "눈설왕",
+      "pokeapi_slug": "abomasnow",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "absol": {
+      "ko": "앱솔",
+      "pokeapi_slug": "absol",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "aegislash": {
+      "ko": "킬가르도(실드폼)",
+      "pokeapi_slug": "aegislash-shield",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "aerodactyl": {
+      "ko": "프테라",
+      "pokeapi_slug": "aerodactyl",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "aggron": {
+      "ko": "보스로라",
+      "pokeapi_slug": "aggron",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "alakazam": {
+      "ko": "후딘",
+      "pokeapi_slug": "alakazam",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "alcremie": {
+      "ko": "마휘핑",
+      "pokeapi_slug": "alcremie",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "altaria": {
+      "ko": "파비코리",
+      "pokeapi_slug": "altaria",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "ampharos": {
+      "ko": "전룡",
+      "pokeapi_slug": "ampharos",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "annihilape": {
+      "ko": "저승갓숭",
+      "pokeapi_slug": "annihilape",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "appletun": {
+      "ko": "단지래플",
+      "pokeapi_slug": "appletun",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "araquanid": {
+      "ko": "깨비물거미",
+      "pokeapi_slug": "araquanid",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "arbok": {
+      "ko": "아보크",
+      "pokeapi_slug": "arbok",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "arboliva": {
+      "ko": "올리르바",
+      "pokeapi_slug": "arboliva",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "arcanine": {
+      "ko": "윈디",
+      "pokeapi_slug": "arcanine",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "arcaninehisui": {
+      "ko": "윈디(히스이의 모습)",
+      "pokeapi_slug": "arcanine-hisui",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "archaludon": {
+      "ko": "브리두라스",
+      "pokeapi_slug": "archaludon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "ariados": {
+      "ko": "아리아도스",
+      "pokeapi_slug": "ariados",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "armarouge": {
+      "ko": "카디나르마",
+      "pokeapi_slug": "armarouge",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "aromatisse": {
+      "ko": "프레프티르",
+      "pokeapi_slug": "aromatisse",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "audino": {
+      "ko": "다부니",
+      "pokeapi_slug": "audino",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "aurorus": {
+      "ko": "아마루르가",
+      "pokeapi_slug": "aurorus",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "avalugg": {
+      "ko": "크레베이스",
+      "pokeapi_slug": "avalugg",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "avalugghisui": {
+      "ko": "크레베이스(히스이의 모습)",
+      "pokeapi_slug": "avalugg-hisui",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "azumarill": {
+      "ko": "마릴리",
+      "pokeapi_slug": "azumarill",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "banette": {
+      "ko": "다크펫",
+      "pokeapi_slug": "banette",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "barbaracle": {
+      "ko": "거북손데스",
+      "pokeapi_slug": "barbaracle",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "basculegion": {
+      "ko": "대쓰여너(수컷의 모습)",
+      "pokeapi_slug": "basculegion-male",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "basculegionf": {
+      "ko": "대쓰여너(암컷의 모습)",
+      "pokeapi_slug": "basculegion-female",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "bastiodon": {
+      "ko": "바리톱스",
+      "pokeapi_slug": "bastiodon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "baxcalibur": {
+      "ko": "드닐레이브",
+      "pokeapi_slug": "baxcalibur",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "beartic": {
+      "ko": "툰베어",
+      "pokeapi_slug": "beartic",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "beedrill": {
+      "ko": "독침붕",
+      "pokeapi_slug": "beedrill",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "bellibolt": {
+      "ko": "찌리배리",
+      "pokeapi_slug": "bellibolt",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "blastoise": {
+      "ko": "거북왕",
+      "pokeapi_slug": "blastoise",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "blaziken": {
+      "ko": "번치코",
+      "pokeapi_slug": "blaziken",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "camerupt": {
+      "ko": "폭타",
+      "pokeapi_slug": "camerupt",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "castform": {
+      "ko": "캐스퐁",
+      "pokeapi_slug": "castform",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "ceruledge": {
+      "ko": "파라블레이즈",
+      "pokeapi_slug": "ceruledge",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "chandelure": {
+      "ko": "샹델라",
+      "pokeapi_slug": "chandelure",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "charizard": {
+      "ko": "리자몽",
+      "pokeapi_slug": "charizard",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "chesnaught": {
+      "ko": "브리가론",
+      "pokeapi_slug": "chesnaught",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "chimecho": {
+      "ko": "치렁",
+      "pokeapi_slug": "chimecho",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "cinderace": {
+      "ko": "에이스번",
+      "pokeapi_slug": "cinderace",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "clawitzer": {
+      "ko": "블로스터",
+      "pokeapi_slug": "clawitzer",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "clefable": {
+      "ko": "픽시",
+      "pokeapi_slug": "clefable",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "cofagrigus": {
+      "ko": "데스니칸",
+      "pokeapi_slug": "cofagrigus",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "conkeldurr": {
+      "ko": "노보청",
+      "pokeapi_slug": "conkeldurr",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "corviknight": {
+      "ko": "아머까오",
+      "pokeapi_slug": "corviknight",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "crabominable": {
+      "ko": "모단단게",
+      "pokeapi_slug": "crabominable",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "decidueye": {
+      "ko": "모크나이퍼",
+      "pokeapi_slug": "decidueye",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "decidueyehisui": {
+      "ko": "모크나이퍼(히스이의 모습)",
+      "pokeapi_slug": "decidueye-hisui",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "dedenne": {
+      "ko": "데덴네",
+      "pokeapi_slug": "dedenne",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "delphox": {
+      "ko": "마폭시",
+      "pokeapi_slug": "delphox",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "diggersby": {
+      "ko": "파르토",
+      "pokeapi_slug": "diggersby",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "ditto": {
+      "ko": "메타몽",
+      "pokeapi_slug": "ditto",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "dragalge": {
+      "ko": "드래캄",
+      "pokeapi_slug": "dragalge",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "dragapult": {
+      "ko": "드래펄트",
+      "pokeapi_slug": "dragapult",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "dragonite": {
+      "ko": "망나뇽",
+      "pokeapi_slug": "dragonite",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "drampa": {
+      "ko": "할비롱",
+      "pokeapi_slug": "drampa",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "eelektross": {
+      "ko": "저리더프",
+      "pokeapi_slug": "eelektross",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "emboar": {
+      "ko": "염무왕",
+      "pokeapi_slug": "emboar",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "emolga": {
+      "ko": "에몽가",
+      "pokeapi_slug": "emolga",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "empoleon": {
+      "ko": "엠페르트",
+      "pokeapi_slug": "empoleon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "espathra": {
+      "ko": "클레스퍼트라",
+      "pokeapi_slug": "espathra",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "espeon": {
+      "ko": "에브이",
+      "pokeapi_slug": "espeon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "excadrill": {
+      "ko": "몰드류",
+      "pokeapi_slug": "excadrill",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "falinks": {
+      "ko": "대여르",
+      "pokeapi_slug": "falinks",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "farfetchd": {
+      "ko": "파오리",
+      "pokeapi_slug": "farfetchd",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "farigiraf": {
+      "ko": "키키링",
+      "pokeapi_slug": "farigiraf",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "feraligatr": {
+      "ko": "장크로다일",
+      "pokeapi_slug": "feraligatr",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "flapple": {
+      "ko": "애프룡",
+      "pokeapi_slug": "flapple",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "flareon": {
+      "ko": "부스터",
+      "pokeapi_slug": "flareon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "floetteeternal": {
+      "ko": "플라엣테",
+      "pokeapi_slug": "floette-eternal",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "florges": {
+      "ko": "플라제스",
+      "pokeapi_slug": "florges",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "forretress": {
+      "ko": "쏘콘",
+      "pokeapi_slug": "forretress",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "froslass": {
+      "ko": "눈여아",
+      "pokeapi_slug": "froslass",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "furfrou": {
+      "ko": "트리미앙",
+      "pokeapi_slug": "furfrou",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "gallade": {
+      "ko": "엘레이드",
+      "pokeapi_slug": "gallade",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "garbodor": {
+      "ko": "더스트나",
+      "pokeapi_slug": "garbodor",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "garchomp": {
+      "ko": "한카리아스",
+      "pokeapi_slug": "garchomp",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "gardevoir": {
+      "ko": "가디안",
+      "pokeapi_slug": "gardevoir",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "garganacl": {
+      "ko": "콜로솔트",
+      "pokeapi_slug": "garganacl",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "gengar": {
+      "ko": "팬텀",
+      "pokeapi_slug": "gengar",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "gholdengo": {
+      "ko": "타부자고",
+      "pokeapi_slug": "gholdengo",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "glaceon": {
+      "ko": "글레이시아",
+      "pokeapi_slug": "glaceon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "glalie": {
+      "ko": "얼음귀신",
+      "pokeapi_slug": "glalie",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "glimmora": {
+      "ko": "킬라플로르",
+      "pokeapi_slug": "glimmora",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "gliscor": {
+      "ko": "글라이온",
+      "pokeapi_slug": "gliscor",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "gogoat": {
+      "ko": "고고트",
+      "pokeapi_slug": "gogoat",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "golisopod": {
+      "ko": "갑주무사",
+      "pokeapi_slug": "golisopod",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "golurk": {
+      "ko": "골루그",
+      "pokeapi_slug": "golurk",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "goodra": {
+      "ko": "미끄래곤",
+      "pokeapi_slug": "goodra",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "goodrahisui": {
+      "ko": "미끄래곤(히스이의 모습)",
+      "pokeapi_slug": "goodra-hisui",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "gourgeist": {
+      "ko": "펌킨인",
+      "pokeapi_slug": "gourgeist-average",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "gourgeistlarge": {
+      "ko": "펌킨인(큰 사이즈)",
+      "pokeapi_slug": "gourgeist-large",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "gourgeistsmall": {
+      "ko": "펌킨인(작은 사이즈)",
+      "pokeapi_slug": "gourgeist-small",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "gourgeistsuper": {
+      "ko": "펌킨인(특대 사이즈)",
+      "pokeapi_slug": "gourgeist-super",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "grapploct": {
+      "ko": "케오퍼스",
+      "pokeapi_slug": "grapploct",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "greninja": {
+      "ko": "개굴닌자",
+      "pokeapi_slug": "greninja",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "grimmsnarl": {
+      "ko": "오롱털",
+      "pokeapi_slug": "grimmsnarl",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "gyarados": {
+      "ko": "갸라도스",
+      "pokeapi_slug": "gyarados",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "hatterene": {
+      "ko": "브리무음",
+      "pokeapi_slug": "hatterene",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "hawlucha": {
+      "ko": "루차불",
+      "pokeapi_slug": "hawlucha",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "heliolisk": {
+      "ko": "일레도리자드",
+      "pokeapi_slug": "heliolisk",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "heracross": {
+      "ko": "헤라크로스",
+      "pokeapi_slug": "heracross",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "hippowdon": {
+      "ko": "하마돈",
+      "pokeapi_slug": "hippowdon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "houndoom": {
+      "ko": "헬가",
+      "pokeapi_slug": "houndoom",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "houndstone": {
+      "ko": "묘두기",
+      "pokeapi_slug": "houndstone",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "hydrapple": {
+      "ko": "과미드라",
+      "pokeapi_slug": "hydrapple",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "hydreigon": {
+      "ko": "삼삼드래",
+      "pokeapi_slug": "hydreigon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "incineroar": {
+      "ko": "어흥염",
+      "pokeapi_slug": "incineroar",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "indeedee": {
+      "ko": "에써르",
+      "pokeapi_slug": "indeedee-male",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "indeedeef": {
+      "ko": "에써르(암컷의 모습)",
+      "pokeapi_slug": "indeedee-female",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "infernape": {
+      "ko": "초염몽",
+      "pokeapi_slug": "infernape",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "inteleon": {
+      "ko": "인텔리레온",
+      "pokeapi_slug": "inteleon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "jolteon": {
+      "ko": "쥬피썬더",
+      "pokeapi_slug": "jolteon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "kangaskhan": {
+      "ko": "캥카",
+      "pokeapi_slug": "kangaskhan",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "kingambit": {
+      "ko": "대도각참",
+      "pokeapi_slug": "kingambit",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "kleavor": {
+      "ko": "사마자르",
+      "pokeapi_slug": "kleavor",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "klefki": {
+      "ko": "클레피",
+      "pokeapi_slug": "klefki",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "kommoo": {
+      "ko": "짜랑고우거",
+      "pokeapi_slug": "kommo-o",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "krookodile": {
+      "ko": "악비아르",
+      "pokeapi_slug": "krookodile",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "leafeon": {
+      "ko": "리피아",
+      "pokeapi_slug": "leafeon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "liepard": {
+      "ko": "레파르다스",
+      "pokeapi_slug": "liepard",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "lopunny": {
+      "ko": "이어롭",
+      "pokeapi_slug": "lopunny",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "lucario": {
+      "ko": "루카리오",
+      "pokeapi_slug": "lucario",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "luxray": {
+      "ko": "렌트라",
+      "pokeapi_slug": "luxray",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "lycanroc": {
+      "ko": "루가루암",
+      "pokeapi_slug": "lycanroc-midday",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "lycanrocdusk": {
+      "ko": "루가루암(황혼의 모습)",
+      "pokeapi_slug": "lycanroc-dusk",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "lycanrocmidnight": {
+      "ko": "루가루암(한밤중의 모습)",
+      "pokeapi_slug": "lycanroc-midnight",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "mabosstiff": {
+      "ko": "마피티프",
+      "pokeapi_slug": "mabosstiff",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "machamp": {
+      "ko": "괴력몬",
+      "pokeapi_slug": "machamp",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "malamar": {
+      "ko": "칼라마네로",
+      "pokeapi_slug": "malamar",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "mamoswine": {
+      "ko": "맘모꾸리",
+      "pokeapi_slug": "mamoswine",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "manectric": {
+      "ko": "썬더볼트",
+      "pokeapi_slug": "manectric",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "maushold": {
+      "ko": "파밀리쥐(세 식구)",
+      "pokeapi_slug": "maushold-family-of-three",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "mausholdfour": {
+      "ko": "파밀리쥐(네 식구)",
+      "pokeapi_slug": "maushold-family-of-four",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "mawile": {
+      "ko": "입치트",
+      "pokeapi_slug": "mawile",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "medicham": {
+      "ko": "요가램",
+      "pokeapi_slug": "medicham",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "meganium": {
+      "ko": "메가니움",
+      "pokeapi_slug": "meganium",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "meowscarada": {
+      "ko": "마스카나",
+      "pokeapi_slug": "meowscarada",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "meowstic": {
+      "ko": "냐오닉스",
+      "pokeapi_slug": "meowstic-male",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "meowsticf": {
+      "ko": "냐오닉스(암컷의 모습)",
+      "pokeapi_slug": "meowstic-female",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "metagross": {
+      "ko": "메타그로스",
+      "pokeapi_slug": "metagross",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "milotic": {
+      "ko": "밀로틱",
+      "pokeapi_slug": "milotic",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "mimikyu": {
+      "ko": "따라큐",
+      "pokeapi_slug": "mimikyu-disguised",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "morpeko": {
+      "ko": "모르페코",
+      "pokeapi_slug": "morpeko-full-belly",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "mrmime": {
+      "ko": "마임맨",
+      "pokeapi_slug": "mr-mime",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "mrrime": {
+      "ko": "마임꽁꽁",
+      "pokeapi_slug": "mr-rime",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "mudsdale": {
+      "ko": "만마드",
+      "pokeapi_slug": "mudsdale",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "musharna": {
+      "ko": "몽얌나",
+      "pokeapi_slug": "musharna",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "ninetales": {
+      "ko": "나인테일",
+      "pokeapi_slug": "ninetales",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "ninetalesalola": {
+      "ko": "나인테일(알로라의 모습)",
+      "pokeapi_slug": "ninetales-alola",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "noivern": {
+      "ko": "음번",
+      "pokeapi_slug": "noivern",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "oranguru": {
+      "ko": "하랑우탄",
+      "pokeapi_slug": "oranguru",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "orthworm": {
+      "ko": "꿈트렁",
+      "pokeapi_slug": "orthworm",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "overqwil": {
+      "ko": "장침바루",
+      "pokeapi_slug": "overqwil",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "palafin": {
+      "ko": "돌핀맨(나이브)",
+      "pokeapi_slug": "palafin-zero",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "pangoro": {
+      "ko": "부란다",
+      "pokeapi_slug": "pangoro",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "passimian": {
+      "ko": "내던숭이",
+      "pokeapi_slug": "passimian",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "pawmot": {
+      "ko": "빠르모트",
+      "pokeapi_slug": "pawmot",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "pelipper": {
+      "ko": "패리퍼",
+      "pokeapi_slug": "pelipper",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "perrserker": {
+      "ko": "나이킹",
+      "pokeapi_slug": "perrserker",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "persian": {
+      "ko": "페르시온",
+      "pokeapi_slug": "persian",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "persianalola": {
+      "ko": "페르시온(알로라의 모습)",
+      "pokeapi_slug": "persian-alola",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "pidgeot": {
+      "ko": "피죤투",
+      "pokeapi_slug": "pidgeot",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "pikachu": {
+      "ko": "피카츄",
+      "pokeapi_slug": "pikachu",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "pincurchin": {
+      "ko": "찌르성게",
+      "pokeapi_slug": "pincurchin",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "pinsir": {
+      "ko": "쁘사이저",
+      "pokeapi_slug": "pinsir",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "politoed": {
+      "ko": "왕구리",
+      "pokeapi_slug": "politoed",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "polteageist": {
+      "ko": "포트데스",
+      "pokeapi_slug": "polteageist",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "primarina": {
+      "ko": "누리레느",
+      "pokeapi_slug": "primarina",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "pyroar": {
+      "ko": "화염레오",
+      "pokeapi_slug": "pyroar-male",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "quaquaval": {
+      "ko": "웨이니발",
+      "pokeapi_slug": "quaquaval",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "qwilfish": {
+      "ko": "침바루",
+      "pokeapi_slug": "qwilfish",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "raichu": {
+      "ko": "라이츄",
+      "pokeapi_slug": "raichu",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "raichualola": {
+      "ko": "라이츄(알로라의 모습)",
+      "pokeapi_slug": "raichu-alola",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "rampardos": {
+      "ko": "램펄드",
+      "pokeapi_slug": "rampardos",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "reuniclus": {
+      "ko": "란쿨루스",
+      "pokeapi_slug": "reuniclus",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "rhyperior": {
+      "ko": "거대코뿌리",
+      "pokeapi_slug": "rhyperior",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "rillaboom": {
+      "ko": "고릴타",
+      "pokeapi_slug": "rillaboom",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "roserade": {
+      "ko": "로즈레이드",
+      "pokeapi_slug": "roserade",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "rotom": {
+      "ko": "로토무",
+      "pokeapi_slug": "rotom",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "rotomfan": {
+      "ko": "스핀로토무",
+      "pokeapi_slug": "rotom-fan",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "rotomfrost": {
+      "ko": "프로스트로토무",
+      "pokeapi_slug": "rotom-frost",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "rotomheat": {
+      "ko": "히트로토무",
+      "pokeapi_slug": "rotom-heat",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "rotommow": {
+      "ko": "커트로토무",
+      "pokeapi_slug": "rotom-mow",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "rotomwash": {
+      "ko": "워시로토무",
+      "pokeapi_slug": "rotom-wash",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "runerigus": {
+      "ko": "데스판",
+      "pokeapi_slug": "runerigus",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "sableye": {
+      "ko": "깜까미",
+      "pokeapi_slug": "sableye",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "salamence": {
+      "ko": "보만다",
+      "pokeapi_slug": "salamence",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "salazzle": {
+      "ko": "염뉴트",
+      "pokeapi_slug": "salazzle",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "samurott": {
+      "ko": "대검귀",
+      "pokeapi_slug": "samurott",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "samurotthisui": {
+      "ko": "대검귀(히스이의 모습)",
+      "pokeapi_slug": "samurott-hisui",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "sandaconda": {
+      "ko": "사다이사",
+      "pokeapi_slug": "sandaconda",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "sceptile": {
+      "ko": "나무킹",
+      "pokeapi_slug": "sceptile",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "scizor": {
+      "ko": "핫삼",
+      "pokeapi_slug": "scizor",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "scolipede": {
+      "ko": "펜드라",
+      "pokeapi_slug": "scolipede",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "scovillain": {
+      "ko": "스코빌런",
+      "pokeapi_slug": "scovillain",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "scrafty": {
+      "ko": "곤율거니",
+      "pokeapi_slug": "scrafty",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "serperior": {
+      "ko": "샤로다",
+      "pokeapi_slug": "serperior",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "sharpedo": {
+      "ko": "샤크니아",
+      "pokeapi_slug": "sharpedo",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "simipour": {
+      "ko": "앗차키",
+      "pokeapi_slug": "simipour",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "simisage": {
+      "ko": "야나키",
+      "pokeapi_slug": "simisage",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "simisear": {
+      "ko": "바오키",
+      "pokeapi_slug": "simisear",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "sinistcha": {
+      "ko": "그우린차",
+      "pokeapi_slug": "sinistcha",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "sirfetchd": {
+      "ko": "창파나이트",
+      "pokeapi_slug": "sirfetchd",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "skarmory": {
+      "ko": "무장조",
+      "pokeapi_slug": "skarmory",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "skeledirge": {
+      "ko": "라우드본",
+      "pokeapi_slug": "skeledirge",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "slowbro": {
+      "ko": "야도란",
+      "pokeapi_slug": "slowbro",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "slowbrogalar": {
+      "ko": "야도란(가라르의 모습)",
+      "pokeapi_slug": "slowbro-galar",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "slowking": {
+      "ko": "야도킹",
+      "pokeapi_slug": "slowking",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "slowkinggalar": {
+      "ko": "야도킹(가라르의 모습)",
+      "pokeapi_slug": "slowking-galar",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "slurpuff": {
+      "ko": "나루림",
+      "pokeapi_slug": "slurpuff",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "sneasler": {
+      "ko": "포푸니크",
+      "pokeapi_slug": "sneasler",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "snorlax": {
+      "ko": "잠만보",
+      "pokeapi_slug": "snorlax",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "spiritomb": {
+      "ko": "화강돌",
+      "pokeapi_slug": "spiritomb",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "squawkabilly": {
+      "ko": "시비꼬(그린 페더)",
+      "pokeapi_slug": "squawkabilly-green-plumage",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "squawkabillyyellow": {
+      "ko": "시비꼬(옐로 페더)",
+      "pokeapi_slug": "squawkabilly-yellow-plumage",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "staraptor": {
+      "ko": "찌르호크",
+      "pokeapi_slug": "staraptor",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "starmie": {
+      "ko": "아쿠스타",
+      "pokeapi_slug": "starmie",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "steelix": {
+      "ko": "강철톤",
+      "pokeapi_slug": "steelix",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "stunfisk": {
+      "ko": "메더",
+      "pokeapi_slug": "stunfisk",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "stunfiskgalar": {
+      "ko": "메더(가라르의 모습)",
+      "pokeapi_slug": "stunfisk-galar",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "swalot": {
+      "ko": "꿀꺽몬",
+      "pokeapi_slug": "swalot",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "swampert": {
+      "ko": "대짱이",
+      "pokeapi_slug": "swampert",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "sylveon": {
+      "ko": "님피아",
+      "pokeapi_slug": "sylveon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "talonflame": {
+      "ko": "파이어로",
+      "pokeapi_slug": "talonflame",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "tauros": {
+      "ko": "켄타로스",
+      "pokeapi_slug": "tauros",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "taurospaldeaaqua": {
+      "ko": "켄타로스(팔데아의 모습/워터종)",
+      "pokeapi_slug": "tauros-paldea-aqua-breed",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "taurospaldeablaze": {
+      "ko": "켄타로스(팔데아의 모습/블레이즈종)",
+      "pokeapi_slug": "tauros-paldea-blaze-breed",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "taurospaldeacombat": {
+      "ko": "켄타로스(팔데아의 모습/컴뱃종)",
+      "pokeapi_slug": "tauros-paldea-combat-breed",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "thievul": {
+      "ko": "폭슬라이",
+      "pokeapi_slug": "thievul",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "tinkaton": {
+      "ko": "두드리짱",
+      "pokeapi_slug": "tinkaton",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "torkoal": {
+      "ko": "코터스",
+      "pokeapi_slug": "torkoal",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "torterra": {
+      "ko": "토대부기",
+      "pokeapi_slug": "torterra",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "toucannon": {
+      "ko": "왕큰부리",
+      "pokeapi_slug": "toucannon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "toxapex": {
+      "ko": "더시마사리",
+      "pokeapi_slug": "toxapex",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "toxicroak": {
+      "ko": "독개굴",
+      "pokeapi_slug": "toxicroak",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "toxtricity": {
+      "ko": "스트린더",
+      "pokeapi_slug": "toxtricity-amped",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "toxtricitylowkey": {
+      "ko": "스트린더(로우한 모습)",
+      "pokeapi_slug": "toxtricity-low-key",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "trevenant": {
+      "ko": "대로트",
+      "pokeapi_slug": "trevenant",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "tsareena": {
+      "ko": "달코퀸",
+      "pokeapi_slug": "tsareena",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "typhlosion": {
+      "ko": "블레이범",
+      "pokeapi_slug": "typhlosion",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "typhlosionhisui": {
+      "ko": "블레이범(히스이의 모습)",
+      "pokeapi_slug": "typhlosion-hisui",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "tyranitar": {
+      "ko": "마기라스",
+      "pokeapi_slug": "tyranitar",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "tyrantrum": {
+      "ko": "견고라스",
+      "pokeapi_slug": "tyrantrum",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "umbreon": {
+      "ko": "블래키",
+      "pokeapi_slug": "umbreon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "vanilluxe": {
+      "ko": "배바닐라",
+      "pokeapi_slug": "vanilluxe",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "vaporeon": {
+      "ko": "샤미드",
+      "pokeapi_slug": "vaporeon",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "venusaur": {
+      "ko": "이상해꽃",
+      "pokeapi_slug": "venusaur",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "victreebel": {
+      "ko": "우츠보트",
+      "pokeapi_slug": "victreebel",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "vileplume": {
+      "ko": "라플레시아",
+      "pokeapi_slug": "vileplume",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "vivillonfancy": {
+      "ko": "비비용",
+      "pokeapi_slug": "vivillon",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    },
+    "volcarona": {
+      "ko": "불카모스",
+      "pokeapi_slug": "volcarona",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "watchog": {
+      "ko": "보르그",
+      "pokeapi_slug": "watchog",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "weavile": {
+      "ko": "포푸니라",
+      "pokeapi_slug": "weavile",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "whimsicott": {
+      "ko": "엘풍",
+      "pokeapi_slug": "whimsicott",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "wigglytuff": {
+      "ko": "푸크린",
+      "pokeapi_slug": "wigglytuff",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "wyrdeer": {
+      "ko": "신비록",
+      "pokeapi_slug": "wyrdeer",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "zoroark": {
+      "ko": "조로아크",
+      "pokeapi_slug": "zoroark",
+      "verified": [
+        "base_stats",
+        "types"
+      ]
+    },
+    "zoroarkhisui": {
+      "ko": "조로아크(히스이의 모습)",
+      "pokeapi_slug": "zoroark-hisui",
+      "verified": [
+        "base_stats",
+        "types"
+      ],
+      "source": "reviewed_form"
+    }
+  }
+}

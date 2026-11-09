@@ -16,6 +16,7 @@ from typing import Any, Final
 
 from app.domain.items import ItemCatalog
 from app.domain.movedex import MoveDex
+from app.domain.names import NameMap
 from app.domain.nature import NatureCatalog
 from app.domain.pokedex import Pokedex
 from app.domain.typechart import TypeChart
@@ -52,3 +53,8 @@ def pokedex() -> Pokedex:
 @lru_cache(maxsize=1)
 def move_dex() -> MoveDex:
     return MoveDex.from_mapping(_load("moves.json")["moves"])
+
+
+@lru_cache(maxsize=1)
+def pokemon_name_map() -> NameMap:
+    return NameMap.from_mapping(_load("name_map.json")["pokemon"])

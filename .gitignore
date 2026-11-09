@@ -14,6 +14,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+# 시드 생성기의 외부 API 응답 캐시 (커밋하지 않는다)
+.cache/
 .coverage
 htmlcov/
 
