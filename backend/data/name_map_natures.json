@@ -1,0 +1,186 @@
+{
+  "_meta": {
+    "source": "https://pokeapi.co/api/v2/",
+    "generated_by": "backend/scripts/generate_name_map_extras.py",
+    "key": "showdown 식 natures id (영숫자만 남긴 소문자)",
+    "note": "natures 한영 매핑. 교차검증(상승/하락 스탯 쌍)을 통과한 항목만 들어 있다. 퍼지 매칭 금지 — 정확 일치 조회만 한다 (ADR-005).",
+    "count": 25
+  },
+  "natures": {
+    "adamant": {
+      "ko": "고집",
+      "pokeapi_slug": "adamant",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "bashful": {
+      "ko": "수줍음",
+      "pokeapi_slug": "bashful",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "bold": {
+      "ko": "대담",
+      "pokeapi_slug": "bold",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "brave": {
+      "ko": "용감",
+      "pokeapi_slug": "brave",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "calm": {
+      "ko": "차분",
+      "pokeapi_slug": "calm",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "careful": {
+      "ko": "신중",
+      "pokeapi_slug": "careful",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "docile": {
+      "ko": "온순",
+      "pokeapi_slug": "docile",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "gentle": {
+      "ko": "얌전",
+      "pokeapi_slug": "gentle",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "hardy": {
+      "ko": "노력",
+      "pokeapi_slug": "hardy",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "hasty": {
+      "ko": "성급",
+      "pokeapi_slug": "hasty",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "impish": {
+      "ko": "장난꾸러기",
+      "pokeapi_slug": "impish",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "jolly": {
+      "ko": "명랑",
+      "pokeapi_slug": "jolly",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "lax": {
+      "ko": "촐랑",
+      "pokeapi_slug": "lax",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "lonely": {
+      "ko": "외로움",
+      "pokeapi_slug": "lonely",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "mild": {
+      "ko": "의젓",
+      "pokeapi_slug": "mild",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "modest": {
+      "ko": "조심",
+      "pokeapi_slug": "modest",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "naive": {
+      "ko": "천진난만",
+      "pokeapi_slug": "naive",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "naughty": {
+      "ko": "개구쟁이",
+      "pokeapi_slug": "naughty",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "quiet": {
+      "ko": "냉정",
+      "pokeapi_slug": "quiet",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "quirky": {
+      "ko": "변덕",
+      "pokeapi_slug": "quirky",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "rash": {
+      "ko": "덜렁",
+      "pokeapi_slug": "rash",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "relaxed": {
+      "ko": "무사태평",
+      "pokeapi_slug": "relaxed",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "sassy": {
+      "ko": "건방",
+      "pokeapi_slug": "sassy",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "serious": {
+      "ko": "성실",
+      "pokeapi_slug": "serious",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    },
+    "timid": {
+      "ko": "겁쟁이",
+      "pokeapi_slug": "timid",
+      "verified": [
+        "nature_stat_pair"
+      ]
+    }
+  }
+}

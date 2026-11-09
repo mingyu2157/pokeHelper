@@ -6,9 +6,11 @@
 """
 
 from app.core.seed import (
+    ability_name_map,
     item_catalog,
     move_dex,
     nature_catalog,
+    nature_name_map,
     pokedex,
     pokemon_name_map,
     type_chart,
@@ -52,6 +54,12 @@ class TestLoaders:
         assert names.ko("garchomp") == "한카리아스"
         assert names.id_of("한카리아스") == "garchomp"
 
+    def test_nature_name_map_loads(self):
+        assert nature_name_map().ko("jolly") == "명랑"
+
+    def test_ability_name_map_loads(self):
+        assert ability_name_map().ko("roughskin") == "까칠한피부"
+
 
 class TestCaching:
     """정적 데이터라 프로세스당 한 번만 읽는다."""
@@ -63,3 +71,5 @@ class TestCaching:
         assert pokedex() is pokedex()
         assert move_dex() is move_dex()
         assert pokemon_name_map() is pokemon_name_map()
+        assert nature_name_map() is nature_name_map()
+        assert ability_name_map() is ability_name_map()
