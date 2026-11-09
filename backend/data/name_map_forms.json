@@ -1,0 +1,528 @@
+{
+  "_meta": {
+    "note": "검수된 폼 명칭. 생성기는 이 문자열을 **그대로** 쓴다 (ADR-005: 런타임 조합 금지). `confirmed: true` 인 항목만 name_map.json 에 합쳐진다. 신원 검증(종족값+타입)을 통과하지 않은 항목은 confirmed 여도 거부된다. 표기 기준은 공식 게임 내 표기다.",
+    "표기_기준": "공식 게임 내 표기 (사용자 결정, 2026-11-09)",
+    "count": 40,
+    "confirmed_count": 40,
+    "reviewed_by": "사용자 (2026-11-09)"
+  },
+  "pokemon": {
+    "aegislash": {
+      "ko": "킬가르도(실드폼)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "킬가르도(실드폼)",
+        "pokeapi_form_label": "실드폼",
+        "smartnuo": null,
+        "species_ko": "킬가르도"
+      },
+      "form_kind": "Shield Forme"
+    },
+    "arcaninehisui": {
+      "ko": "윈디(히스이의 모습)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "윈디 (히스이)",
+        "species_ko": "윈디"
+      },
+      "form_kind": "Hisuian",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "avalugghisui": {
+      "ko": "크레베이스(히스이의 모습)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "크레베이스 (히스이)",
+        "species_ko": "크레베이스"
+      },
+      "form_kind": "Hisuian",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "basculegion": {
+      "ko": "대쓰여너(수컷의 모습)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "대쓰여너 ♂",
+        "species_ko": "대쓰여너"
+      },
+      "form_kind": "Male",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "basculegionf": {
+      "ko": "대쓰여너(암컷의 모습)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "대쓰여너 ♀",
+        "species_ko": "대쓰여너"
+      },
+      "form_kind": "Female",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "decidueyehisui": {
+      "ko": "모크나이퍼(히스이의 모습)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "모크나이퍼 (히스이)",
+        "species_ko": "모크나이퍼"
+      },
+      "form_kind": "Hisuian",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "florges": {
+      "ko": "플라제스",
+      "confirmed": true,
+      "basis": "species_only",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "플라제스",
+        "species_ko": "플라제스"
+      },
+      "form_kind": "Red Flower",
+      "note": "같은 종의 다른 폼이 우리 데이터에 없어 구분 표기가 필요 없다."
+    },
+    "furfrou": {
+      "ko": "트리미앙",
+      "confirmed": true,
+      "basis": "species_only",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "트리미앙",
+        "species_ko": "트리미앙"
+      },
+      "form_kind": "Natural Form",
+      "note": "같은 종의 다른 폼이 우리 데이터에 없어 구분 표기가 필요 없다."
+    },
+    "goodrahisui": {
+      "ko": "미끄래곤(히스이의 모습)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "미끄래곤 (히스이)",
+        "species_ko": "미끄래곤"
+      },
+      "form_kind": "Hisuian",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "gourgeistlarge": {
+      "ko": "펌킨인(큰 사이즈)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "펌킨인(큰 사이즈)",
+        "pokeapi_form_label": "큰 사이즈",
+        "smartnuo": "펌킨인 (대)",
+        "species_ko": "펌킨인"
+      },
+      "form_kind": "Large Variety"
+    },
+    "gourgeistsmall": {
+      "ko": "펌킨인(작은 사이즈)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "펌킨인(작은 사이즈)",
+        "pokeapi_form_label": "작은 사이즈",
+        "smartnuo": "펌킨인 (소)",
+        "species_ko": "펌킨인"
+      },
+      "form_kind": "Small Variety"
+    },
+    "gourgeistsuper": {
+      "ko": "펌킨인(특대 사이즈)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "펌킨인(특대 사이즈)",
+        "pokeapi_form_label": "특대 사이즈",
+        "smartnuo": "펌킨인 (특대)",
+        "species_ko": "펌킨인"
+      },
+      "form_kind": "Jumbo Variety"
+    },
+    "indeedeef": {
+      "ko": "에써르(암컷의 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "에써르(암컷의 모습)",
+        "pokeapi_form_label": "암컷의 모습",
+        "smartnuo": "에써르 ♀",
+        "species_ko": "에써르"
+      },
+      "form_kind": "Female"
+    },
+    "lycanrocdusk": {
+      "ko": "루가루암(황혼의 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "루가루암(황혼의 모습)",
+        "pokeapi_form_label": "황혼의 모습",
+        "smartnuo": "루가루암 (황혼)",
+        "species_ko": "루가루암"
+      },
+      "form_kind": "Dusk Form"
+    },
+    "lycanrocmidnight": {
+      "ko": "루가루암(한밤중의 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "루가루암(한밤중의 모습)",
+        "pokeapi_form_label": "한밤중의 모습",
+        "smartnuo": "루가루암 (한밤중)",
+        "species_ko": "루가루암"
+      },
+      "form_kind": "Midnight Form"
+    },
+    "maushold": {
+      "ko": "파밀리쥐(세 식구)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": null,
+        "species_ko": "파밀리쥐"
+      },
+      "form_kind": "Base",
+      "collides_with": [
+        "mausholdfour"
+      ],
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "mausholdfour": {
+      "ko": "파밀리쥐(네 식구)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "파밀리쥐",
+        "species_ko": "파밀리쥐"
+      },
+      "form_kind": "Base",
+      "collides_with": [
+        "maushold"
+      ],
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "meowsticf": {
+      "ko": "냐오닉스(암컷의 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "냐오닉스(암컷의 모습)",
+        "pokeapi_form_label": "암컷의 모습",
+        "smartnuo": "냐오닉스 ♀",
+        "species_ko": "냐오닉스"
+      },
+      "form_kind": "Female"
+    },
+    "ninetalesalola": {
+      "ko": "나인테일(알로라의 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "나인테일(알로라의 모습)",
+        "pokeapi_form_label": "알로라의 모습",
+        "smartnuo": "나인테일 (알로라)",
+        "species_ko": "나인테일"
+      },
+      "form_kind": "Alolan"
+    },
+    "palafin": {
+      "ko": "돌핀맨(나이브)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "돌핀맨 (나이브)",
+        "species_ko": "돌핀맨"
+      },
+      "form_kind": "Zero Form",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "persianalola": {
+      "ko": "페르시온(알로라의 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "페르시온(알로라의 모습)",
+        "pokeapi_form_label": "알로라의 모습",
+        "smartnuo": "페르시온 (알로라)",
+        "species_ko": "페르시온"
+      },
+      "form_kind": "Alolan"
+    },
+    "raichualola": {
+      "ko": "라이츄(알로라의 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "라이츄(알로라의 모습)",
+        "pokeapi_form_label": "알로라의 모습",
+        "smartnuo": "라이츄 (알로라)",
+        "species_ko": "라이츄"
+      },
+      "form_kind": "Alolan"
+    },
+    "rotomfan": {
+      "ko": "스핀로토무",
+      "confirmed": true,
+      "basis": "pokeapi_form_label",
+      "candidates": {
+        "pokeapi_composed": "로토무(스핀로토무)",
+        "pokeapi_form_label": "스핀로토무",
+        "smartnuo": "로토무 (스핀)",
+        "species_ko": "로토무"
+      },
+      "form_kind": "Fan",
+      "note": "PokéAPI 폼 라벨이 '스핀로토무' 로 이미 완전한 이름이다. 조합하면 '로토무(스핀로토무)' 가 되어 중복이다."
+    },
+    "rotomfrost": {
+      "ko": "프로스트로토무",
+      "confirmed": true,
+      "basis": "pokeapi_form_label",
+      "candidates": {
+        "pokeapi_composed": "로토무(프로스트로토무)",
+        "pokeapi_form_label": "프로스트로토무",
+        "smartnuo": "로토무 (프로스트)",
+        "species_ko": "로토무"
+      },
+      "form_kind": "Frost",
+      "note": "PokéAPI 폼 라벨이 '프로스트로토무' 로 이미 완전한 이름이다. 조합하면 '로토무(프로스트로토무)' 가 되어 중복이다."
+    },
+    "rotomheat": {
+      "ko": "히트로토무",
+      "confirmed": true,
+      "basis": "pokeapi_form_label",
+      "candidates": {
+        "pokeapi_composed": "로토무(히트로토무)",
+        "pokeapi_form_label": "히트로토무",
+        "smartnuo": "로토무 (히트)",
+        "species_ko": "로토무"
+      },
+      "form_kind": "Heat",
+      "note": "PokéAPI 폼 라벨이 '히트로토무' 로 이미 완전한 이름이다. 조합하면 '로토무(히트로토무)' 가 되어 중복이다."
+    },
+    "rotommow": {
+      "ko": "커트로토무",
+      "confirmed": true,
+      "basis": "pokeapi_form_label",
+      "candidates": {
+        "pokeapi_composed": "로토무(커트로토무)",
+        "pokeapi_form_label": "커트로토무",
+        "smartnuo": "로토무 (커트)",
+        "species_ko": "로토무"
+      },
+      "form_kind": "Mow",
+      "note": "PokéAPI 폼 라벨이 '커트로토무' 로 이미 완전한 이름이다. 조합하면 '로토무(커트로토무)' 가 되어 중복이다."
+    },
+    "rotomwash": {
+      "ko": "워시로토무",
+      "confirmed": true,
+      "basis": "pokeapi_form_label",
+      "candidates": {
+        "pokeapi_composed": "로토무(워시로토무)",
+        "pokeapi_form_label": "워시로토무",
+        "smartnuo": "로토무 (워시)",
+        "species_ko": "로토무"
+      },
+      "form_kind": "Wash",
+      "note": "PokéAPI 폼 라벨이 '워시로토무' 로 이미 완전한 이름이다. 조합하면 '로토무(워시로토무)' 가 되어 중복이다."
+    },
+    "samurotthisui": {
+      "ko": "대검귀(히스이의 모습)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "대검귀 (히스이)",
+        "species_ko": "대검귀"
+      },
+      "form_kind": "Hisuian",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "slowbrogalar": {
+      "ko": "야도란(가라르의 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "야도란(가라르의 모습)",
+        "pokeapi_form_label": "가라르의 모습",
+        "smartnuo": "야도란 (가라르)",
+        "species_ko": "야도란"
+      },
+      "form_kind": "Galarian"
+    },
+    "slowkinggalar": {
+      "ko": "야도킹(가라르의 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "야도킹(가라르의 모습)",
+        "pokeapi_form_label": "가라르의 모습",
+        "smartnuo": "야도킹 (가라르)",
+        "species_ko": "야도킹"
+      },
+      "form_kind": "Galarian"
+    },
+    "squawkabilly": {
+      "ko": "시비꼬(그린 페더)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "시비꼬 (초록색)",
+        "species_ko": "시비꼬"
+      },
+      "form_kind": "Base",
+      "collides_with": [
+        "squawkabillyyellow"
+      ],
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "squawkabillyyellow": {
+      "ko": "시비꼬(옐로 페더)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "시비꼬 (노란색)",
+        "species_ko": "시비꼬"
+      },
+      "form_kind": "Base",
+      "collides_with": [
+        "squawkabilly"
+      ],
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "stunfiskgalar": {
+      "ko": "메더(가라르의 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "메더(가라르의 모습)",
+        "pokeapi_form_label": "가라르의 모습",
+        "smartnuo": "메더 (가라르)",
+        "species_ko": "메더"
+      },
+      "form_kind": "Galarian"
+    },
+    "taurospaldeaaqua": {
+      "ko": "켄타로스(팔데아의 모습/워터종)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "켄타로스 (팔데아-워터)",
+        "species_ko": "켄타로스"
+      },
+      "form_kind": "Paldean Aqua Breed",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "taurospaldeablaze": {
+      "ko": "켄타로스(팔데아의 모습/블레이즈종)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "켄타로스 (팔데아-블레이즈)",
+        "species_ko": "켄타로스"
+      },
+      "form_kind": "Paldean Blaze Breed",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "taurospaldeacombat": {
+      "ko": "켄타로스(팔데아의 모습/컴뱃종)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "켄타로스 (팔데아-컴뱃)",
+        "species_ko": "켄타로스"
+      },
+      "form_kind": "Paldean Combat Breed",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "toxtricitylowkey": {
+      "ko": "스트린더(로우한 모습)",
+      "confirmed": true,
+      "basis": "pokeapi_species+form_label",
+      "candidates": {
+        "pokeapi_composed": "스트린더(로우한 모습)",
+        "pokeapi_form_label": "로우한 모습",
+        "smartnuo": "스트린더 (로우)",
+        "species_ko": "스트린더"
+      },
+      "form_kind": "Low Key Form"
+    },
+    "typhlosionhisui": {
+      "ko": "블레이범(히스이의 모습)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "블레이범 (히스이)",
+        "species_ko": "블레이범"
+      },
+      "form_kind": "Hisuian",
+      "note": "사용자 확인값 (2026-11-09)."
+    },
+    "vivillonfancy": {
+      "ko": "비비용",
+      "confirmed": true,
+      "basis": "species_only",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": null,
+        "species_ko": "비비용"
+      },
+      "form_kind": "Icy Snow Pattern",
+      "note": "같은 종의 다른 폼이 우리 데이터에 없어 구분 표기가 필요 없다."
+    },
+    "zoroarkhisui": {
+      "ko": "조로아크(히스이의 모습)",
+      "confirmed": true,
+      "basis": "user_reviewed",
+      "candidates": {
+        "pokeapi_composed": null,
+        "pokeapi_form_label": null,
+        "smartnuo": "조로아크 (히스이)",
+        "species_ko": "조로아크"
+      },
+      "form_kind": "Hisuian",
+      "note": "사용자 확인값 (2026-11-09)."
+    }
+  }
+}

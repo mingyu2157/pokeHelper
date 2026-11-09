@@ -5,7 +5,14 @@
 모든 카탈로그가 로드되는지 미리 확인한다.
 """
 
-from app.core.seed import item_catalog, move_dex, nature_catalog, pokedex, type_chart
+from app.core.seed import (
+    item_catalog,
+    move_dex,
+    nature_catalog,
+    pokedex,
+    pokemon_name_map,
+    type_chart,
+)
 from app.domain.items import ItemEffectKind
 from app.domain.nature import StatKey
 from app.domain.typechart import PokemonType, effectiveness
@@ -40,6 +47,11 @@ class TestLoaders:
         assert earthquake.move_type is PokemonType.GROUND
         assert len(dex.ids()) > 500
 
+    def test_pokemon_name_map_loads(self):
+        names = pokemon_name_map()
+        assert names.ko("garchomp") == "한카리아스"
+        assert names.id_of("한카리아스") == "garchomp"
+
 
 class TestCaching:
     """정적 데이터라 프로세스당 한 번만 읽는다."""
@@ -50,3 +62,4 @@ class TestCaching:
         assert nature_catalog() is nature_catalog()
         assert pokedex() is pokedex()
         assert move_dex() is move_dex()
+        assert pokemon_name_map() is pokemon_name_map()

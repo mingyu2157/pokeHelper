@@ -1,0 +1,8 @@
+{
+  "_meta": {
+    "generated_by": "backend/scripts/generate_name_map.py",
+    "note": "자동 확정 조건을 못 넘긴 항목. **영문명을 통과시키지 않는다** — 검수해서 확정 문자열을 name_map.json 에 넣을 때까지 미매핑으로 남는다. official_candidate 는 초안이다. 그대로 믿지 말고 확인한다.",
+    "count": 0
+  },
+  "pokemon": {}
+}

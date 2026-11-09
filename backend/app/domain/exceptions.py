@@ -63,3 +63,15 @@ class MoveHasNoFixedPower(DomainError):
 
 class MoveIsNotDamaging(DomainError):
     """변화 기술로 데미지를 계산하려 했다."""
+
+
+class NameNotMapped(DomainError):
+    """한영 명칭 매핑이 없다.
+
+    영문명을 그대로 통과시키거나 비슷한 이름을 찾아주지 않는다 (ADR-005 fail-closed).
+    매핑이 틀리면 화면에는 멀쩡한 한글이 뜨고 뒤에서 엉뚱한 포켓몬으로 계산이 돌아간다.
+    """
+
+
+class DuplicateNameMapping(DomainError):
+    """한 한글명이 두 개 이상의 id 에 걸려 있다. 양방향 유일성 위반이다."""
