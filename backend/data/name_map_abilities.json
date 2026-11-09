@@ -1,0 +1,1829 @@
+{
+  "_meta": {
+    "source": "https://pokeapi.co/api/v2/",
+    "generated_by": "backend/scripts/generate_name_map_extras.py",
+    "key": "showdown 식 abilities id (영숫자만 남긴 소문자)",
+    "note": "abilities 한영 매핑. 교차검증(보유 포켓몬 목록)을 통과한 항목만 들어 있다. 퍼지 매칭 금지 — 정확 일치 조회만 한다 (ADR-005).",
+    "count": 202
+  },
+  "abilities": {
+    "adaptability": {
+      "ko": "적응력",
+      "en": "Adaptability",
+      "pokeapi_slug": "adaptability",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "aftermath": {
+      "ko": "유폭",
+      "en": "Aftermath",
+      "pokeapi_slug": "aftermath",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "analytic": {
+      "ko": "애널라이즈",
+      "en": "Analytic",
+      "pokeapi_slug": "analytic",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "angerpoint": {
+      "ko": "분노의경혈",
+      "en": "Anger Point",
+      "pokeapi_slug": "anger-point",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 7
+    },
+    "anticipation": {
+      "ko": "위험예지",
+      "en": "Anticipation",
+      "pokeapi_slug": "anticipation",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "armortail": {
+      "ko": "테일아머",
+      "en": "Armor Tail",
+      "pokeapi_slug": "armor-tail",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "aromaveil": {
+      "ko": "아로마베일",
+      "en": "Aroma Veil",
+      "pokeapi_slug": "aroma-veil",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "battlearmor": {
+      "ko": "전투무장",
+      "en": "Battle Armor",
+      "pokeapi_slug": "battle-armor",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "berserk": {
+      "ko": "발끈",
+      "en": "Berserk",
+      "pokeapi_slug": "berserk",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "bigpecks": {
+      "ko": "부풀린가슴",
+      "en": "Big Pecks",
+      "pokeapi_slug": "big-pecks",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "blaze": {
+      "ko": "맹화",
+      "en": "Blaze",
+      "pokeapi_slug": "blaze",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 11
+    },
+    "bulletproof": {
+      "ko": "방탄",
+      "en": "Bulletproof",
+      "pokeapi_slug": "bulletproof",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "cheekpouch": {
+      "ko": "볼주머니",
+      "en": "Cheek Pouch",
+      "pokeapi_slug": "cheek-pouch",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "chlorophyll": {
+      "ko": "엽록소",
+      "en": "Chlorophyll",
+      "pokeapi_slug": "chlorophyll",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 6
+    },
+    "clearbody": {
+      "ko": "클리어바디",
+      "en": "Clear Body",
+      "pokeapi_slug": "clear-body",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "cloudnine": {
+      "ko": "날씨부정",
+      "en": "Cloud Nine",
+      "pokeapi_slug": "cloud-nine",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "competitive": {
+      "ko": "승기",
+      "en": "Competitive",
+      "pokeapi_slug": "competitive",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "compoundeyes": {
+      "ko": "복안",
+      "en": "Compound Eyes",
+      "pokeapi_slug": "compound-eyes",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "contrary": {
+      "ko": "심술꾸러기",
+      "en": "Contrary",
+      "pokeapi_slug": "contrary",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "corrosion": {
+      "ko": "부식",
+      "en": "Corrosion",
+      "pokeapi_slug": "corrosion",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "cudchew": {
+      "ko": "되새김질",
+      "en": "Cud Chew",
+      "pokeapi_slug": "cud-chew",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "curiousmedicine": {
+      "ko": "기묘한약",
+      "en": "Curious Medicine",
+      "pokeapi_slug": "curious-medicine",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "cursedbody": {
+      "ko": "저주받은바디",
+      "en": "Cursed Body",
+      "pokeapi_slug": "cursed-body",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "cutecharm": {
+      "ko": "헤롱헤롱바디",
+      "en": "Cute Charm",
+      "pokeapi_slug": "cute-charm",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "damp": {
+      "ko": "습기",
+      "en": "Damp",
+      "pokeapi_slug": "damp",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "defiant": {
+      "ko": "오기",
+      "en": "Defiant",
+      "pokeapi_slug": "defiant",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "disguise": {
+      "ko": "탈",
+      "en": "Disguise",
+      "pokeapi_slug": "disguise",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "drizzle": {
+      "ko": "잔비",
+      "en": "Drizzle",
+      "pokeapi_slug": "drizzle",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "drought": {
+      "ko": "가뭄",
+      "en": "Drought",
+      "pokeapi_slug": "drought",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "dryskin": {
+      "ko": "건조피부",
+      "en": "Dry Skin",
+      "pokeapi_slug": "dry-skin",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "earlybird": {
+      "ko": "일찍기상",
+      "en": "Early Bird",
+      "pokeapi_slug": "early-bird",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "eartheater": {
+      "ko": "흙먹기",
+      "en": "Earth Eater",
+      "pokeapi_slug": "earth-eater",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "effectspore": {
+      "ko": "포자",
+      "en": "Effect Spore",
+      "pokeapi_slug": "effect-spore",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "electricsurge": {
+      "ko": "일렉트릭메이커",
+      "en": "Electric Surge",
+      "pokeapi_slug": "electric-surge",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "electromorphosis": {
+      "ko": "전기로바꾸기",
+      "en": "Electromorphosis",
+      "pokeapi_slug": "electromorphosis",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "emergencyexit": {
+      "ko": "위기회피",
+      "en": "Emergency Exit",
+      "pokeapi_slug": "emergency-exit",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "filter": {
+      "ko": "필터",
+      "en": "Filter",
+      "pokeapi_slug": "filter",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "flamebody": {
+      "ko": "불꽃몸",
+      "en": "Flame Body",
+      "pokeapi_slug": "flame-body",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "flashfire": {
+      "ko": "타오르는불꽃",
+      "en": "Flash Fire",
+      "pokeapi_slug": "flash-fire",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 9
+    },
+    "flowerveil": {
+      "ko": "플라워베일",
+      "en": "Flower Veil",
+      "pokeapi_slug": "flower-veil",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "fluffy": {
+      "ko": "복슬복슬",
+      "en": "Fluffy",
+      "pokeapi_slug": "fluffy",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "forecast": {
+      "ko": "기분파",
+      "en": "Forecast",
+      "pokeapi_slug": "forecast",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "forewarn": {
+      "ko": "예지몽",
+      "en": "Forewarn",
+      "pokeapi_slug": "forewarn",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "friendguard": {
+      "ko": "프렌드가드",
+      "en": "Friend Guard",
+      "pokeapi_slug": "friend-guard",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "frisk": {
+      "ko": "통찰",
+      "en": "Frisk",
+      "pokeapi_slug": "frisk",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 12
+    },
+    "furcoat": {
+      "ko": "퍼코트",
+      "en": "Fur Coat",
+      "pokeapi_slug": "fur-coat",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "galewings": {
+      "ko": "질풍날개",
+      "en": "Gale Wings",
+      "pokeapi_slug": "gale-wings",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "gluttony": {
+      "ko": "먹보",
+      "en": "Gluttony",
+      "pokeapi_slug": "gluttony",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 8
+    },
+    "goodasgold": {
+      "ko": "황금몸",
+      "en": "Good as Gold",
+      "pokeapi_slug": "good-as-gold",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "gooey": {
+      "ko": "미끈미끈",
+      "en": "Gooey",
+      "pokeapi_slug": "gooey",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "grasspelt": {
+      "ko": "풀모피",
+      "en": "Grass Pelt",
+      "pokeapi_slug": "grass-pelt",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "grassysurge": {
+      "ko": "그래스메이커",
+      "en": "Grassy Surge",
+      "pokeapi_slug": "grassy-surge",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "guarddog": {
+      "ko": "파수견",
+      "en": "Guard Dog",
+      "pokeapi_slug": "guard-dog",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "guts": {
+      "ko": "근성",
+      "en": "Guts",
+      "pokeapi_slug": "guts",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 6
+    },
+    "harvest": {
+      "ko": "수확",
+      "en": "Harvest",
+      "pokeapi_slug": "harvest",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "healer": {
+      "ko": "치유의마음",
+      "en": "Healer",
+      "pokeapi_slug": "healer",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "heatproof": {
+      "ko": "내열",
+      "en": "Heatproof",
+      "pokeapi_slug": "heatproof",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "heavymetal": {
+      "ko": "헤비메탈",
+      "en": "Heavy Metal",
+      "pokeapi_slug": "heavy-metal",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "hospitality": {
+      "ko": "대접",
+      "en": "Hospitality",
+      "pokeapi_slug": "hospitality",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "hugepower": {
+      "ko": "천하장사",
+      "en": "Huge Power",
+      "pokeapi_slug": "huge-power",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "hungerswitch": {
+      "ko": "꼬르륵스위치",
+      "en": "Hunger Switch",
+      "pokeapi_slug": "hunger-switch",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "hustle": {
+      "ko": "의욕",
+      "en": "Hustle",
+      "pokeapi_slug": "hustle",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "hydration": {
+      "ko": "촉촉바디",
+      "en": "Hydration",
+      "pokeapi_slug": "hydration",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "hypercutter": {
+      "ko": "괴력집게",
+      "en": "Hyper Cutter",
+      "pokeapi_slug": "hyper-cutter",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "icebody": {
+      "ko": "아이스바디",
+      "en": "Ice Body",
+      "pokeapi_slug": "ice-body",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 7
+    },
+    "illuminate": {
+      "ko": "발광",
+      "en": "Illuminate",
+      "pokeapi_slug": "illuminate",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "illusion": {
+      "ko": "일루전",
+      "en": "Illusion",
+      "pokeapi_slug": "illusion",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "immunity": {
+      "ko": "면역",
+      "en": "Immunity",
+      "pokeapi_slug": "immunity",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "imposter": {
+      "ko": "괴짜",
+      "en": "Imposter",
+      "pokeapi_slug": "imposter",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "infiltrator": {
+      "ko": "틈새포착",
+      "en": "Infiltrator",
+      "pokeapi_slug": "infiltrator",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 8
+    },
+    "innerfocus": {
+      "ko": "정신력",
+      "en": "Inner Focus",
+      "pokeapi_slug": "inner-focus",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 11
+    },
+    "insomnia": {
+      "ko": "불면",
+      "en": "Insomnia",
+      "pokeapi_slug": "insomnia",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 7
+    },
+    "intimidate": {
+      "ko": "위협",
+      "en": "Intimidate",
+      "pokeapi_slug": "intimidate",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 21
+    },
+    "ironfist": {
+      "ko": "철주먹",
+      "en": "Iron Fist",
+      "pokeapi_slug": "iron-fist",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 6
+    },
+    "justified": {
+      "ko": "정의의마음",
+      "en": "Justified",
+      "pokeapi_slug": "justified",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "keeneye": {
+      "ko": "날카로운눈",
+      "en": "Keen Eye",
+      "pokeapi_slug": "keen-eye",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 11
+    },
+    "klutz": {
+      "ko": "서투름",
+      "en": "Klutz",
+      "pokeapi_slug": "klutz",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "leafguard": {
+      "ko": "리프가드",
+      "en": "Leaf Guard",
+      "pokeapi_slug": "leaf-guard",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "levitate": {
+      "ko": "부유",
+      "en": "Levitate",
+      "pokeapi_slug": "levitate",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 9
+    },
+    "libero": {
+      "ko": "리베로",
+      "en": "Libero",
+      "pokeapi_slug": "libero",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "lightmetal": {
+      "ko": "라이트메탈",
+      "en": "Light Metal",
+      "pokeapi_slug": "light-metal",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "lightningrod": {
+      "ko": "피뢰침",
+      "en": "Lightning Rod",
+      "pokeapi_slug": "lightning-rod",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "limber": {
+      "ko": "유연",
+      "en": "Limber",
+      "pokeapi_slug": "limber",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 8
+    },
+    "liquidooze": {
+      "ko": "해감액",
+      "en": "Liquid Ooze",
+      "pokeapi_slug": "liquid-ooze",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "liquidvoice": {
+      "ko": "촉촉보이스",
+      "en": "Liquid Voice",
+      "pokeapi_slug": "liquid-voice",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "longreach": {
+      "ko": "원격",
+      "en": "Long Reach",
+      "pokeapi_slug": "long-reach",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "magicbounce": {
+      "ko": "매직미러",
+      "en": "Magic Bounce",
+      "pokeapi_slug": "magic-bounce",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "magicguard": {
+      "ko": "매직가드",
+      "en": "Magic Guard",
+      "pokeapi_slug": "magic-guard",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "magician": {
+      "ko": "매지션",
+      "en": "Magician",
+      "pokeapi_slug": "magician",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "magmaarmor": {
+      "ko": "마그마의무장",
+      "en": "Magma Armor",
+      "pokeapi_slug": "magma-armor",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "marvelscale": {
+      "ko": "이상한비늘",
+      "en": "Marvel Scale",
+      "pokeapi_slug": "marvel-scale",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "megalauncher": {
+      "ko": "메가런처",
+      "en": "Mega Launcher",
+      "pokeapi_slug": "mega-launcher",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "merciless": {
+      "ko": "무도한행동",
+      "en": "Merciless",
+      "pokeapi_slug": "merciless",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "mimicry": {
+      "ko": "의태",
+      "en": "Mimicry",
+      "pokeapi_slug": "mimicry",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "minus": {
+      "ko": "마이너스",
+      "en": "Minus",
+      "pokeapi_slug": "minus",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "mirrorarmor": {
+      "ko": "미러아머",
+      "en": "Mirror Armor",
+      "pokeapi_slug": "mirror-armor",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "moldbreaker": {
+      "ko": "틀깨기",
+      "en": "Mold Breaker",
+      "pokeapi_slug": "mold-breaker",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 8
+    },
+    "moody": {
+      "ko": "변덕쟁이",
+      "en": "Moody",
+      "pokeapi_slug": "moody",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "motordrive": {
+      "ko": "전기엔진",
+      "en": "Motor Drive",
+      "pokeapi_slug": "motor-drive",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "moxie": {
+      "ko": "자기과신",
+      "en": "Moxie",
+      "pokeapi_slug": "moxie",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 8
+    },
+    "multiscale": {
+      "ko": "멀티스케일",
+      "en": "Multiscale",
+      "pokeapi_slug": "multiscale",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "mummy": {
+      "ko": "미라",
+      "en": "Mummy",
+      "pokeapi_slug": "mummy",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "naturalcure": {
+      "ko": "자연회복",
+      "en": "Natural Cure",
+      "pokeapi_slug": "natural-cure",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "noguard": {
+      "ko": "노가드",
+      "en": "No Guard",
+      "pokeapi_slug": "no-guard",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "oblivious": {
+      "ko": "둔감",
+      "en": "Oblivious",
+      "pokeapi_slug": "oblivious",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "opportunist": {
+      "ko": "편승",
+      "en": "Opportunist",
+      "pokeapi_slug": "opportunist",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "overcoat": {
+      "ko": "방진",
+      "en": "Overcoat",
+      "pokeapi_slug": "overcoat",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "overgrow": {
+      "ko": "심록",
+      "en": "Overgrow",
+      "pokeapi_slug": "overgrow",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 11
+    },
+    "owntempo": {
+      "ko": "마이페이스",
+      "en": "Own Tempo",
+      "pokeapi_slug": "own-tempo",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 8
+    },
+    "pickpocket": {
+      "ko": "나쁜손버릇",
+      "en": "Pickpocket",
+      "pokeapi_slug": "pickpocket",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "pickup": {
+      "ko": "픽업",
+      "en": "Pickup",
+      "pokeapi_slug": "pickup",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 6
+    },
+    "pixilate": {
+      "ko": "페어리스킨",
+      "en": "Pixilate",
+      "pokeapi_slug": "pixilate",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "plus": {
+      "ko": "플러스",
+      "en": "Plus",
+      "pokeapi_slug": "plus",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "poisonheal": {
+      "ko": "포이즌힐",
+      "en": "Poison Heal",
+      "pokeapi_slug": "poison-heal",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "poisonpoint": {
+      "ko": "독가시",
+      "en": "Poison Point",
+      "pokeapi_slug": "poison-point",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "poisontouch": {
+      "ko": "독수",
+      "en": "Poison Touch",
+      "pokeapi_slug": "poison-touch",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "prankster": {
+      "ko": "짓궂은마음",
+      "en": "Prankster",
+      "pokeapi_slug": "prankster",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 6
+    },
+    "pressure": {
+      "ko": "프레셔",
+      "en": "Pressure",
+      "pokeapi_slug": "pressure",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 7
+    },
+    "protean": {
+      "ko": "변환자재",
+      "en": "Protean",
+      "pokeapi_slug": "protean",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "psychicsurge": {
+      "ko": "사이코메이커",
+      "en": "Psychic Surge",
+      "pokeapi_slug": "psychic-surge",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "punkrock": {
+      "ko": "펑크록",
+      "en": "Punk Rock",
+      "pokeapi_slug": "punk-rock",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "purepower": {
+      "ko": "순수한힘",
+      "en": "Pure Power",
+      "pokeapi_slug": "pure-power",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "purifyingsalt": {
+      "ko": "정화의소금",
+      "en": "Purifying Salt",
+      "pokeapi_slug": "purifying-salt",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "queenlymajesty": {
+      "ko": "여왕의위엄",
+      "en": "Queenly Majesty",
+      "pokeapi_slug": "queenly-majesty",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "quickdraw": {
+      "ko": "퀵드로",
+      "en": "Quick Draw",
+      "pokeapi_slug": "quick-draw",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "quickfeet": {
+      "ko": "속보",
+      "en": "Quick Feet",
+      "pokeapi_slug": "quick-feet",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "raindish": {
+      "ko": "젖은접시",
+      "en": "Rain Dish",
+      "pokeapi_slug": "rain-dish",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "rattled": {
+      "ko": "주눅",
+      "en": "Rattled",
+      "pokeapi_slug": "rattled",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "receiver": {
+      "ko": "리시버",
+      "en": "Receiver",
+      "pokeapi_slug": "receiver",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "reckless": {
+      "ko": "이판사판",
+      "en": "Reckless",
+      "pokeapi_slug": "reckless",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "refrigerate": {
+      "ko": "프리즈스킨",
+      "en": "Refrigerate",
+      "pokeapi_slug": "refrigerate",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "regenerator": {
+      "ko": "재생력",
+      "en": "Regenerator",
+      "pokeapi_slug": "regenerator",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 8
+    },
+    "ripen": {
+      "ko": "숙성",
+      "en": "Ripen",
+      "pokeapi_slug": "ripen",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "rivalry": {
+      "ko": "투쟁심",
+      "en": "Rivalry",
+      "pokeapi_slug": "rivalry",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "rockhead": {
+      "ko": "돌머리",
+      "en": "Rock Head",
+      "pokeapi_slug": "rock-head",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "roughskin": {
+      "ko": "까칠한피부",
+      "en": "Rough Skin",
+      "pokeapi_slug": "rough-skin",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "runaway": {
+      "ko": "도주",
+      "en": "Run Away",
+      "pokeapi_slug": "run-away",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "sandforce": {
+      "ko": "모래의힘",
+      "en": "Sand Force",
+      "pokeapi_slug": "sand-force",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "sandrush": {
+      "ko": "모래헤치기",
+      "en": "Sand Rush",
+      "pokeapi_slug": "sand-rush",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "sandspit": {
+      "ko": "모래뿜기",
+      "en": "Sand Spit",
+      "pokeapi_slug": "sand-spit",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "sandstream": {
+      "ko": "모래날림",
+      "en": "Sand Stream",
+      "pokeapi_slug": "sand-stream",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "sandveil": {
+      "ko": "모래숨기",
+      "en": "Sand Veil",
+      "pokeapi_slug": "sand-veil",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 6
+    },
+    "sapsipper": {
+      "ko": "초식",
+      "en": "Sap Sipper",
+      "pokeapi_slug": "sap-sipper",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 7
+    },
+    "scrappy": {
+      "ko": "배짱",
+      "en": "Scrappy",
+      "pokeapi_slug": "scrappy",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "screencleaner": {
+      "ko": "배리어프리",
+      "en": "Screen Cleaner",
+      "pokeapi_slug": "screen-cleaner",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "seedsower": {
+      "ko": "넘치는씨",
+      "en": "Seed Sower",
+      "pokeapi_slug": "seed-sower",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "sharpness": {
+      "ko": "예리함",
+      "en": "Sharpness",
+      "pokeapi_slug": "sharpness",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "shedskin": {
+      "ko": "탈피",
+      "en": "Shed Skin",
+      "pokeapi_slug": "shed-skin",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "sheerforce": {
+      "ko": "우격다짐",
+      "en": "Sheer Force",
+      "pokeapi_slug": "sheer-force",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 9
+    },
+    "shellarmor": {
+      "ko": "조가비갑옷",
+      "en": "Shell Armor",
+      "pokeapi_slug": "shell-armor",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "shielddust": {
+      "ko": "인분",
+      "en": "Shield Dust",
+      "pokeapi_slug": "shield-dust",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "skilllink": {
+      "ko": "스킬링크",
+      "en": "Skill Link",
+      "pokeapi_slug": "skill-link",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "slushrush": {
+      "ko": "눈치우기",
+      "en": "Slush Rush",
+      "pokeapi_slug": "slush-rush",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "sniper": {
+      "ko": "스나이퍼",
+      "en": "Sniper",
+      "pokeapi_slug": "sniper",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "snowcloak": {
+      "ko": "눈숨기",
+      "en": "Snow Cloak",
+      "pokeapi_slug": "snow-cloak",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "snowwarning": {
+      "ko": "눈퍼뜨리기",
+      "en": "Snow Warning",
+      "pokeapi_slug": "snow-warning",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "solarpower": {
+      "ko": "선파워",
+      "en": "Solar Power",
+      "pokeapi_slug": "solar-power",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "solidrock": {
+      "ko": "하드록",
+      "en": "Solid Rock",
+      "pokeapi_slug": "solid-rock",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "soundproof": {
+      "ko": "방음",
+      "en": "Soundproof",
+      "pokeapi_slug": "soundproof",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "speedboost": {
+      "ko": "가속",
+      "en": "Speed Boost",
+      "pokeapi_slug": "speed-boost",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "stakeout": {
+      "ko": "잠복",
+      "en": "Stakeout",
+      "pokeapi_slug": "stakeout",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "stall": {
+      "ko": "시간벌기",
+      "en": "Stall",
+      "pokeapi_slug": "stall",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "stalwart": {
+      "ko": "굳건한신념",
+      "en": "Stalwart",
+      "pokeapi_slug": "stalwart",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "stamina": {
+      "ko": "지구력",
+      "en": "Stamina",
+      "pokeapi_slug": "stamina",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "stancechange": {
+      "ko": "배틀스위치",
+      "en": "Stance Change",
+      "pokeapi_slug": "stance-change",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "static": {
+      "ko": "정전기",
+      "en": "Static",
+      "pokeapi_slug": "static",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 7
+    },
+    "steadfast": {
+      "ko": "불굴의마음",
+      "en": "Steadfast",
+      "pokeapi_slug": "steadfast",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "steelyspirit": {
+      "ko": "강철정신",
+      "en": "Steely Spirit",
+      "pokeapi_slug": "steely-spirit",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "stench": {
+      "ko": "악취",
+      "en": "Stench",
+      "pokeapi_slug": "stench",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "stickyhold": {
+      "ko": "점착",
+      "en": "Sticky Hold",
+      "pokeapi_slug": "sticky-hold",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "strongjaw": {
+      "ko": "옹골찬턱",
+      "en": "Strong Jaw",
+      "pokeapi_slug": "strong-jaw",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "sturdy": {
+      "ko": "옹골참",
+      "en": "Sturdy",
+      "pokeapi_slug": "sturdy",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 9
+    },
+    "suctioncups": {
+      "ko": "흡반",
+      "en": "Suction Cups",
+      "pokeapi_slug": "suction-cups",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "superluck": {
+      "ko": "대운",
+      "en": "Super Luck",
+      "pokeapi_slug": "super-luck",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "supersweetsyrup": {
+      "ko": "감미로운꿀",
+      "en": "Supersweet Syrup",
+      "pokeapi_slug": "supersweet-syrup",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "supremeoverlord": {
+      "ko": "총대장",
+      "en": "Supreme Overlord",
+      "pokeapi_slug": "supreme-overlord",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "surgesurfer": {
+      "ko": "서핑테일",
+      "en": "Surge Surfer",
+      "pokeapi_slug": "surge-surfer",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "swarm": {
+      "ko": "벌레의알림",
+      "en": "Swarm",
+      "pokeapi_slug": "swarm",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 7
+    },
+    "sweetveil": {
+      "ko": "스위트베일",
+      "en": "Sweet Veil",
+      "pokeapi_slug": "sweet-veil",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "swiftswim": {
+      "ko": "쓱쓱",
+      "en": "Swift Swim",
+      "pokeapi_slug": "swift-swim",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "symbiosis": {
+      "ko": "공생",
+      "en": "Symbiosis",
+      "pokeapi_slug": "symbiosis",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "synchronize": {
+      "ko": "싱크로",
+      "en": "Synchronize",
+      "pokeapi_slug": "synchronize",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 7
+    },
+    "tangledfeet": {
+      "ko": "갈지자걸음",
+      "en": "Tangled Feet",
+      "pokeapi_slug": "tangled-feet",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "technician": {
+      "ko": "테크니션",
+      "en": "Technician",
+      "pokeapi_slug": "technician",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 10
+    },
+    "telepathy": {
+      "ko": "텔레파시",
+      "en": "Telepathy",
+      "pokeapi_slug": "telepathy",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 5
+    },
+    "thermalexchange": {
+      "ko": "열교환",
+      "en": "Thermal Exchange",
+      "pokeapi_slug": "thermal-exchange",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "thickfat": {
+      "ko": "두꺼운지방",
+      "en": "Thick Fat",
+      "pokeapi_slug": "thick-fat",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 4
+    },
+    "torrent": {
+      "ko": "급류",
+      "en": "Torrent",
+      "pokeapi_slug": "torrent",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 11
+    },
+    "toughclaws": {
+      "ko": "단단한발톱",
+      "en": "Tough Claws",
+      "pokeapi_slug": "tough-claws",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "toxicdebris": {
+      "ko": "독치장",
+      "en": "Toxic Debris",
+      "pokeapi_slug": "toxic-debris",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "trace": {
+      "ko": "트레이스",
+      "en": "Trace",
+      "pokeapi_slug": "trace",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "unaware": {
+      "ko": "천진",
+      "en": "Unaware",
+      "pokeapi_slug": "unaware",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "unburden": {
+      "ko": "곡예",
+      "en": "Unburden",
+      "pokeapi_slug": "unburden",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 6
+    },
+    "unnerve": {
+      "ko": "긴장감",
+      "en": "Unnerve",
+      "pokeapi_slug": "unnerve",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 7
+    },
+    "vitalspirit": {
+      "ko": "의기양양",
+      "en": "Vital Spirit",
+      "pokeapi_slug": "vital-spirit",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "voltabsorb": {
+      "ko": "축전",
+      "en": "Volt Absorb",
+      "pokeapi_slug": "volt-absorb",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 2
+    },
+    "wanderingspirit": {
+      "ko": "떠도는영혼",
+      "en": "Wandering Spirit",
+      "pokeapi_slug": "wandering-spirit",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "waterabsorb": {
+      "ko": "저수",
+      "en": "Water Absorb",
+      "pokeapi_slug": "water-absorb",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 3
+    },
+    "waterbubble": {
+      "ko": "수포",
+      "en": "Water Bubble",
+      "pokeapi_slug": "water-bubble",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "weakarmor": {
+      "ko": "깨어진갑옷",
+      "en": "Weak Armor",
+      "pokeapi_slug": "weak-armor",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 6
+    },
+    "whitesmoke": {
+      "ko": "하얀연기",
+      "en": "White Smoke",
+      "pokeapi_slug": "white-smoke",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    },
+    "zerotohero": {
+      "ko": "마이티체인지",
+      "en": "Zero to Hero",
+      "pokeapi_slug": "zero-to-hero",
+      "verified": [
+        "ability_owners"
+      ],
+      "owner_overlap": 1
+    }
+  }
+}

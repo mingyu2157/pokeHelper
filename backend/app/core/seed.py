@@ -58,3 +58,13 @@ def move_dex() -> MoveDex:
 @lru_cache(maxsize=1)
 def pokemon_name_map() -> NameMap:
     return NameMap.from_mapping(_load("name_map.json")["pokemon"])
+
+
+@lru_cache(maxsize=1)
+def nature_name_map() -> NameMap:
+    return NameMap.from_mapping(_load("name_map_natures.json")["natures"])
+
+
+@lru_cache(maxsize=1)
+def ability_name_map() -> NameMap:
+    return NameMap.from_mapping(_load("name_map_abilities.json")["abilities"])
