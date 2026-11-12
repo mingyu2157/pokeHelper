@@ -8,7 +8,7 @@
     "generated_by": "backend/scripts/generate_moves.py",
     "key": "showdown 식 기술 id -> 한국 서버 명칭",
     "note": "Phase 2-3 한영 매핑의 기술 부분. 세 출처를 대조해 생성했다. 퍼지 매칭 금지 — 정확 일치 조회만 한다 (§8-4).",
-    "count": 515
+    "count": 516
   },
   "moves": {
     "accelerock": {
@@ -1882,6 +1882,10 @@
     "thunderpunch": {
       "ko": "번개펀치",
       "slug": "thunder-punch"
+    },
+    "thundershock": {
+      "ko": "전기쇼크",
+      "slug": "thunder-shock"
     },
     "thunderwave": {
       "ko": "전기자석파",

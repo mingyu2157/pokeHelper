@@ -18,7 +18,15 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
-from app.db.models import MetaSnapshot, Move, Nature, Pokemon, PokemonMeta, Regulation
+from app.db.models import (
+    MetaSnapshot,
+    Move,
+    Nature,
+    Pokemon,
+    PokemonLearnset,
+    PokemonMeta,
+    Regulation,
+)
 
 pytestmark = pytest.mark.db
 
@@ -102,6 +110,39 @@ class TestSeedIsLoaded:
         assert jolly is not None
         assert (jolly.raised, jolly.lowered) == ("SPEED", "SP_ATTACK")
         assert jolly.name_ko == "명랑"
+
+
+class TestLearnset:
+    """Phase 2-4 에서 '데이터 없음'을 이유로 뺐다가 되살린 테이블이다."""
+
+    async def test_pairs_are_loaded(self, session):
+        count = await session.scalar(
+            select(text("count(*)")).select_from(PokemonLearnset.__table__)
+        )
+        assert count and count > 10000
+
+    async def test_rotom_learns_the_recovered_move(self, session):
+        """★ 전기쇼크는 op.gg 목록 515개에 없던 기술이다.
+
+        learnset 이 기술표의 누락을 잡아낸 증거를 DB 레벨에서도 고정한다.
+        """
+        count = await session.scalar(
+            select(text("count(*)"))
+            .select_from(PokemonLearnset.__table__)
+            .where(PokemonLearnset.move_id == "thundershock")
+        )
+        assert count == 5
+
+    async def test_unknown_move_is_rejected(self, session):
+        """마스터에 없는 기술로 연결이 들어오면 FK 가 막는다 (fail-closed)."""
+        session.add(PokemonLearnset(pokemon_id="garchomp", move_id="supermegabeam"))
+        with pytest.raises((IntegrityError, DBAPIError)):
+            await session.flush()
+
+    async def test_unknown_pokemon_is_rejected(self, session):
+        session.add(PokemonLearnset(pokemon_id="mysterymon", move_id="earthquake"))
+        with pytest.raises((IntegrityError, DBAPIError)):
+            await session.flush()
 
 
 class TestConstraintsActuallyFire:

@@ -187,6 +187,30 @@ class Nature(Base):
     )
 
 
+class PokemonLearnset(Base):
+    """어떤 포켓몬이 어떤 기술을 배우는가. 다대다 연결 테이블이다.
+
+    ★ Phase 2-4 에서 "데이터 없음"을 이유로 뺐다가 되살린 테이블이다 ★
+
+    그때 learnset 출처가 없다고 판단했는데 틀렸다 — championsbattledata 인덱스의
+    `learnableMoveNames` 에 처음부터 있었다 (JOURNAL 2026-11-13).
+
+    파티 빌더가 "배울 수 없는 기술"을 거르는 데 쓴다. 검증이 없으면 사용자가
+    불가능한 파티를 저장하고, 그 파티로 계산한 수치를 근거라고 믿는다.
+    """
+
+    __tablename__ = "pokemon_learnset"
+
+    pokemon_id: Mapped[str] = mapped_column(
+        ForeignKey("pokemon.showdown_id", ondelete="CASCADE"), primary_key=True
+    )
+    move_id: Mapped[str] = mapped_column(
+        ForeignKey("moves.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    __table_args__ = (Index("ix_pokemon_learnset_move", "move_id"),)
+
+
 class MetaSnapshot(Base):
     """수집 단위. **보존 기한이 있는 캐시다** (CLAUDE.md 8-2).
 

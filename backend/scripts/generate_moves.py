@@ -166,8 +166,22 @@ MIN_ACCURACY: Final[int] = 1
 MAX_ACCURACY: Final[int] = 100
 MIN_PRIORITY: Final[int] = -7
 MAX_PRIORITY: Final[int] = 5
-EXPECTED_MOVE_COUNT: Final[int] = 515
+# op.gg 목록 페이지가 스스로 밝히는 기술 수. **완전하다는 뜻은 아니다** —
+# 실제로 전기쇼크가 목록에서 빠져 있었고, learnset 대조로 드러났다.
+LISTED_MOVE_COUNT: Final[int] = 515
 TABLE_COLUMNS: Final[int] = 10
+
+OPGG_MOVE_DETAIL: Final[str] = "https://op.gg/ko/pokemon-champions/moves/{slug}"
+BATTLE_DATA_LEARNSET_FIELD: Final[str] = "learnableMoveNames"
+
+# 상세 페이지의 라벨 -> 우리 필드
+DETAIL_LABELS: Final[dict[str, str]] = {
+    "위력": "power",
+    "명중": "accuracy",
+    "PP": "pp",
+    "우선도": "priority",
+    "대상": "target_ko",
+}
 
 # ---------------------------------------------------------------- 교차검증 화이트리스트
 # champions-helper 는 출시 패치 전 스냅샷이다. 아래는 **설명 가능한** 차이이고,
@@ -334,6 +348,88 @@ def parse_opgg(html: str) -> dict[str, dict[str, Any]]:
     return moves
 
 
+def parse_move_detail(html: str, slug: str) -> dict[str, Any]:
+    """기술 상세 페이지에서 목록과 같은 필드를 뽑는다.
+
+    목록 페이지의 표가 아니라 라벨-값 쌍이라 파싱 방식이 다르다.
+    분류는 목록과 마찬가지로 아이콘 파일명에서 읽는다.
+    """
+    text = unescape(TAG_PATTERN.sub("\x01", html))
+    tokens = [part.strip() for part in text.split("\x01") if part.strip()]
+
+    values: dict[str, Any] = {}
+    for index, token in enumerate(tokens):
+        field = DETAIL_LABELS.get(token)
+        # 라벨 다음에 ':' 이 오고 그 다음이 값이다.
+        if field and index + 2 < len(tokens) and tokens[index + 1] == ":":
+            values.setdefault(field, tokens[index + 2])
+
+    icon = CATEGORY_ICON_PATTERN.findall(html)
+    type_ko = next((token for token in tokens if token in TYPE_BY_KO), "")
+    contact_ko = next((token for token in tokens if token in (CONTACT_KO, NONCONTACT_KO)), "")
+    name_ko = (
+        next((token for token in tokens if token.endswith("- 포켓몬 챔피언스 기술")), "")
+        .replace("- 포켓몬 챔피언스 기술", "")
+        .strip()
+    )
+
+    return {
+        "slug": slug,
+        "ko": name_ko,
+        "type_ko": type_ko,
+        "category_icon": icon[0] if icon else "",
+        "flag_labels": [contact_ko] if contact_ko else [],
+        "power": parse_number(str(values.get("power", "-"))),
+        "accuracy": parse_number(str(values.get("accuracy", "-"))),
+        "pp": parse_number(str(values.get("pp", "-"))),
+        "priority": parse_number(str(values.get("priority", "0"))),
+        "target_ko": str(values.get("target_ko", "")),
+    }
+
+
+def recover_unlisted_moves(raw: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], list[str]]:
+    """learnset 이 참조하는데 목록에 없는 기술을 상세 페이지에서 보완한다.
+
+    ★ 이 단계가 존재하는 이유 ★
+
+    op.gg 목록 페이지가 "515 기술"이라고 밝히지만 **그게 전부가 아니다.**
+    championsbattledata 인덱스의 learnableMoveNames 와 대조해보니 전기쇼크가
+    목록에 없었다(로토무 5폼이 배운다). 목록의 자체 개수만 믿으면 조용히 빠진다.
+
+    즉 learnset 이 기술표의 **완전성 검사** 역할을 한다. 둘 다 받아오는 김에 대조한다.
+    """
+    errors: list[str] = []
+    index = fetch_json_retrying(BATTLE_DATA_INDEX)
+
+    referenced: dict[str, str] = {}
+    for entry in index["pokemon"]:
+        for name in entry.get(BATTLE_DATA_LEARNSET_FIELD) or []:
+            referenced[to_move_id(str(name))] = str(name)
+
+    missing = sorted(move_id for move_id in referenced if move_id not in raw)
+    recovered: dict[str, Any] = {}
+    for move_id in missing:
+        display = referenced[move_id]
+        # 상세 페이지 슬러그는 하이픈 형식이다. 목록의 slug 규칙과 같다.
+        slug = re.sub(r"[^a-z0-9]+", "-", display.lower()).strip("-")
+        url = OPGG_MOVE_DETAIL.format(slug=slug)
+        try:
+            detail = parse_move_detail(fetch_text_retrying(url), slug)
+        except (urllib.error.HTTPError, TransientFetchError) as error:
+            errors.append(
+                f"{display!r}: learnset 이 참조하는데 목록에도 상세 페이지에도 없다 ({error}). "
+                "기술표가 불완전한 채로 두지 않는다."
+            )
+            continue
+        if not detail["type_ko"] or not detail["category_icon"]:
+            errors.append(f"{display!r}: 상세 페이지에서 타입/분류를 읽지 못했다 ({url})")
+            continue
+        recovered[move_id] = detail
+        time.sleep(REQUEST_DELAY_SECONDS)
+
+    return recovered, errors
+
+
 def normalise(raw: dict[str, dict[str, Any]]) -> tuple[dict[str, dict[str, Any]], list[str]]:
     """한국어 라벨을 코드 식별자로 바꾼다. 모르는 라벨은 통과시키지 않는다 (fail-closed)."""
     errors: list[str] = []
@@ -392,10 +488,10 @@ def verify_shape(table: dict[str, dict[str, Any]], raw: dict[str, dict[str, Any]
     """수치 불변식. 깨지면 출처의 표 구조가 변한 것이다."""
     errors: list[str] = []
 
-    if len(table) != EXPECTED_MOVE_COUNT:
+    if len(table) < LISTED_MOVE_COUNT:
         errors.append(
-            f"기술 수가 {len(table)}개다. {EXPECTED_MOVE_COUNT}개를 기대했다. "
-            "패치로 기술이 추가/삭제됐다면 EXPECTED_MOVE_COUNT 를 갱신한다."
+            f"기술 수가 {len(table)}개다. 목록 기준 {LISTED_MOVE_COUNT}개보다 적다. "
+            "패치로 기술이 삭제됐다면 LISTED_MOVE_COUNT 를 갱신한다."
         )
 
     for move_id, record in sorted(table.items()):
@@ -636,6 +732,8 @@ def write_files(
                 ),
             },
             "cross_checks": checks,
+            "listed_on_source": LISTED_MOVE_COUNT,
+            "recovered_from_learnset": len(checks.get("recovered", [])),
             "count": len(table),
         },
         "moves": dict(sorted(table.items())),
@@ -678,7 +776,14 @@ def main() -> None:
     raw = parse_opgg(fetch_text_retrying(OPGG_URL))
     print(f"  파싱 {len(raw)}개")
 
+    print("learnset 대조로 목록 누락 보완...")
+    recovered, recovery_errors = recover_unlisted_moves(raw)
+    raw.update(recovered)
+    if recovered:
+        print(f"  목록에 없던 기술 {len(recovered)}개 보완: {sorted(recovered)}")
+
     table, errors = normalise(raw)
+    errors += recovery_errors
     errors += verify_shape(table, raw)
     errors += verify_name_map(raw)
 
@@ -720,6 +825,7 @@ def main() -> None:
             print(f"  {line}", file=sys.stderr)
         raise SystemExit(1)
 
+    checks["recovered"] = sorted(recovered)
     write_files(table, raw, checks)
     print(f"\n검증 통과. 기술 {len(table)}개")
     print(f"  {MOVES_PATH}")
