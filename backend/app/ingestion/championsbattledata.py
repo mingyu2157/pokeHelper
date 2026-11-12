@@ -37,9 +37,39 @@ RETRY_BACKOFF_SECONDS: Final[float] = 3.0
 
 SOURCE_NAME: Final[str] = "championsbattledata"
 
+# API 가 최신 시즌을 가리킬 때 쓰는 별칭. 구체 시즌 이름이 아니다.
+CURRENT_SEASON_ALIAS: Final[str] = "Current"
+
 
 class CollectionError(Exception):
     """수집이 실패했다. 스냅샷을 활성화하지 않는다."""
+
+
+def resolve_season(rankings: dict[str, Any]) -> str:
+    """응답의 `season` 을 **구체 시즌 이름**으로 바꾼다.
+
+    ★ "Current" 는 시즌이 아니라 별칭이다 ★
+
+    `seasons` 는 ["Current", "M7", "M6", ...] 이고 실제 데이터 폴더는 "M7" 이다.
+    "Current" 를 그대로 레귤레이션 코드로 쓰면 시즌이 넘어갈 때 **같은 레귤레이션에
+    다른 시즌 데이터가 섞인다.** 스냅샷의 스코프가 조용히 무너진다.
+
+    별칭을 벗길 수 없으면 추측하지 않고 실패한다.
+    """
+    season = str(rankings.get("season") or "")
+    if season and season != CURRENT_SEASON_ALIAS:
+        return season
+
+    concrete = [
+        str(name) for name in (rankings.get("seasons") or []) if str(name) != CURRENT_SEASON_ALIAS
+    ]
+    if not concrete:
+        raise CollectionError(
+            f"시즌을 해석할 수 없다. season={season!r}, seasons={rankings.get('seasons')!r}. "
+            "별칭을 구체 시즌으로 바꾸지 못하면 스냅샷의 스코프가 무너진다."
+        )
+    # 목록은 최신순이다 (Current, M7, M6, ...).
+    return concrete[0]
 
 
 class ChampionsBattleDataSource(StatsSource):
@@ -66,7 +96,7 @@ class ChampionsBattleDataSource(StatsSource):
             rankings = await self._get(
                 client, "/rankings", params={"format": battle_format, "limit": limit}
             )
-            season = str(rankings.get("season") or "Current")
+            season = resolve_season(rankings)
             entries: list[PokemonUsage] = []
 
             for index, row in enumerate(rankings["rankings"]):
