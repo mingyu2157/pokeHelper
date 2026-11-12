@@ -26,25 +26,30 @@
     "cross_checks": {
       "champions_helper": {
         "url": "https://champions-helper.com/data/moves.json",
-        "checked": 335,
+        "checked": 336,
         "source_size": 648,
         "expected_power_diffs": 15,
         "expected_accuracy_diffs": 3
       },
       "smartnuo": {
         "url": "https://smartnuo.com/api/move",
-        "checked": 515,
+        "checked": 516,
         "source_size": 892
       },
       "usage_join": {
         "source": "https://championsbattledata.com/api",
         "pokemon_fetched": 262,
         "pokemon_without_battle_data": 1,
-        "moves_seen": 385,
+        "moves_seen": 379,
         "unresolved": 0
-      }
+      },
+      "recovered": [
+        "thundershock"
+      ]
     },
-    "count": 515
+    "listed_on_source": 515,
+    "recovered_from_learnset": 1,
+    "count": 516
   },
   "moves": {
     "accelerock": {
@@ -5905,6 +5910,18 @@
       "flags": [
         "punch"
       ],
+      "target": "selected"
+    },
+    "thundershock": {
+      "slug": "thunder-shock",
+      "type": "electric",
+      "category": "special",
+      "power": 40,
+      "accuracy": 100,
+      "pp": 20,
+      "priority": 0,
+      "contact": false,
+      "flags": [],
       "target": "selected"
     },
     "thunderwave": {
