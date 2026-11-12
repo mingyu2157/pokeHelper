@@ -10,16 +10,44 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import MetaSnapshot, PokemonMeta
+from app.db.models import MetaSnapshot, PokemonMeta, Regulation
 
 # 보존 기간. 가이드 4-3 의 권장값이고, 영구 미러 금지(CLAUDE.md 8-2)의 실제 장치다.
 RETENTION_DAYS: int = 14
+
+
+async def ensure_regulation(session: AsyncSession, *, code: str, today: date) -> Regulation:
+    """레귤레이션을 코드로 찾고, 없으면 만든다.
+
+    수집은 레귤레이션 스코프 안에서만 의미가 있는데, 그 정보를 우리에게 알려주는
+    출처가 없다. 그래서 **수집한 시즌 코드로 자동 생성**하고 자동 생성임을 기록한다.
+    사람이 나중에 이름·기간·규정을 채울 수 있다.
+
+    코드는 구체 시즌("M7")이어야 한다. "Current" 같은 별칭을 넣으면 시즌이 넘어갈 때
+    같은 행에 다른 시즌 데이터가 쌓인다.
+    """
+    existing = await session.scalar(select(Regulation).where(Regulation.code == code))
+    if existing is not None:
+        return existing
+
+    regulation = Regulation(
+        code=code,
+        name=code,
+        started_at=today,
+        rules={
+            "auto_created": True,
+            "note": "수집 시 시즌 코드로 자동 생성했다. 이름·기간·규정은 사람이 채운다.",
+        },
+    )
+    session.add(regulation)
+    await session.flush()
+    return regulation
 
 
 async def create_snapshot(
