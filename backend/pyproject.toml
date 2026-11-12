@@ -9,6 +9,9 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.6.0",
     "gunicorn>=23.0.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
 ]
 
 [dependency-groups]
@@ -18,6 +21,7 @@ dev = [
     "httpx>=0.27.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+    "pytest-asyncio>=0.24.0",
 ]
 
 # 애플리케이션이지 배포용 패키지가 아니다. 빌드 백엔드 없이 의존성만 관리한다.
@@ -49,3 +53,5 @@ warn_unreachable = true
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+asyncio_mode = "auto"
+markers = ["db: Postgres 컨테이너가 필요한 테스트"]

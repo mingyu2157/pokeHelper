@@ -12,6 +12,29 @@ jobs:
     defaults:
       run:
         working-directory: backend
+
+    # DB 통합 테스트는 **진짜 Postgres** 를 쓴다. SQLite 로 대체하지 않는다 —
+    # 이 스키마의 핵심 장치가 부분 유니크 인덱스(WHERE is_active)와 CHECK 제약인데
+    # 방언마다 동작이 다르거나 아예 없다. 가짜 DB 에서 통과하는 테스트는
+    # "활성 스냅샷은 하나"라는 보장을 지켜주지 못한다 (ADR-010).
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: champs
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: champs
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U champs -d champs"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # compose 안에서는 호스트명이 `db` 지만 러너에서는 서비스가 localhost 에 매핑된다.
+      DATABASE_URL: postgresql+asyncpg://champs:devpassword@localhost:5432/champs
+
     steps:
       - uses: actions/checkout@v7
 
@@ -25,15 +48,26 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
+      # 범위를 로컬과 맞춘다. app/ tests/ 만 보면 scripts/ 와 alembic/ 이
+      # 검사에서 빠지는데, 시드 생성기와 마이그레이션이 거기 있다.
       - name: ruff lint
-        run: uv run ruff check app/ tests/
+        run: uv run ruff check .
 
       - name: ruff format check
-        run: uv run ruff format --check app/ tests/
+        run: uv run ruff format --check .
 
       # domain 계층에만 strict 타입체크를 건다 (CLAUDE.md 6장)
       - name: mypy (domain)
         run: uv run mypy app/domain/
+
+      # 스키마를 만들고 시드를 넣어야 통합 테스트가 돈다.
+      # 마이그레이션이 실제로 적용되는지도 여기서 같이 검증된다 —
+      # 모델만 고치고 마이그레이션을 빠뜨리면 이 단계에서 깨진다.
+      - name: alembic upgrade
+        run: uv run alembic upgrade head
+
+      - name: 시드 적재 (JSON -> DB)
+        run: uv run python -m scripts.load_seed_to_db
 
       - name: pytest
         run: uv run pytest
