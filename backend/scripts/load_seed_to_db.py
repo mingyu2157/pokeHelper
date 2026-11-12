@@ -30,11 +30,11 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Ability, Item, Move, Nature, Pokemon
+from app.db.models import Ability, Item, Move, Nature, Pokemon, PokemonLearnset
 from app.db.session import get_engine, get_session_factory
 
 DATA_DIR: Final[Path] = Path(__file__).resolve().parent.parent / "data"
@@ -173,6 +173,30 @@ def build_item_rows() -> list[dict[str, Any]]:
     ]
 
 
+def build_learnset_rows() -> list[dict[str, Any]]:
+    """다대다 연결. 포켓몬·기술이 모두 마스터에 있어야 FK 가 통과한다."""
+    learnsets = load("learnsets.json")["learnsets"]
+    return [
+        {"pokemon_id": showdown_id, "move_id": move_id}
+        for showdown_id, move_ids in sorted(learnsets.items())
+        for move_id in move_ids
+    ]
+
+
+async def replace_learnsets(session: AsyncSession, rows: list[dict[str, Any]]) -> int:
+    """통째로 갈아끼운다.
+
+    복합 기본키라 upsert 로는 **사라진 쌍이 남는다.** 기술을 더 이상 배우지
+    않게 바뀌었는데 행이 남아 있으면 "배울 수 있다"는 틀린 사실이 된다.
+    마스터와 달리 이 테이블은 아무도 FK 로 참조하지 않아 지워도 안전하다.
+    """
+    await session.execute(delete(PokemonLearnset))
+    if rows:
+        session.add_all([PokemonLearnset(**row) for row in rows])
+        await session.flush()
+    return len(rows)
+
+
 async def report_orphans(session: AsyncSession, model: type[Any], seed_ids: set[str]) -> list[str]:
     """시드에서 사라졌는데 DB 에 남아 있는 행. 지우지 않고 보고만 한다."""
     primary_key = next(iter(model.__table__.primary_key.columns))
@@ -188,6 +212,7 @@ async def main() -> None:
         ("성격", Nature, build_nature_rows(), "id"),
         ("도구", Item, build_item_rows(), "id"),
     )
+    learnset_rows = build_learnset_rows()
 
     factory = get_session_factory()
     orphan_report: list[str] = []
@@ -198,6 +223,10 @@ async def main() -> None:
             if orphans:
                 orphan_report.append(f"{label}: 시드에 없는데 DB 에 남은 행 {orphans}")
             print(f"  {label} {len(rows)}건 적재")
+
+        # learnset 은 마스터가 다 들어간 뒤에 넣는다 (FK 가 둘 다 참조한다).
+        pairs = await replace_learnsets(session, learnset_rows)
+        print(f"  learnset {pairs}쌍 적재")
         await session.commit()
 
     if orphan_report:

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from app.domain.items import ItemCatalog
+from app.domain.learnset import Learnset
 from app.domain.movedex import MoveDex
 from app.domain.names import NameMap
 from app.domain.nature import NatureCatalog
@@ -53,6 +54,11 @@ def pokedex() -> Pokedex:
 @lru_cache(maxsize=1)
 def move_dex() -> MoveDex:
     return MoveDex.from_mapping(_load("moves.json")["moves"])
+
+
+@lru_cache(maxsize=1)
+def learnset() -> Learnset:
+    return Learnset.from_mapping(_load("learnsets.json")["learnsets"])
 
 
 @lru_cache(maxsize=1)

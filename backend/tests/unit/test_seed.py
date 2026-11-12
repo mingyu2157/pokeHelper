@@ -8,6 +8,7 @@
 from app.core.seed import (
     ability_name_map,
     item_catalog,
+    learnset,
     move_dex,
     nature_catalog,
     nature_name_map,
@@ -54,6 +55,10 @@ class TestLoaders:
         assert names.ko("garchomp") == "한카리아스"
         assert names.id_of("한카리아스") == "garchomp"
 
+    def test_learnset_loads(self):
+        assert learnset().can_learn("garchomp", "earthquake") is True
+        assert len(learnset().ids()) > 200
+
     def test_nature_name_map_loads(self):
         assert nature_name_map().ko("jolly") == "명랑"
 
@@ -70,6 +75,7 @@ class TestCaching:
         assert nature_catalog() is nature_catalog()
         assert pokedex() is pokedex()
         assert move_dex() is move_dex()
+        assert learnset() is learnset()
         assert pokemon_name_map() is pokemon_name_map()
         assert nature_name_map() is nature_name_map()
         assert ability_name_map() is ability_name_map()
