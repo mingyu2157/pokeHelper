@@ -52,6 +52,31 @@ services:
       timeout: 5s
       retries: 5
 
+  # 복구 리허설 전용 DB (ADR-014).
+  #
+  # ★ 왜 별도 서비스인가 ★
+  # 리허설은 DROP 과 전체 복구를 한다. 통합테스트 93개가 `db` 를 공유하므로
+  # 거기서 돌리면 개발 DB 와 시드가 날아가고 나머지 테스트가 전부 깨진다.
+  # 볼륨이 분리돼 있어서 이 DB 를 아무리 망가뜨려도 개발 환경은 무사하다.
+  #
+  # 평소에는 뜨지 않는다 — `--profile rehearsal` 이 필요하다 (Airflow 선례, ADR-012).
+  # 포트를 열지 않는다. 호스트 5432 는 개발 DB 가 쓰고 있고, 리허설 DB 를 호스트에
+  # 노출할 이유가 없다. backend 는 서비스명(db-rehearsal)으로 붙는다.
+  db-rehearsal:
+    image: postgres:16-alpine
+    profiles: ["rehearsal"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-champs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-champs}
+    volumes:
+      - rehearsal-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-champs} -d ${POSTGRES_DB:-champs}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
@@ -179,3 +204,5 @@ services:
 volumes:
   pgdata:
   airflow-pgdata:
+  # 복구 리허설 전용. 개발 DB 와 분리된 이유는 db-rehearsal 서비스 주석 참조.
+  rehearsal-pgdata:

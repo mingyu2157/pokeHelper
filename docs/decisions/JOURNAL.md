@@ -463,3 +463,113 @@
   `docs/TEST_STRATEGY.md` 4-4 에 적어둔 판정 기준을 실제로 적용한 두 번째 사례다.
   → 판정 기준을 미리 문서에 적어두면, 이런 순간에 "고쳐도 되나"를 즉흥 판단하지 않는다.
 - 소요: 15분
+
+## 2026-11-17 — 저장소 루트에 만든 `scripts/` 가 기존 패키지를 가렸다
+
+- 증상: 리허설 테스트를 처음 돌리자 **관계없는 통합테스트가 수집 단계에서 깨졌다.**
+  `ModuleNotFoundError: No module named 'scripts.run_ingest'`, 604 deselected / 1 error
+- 기대 동작: 백업 스크립트를 추가해도 기존 테스트 615개는 그대로 통과해야 한다
+- 재현 절차:
+  1. `mkdir scripts && touch scripts/backup.sh`
+  2. `docker-compose.yml` 의 backend volumes 에 `- ./scripts:/app/scripts:ro` 추가
+  3. `docker compose up -d backend`
+  4. `docker compose exec backend uv run pytest tests/integration/test_scheduler_commands.py`
+- 원인: 프롬프트가 `scripts/backup.sh` 라고 지정해서 저장소 루트에 `scripts/` 를 만들고
+  컨테이너의 `/app/scripts` 에 마운트했다. 그런데 **`backend/scripts/` 가 이미
+  파이썬 패키지로 존재했다** (`run_ingest.py`, `cleanup_snapshots.py`, 시드 생성기 8개).
+  `./backend:/app` 위에 `./scripts:/app/scripts` 를 얹으면 그 패키지가 **통째로 가려진다.**
+  파일이 지워진 게 아니라 안 보이게 된 것이라, 호스트에서 `ls` 로는 멀쩡해 보인다.
+- 해결: `backend/scripts/` 로 옮기고 마운트를 제거했다. 운영 CLI 의 집은 이미 거기였다.
+- 배운 것: 프롬프트에 적힌 경로보다 **저장소에 이미 있는 컨벤션이 우선**이다
+  (CLAUDE.md 9장 "기존 코드의 컨벤션을 따른다"). 그리고 바인드 마운트는 덮어쓰기가
+  아니라 **가리기**다 — 컨테이너 안에서 `ls` 를 해봐야 알 수 있다.
+  ADR-012 의 "바인드 마운트는 컨테이너가 빌드 시 만든 파일을 덮어쓴다"와 같은 함정의
+  다른 얼굴이다.
+- 소요: 약 20분
+
+## 2026-11-17 — 백업은 되는데 복구가 안 되는 조합 (리허설이 첫 실행에서 잡았다)
+
+- 증상: 복구 리허설 테스트가 복구 단계에서 실패.
+  `pg_restore: error: could not execute query: ERROR: unrecognized configuration
+  parameter "transaction_timeout"` / `Command was: SET transaction_timeout = 0;`
+  **백업(`pg_dump`)은 성공했고 파일도 정상 크기였다.**
+- 기대 동작: `backup.sh` 가 만든 덤프를 `restore.sh` 로 되돌릴 수 있어야 한다
+- 재현 절차:
+  1. `backend/Dockerfile` 의 dev 타깃에서 `postgresql-client-16` 을
+     `postgresql-client` (Debian 기본값)로 바꾼다
+  2. `docker compose build backend && docker compose up -d backend`
+  3. `docker compose --profile rehearsal up -d db-rehearsal`
+  4. `docker compose exec backend uv run pytest -m rehearsal`
+- 원인: 클라이언트와 서버의 메이저 버전이 어긋났다.
+
+  | | 버전 | 결과 |
+  |---|---|---|
+  | 서버 (`postgres:16-alpine`) | 16 | |
+  | `python:3.12-slim` 의 Debian 기본 클라이언트 | **17** | |
+  | pg_dump 17 → 서버 16 | | **성공** |
+  | pg_restore 17 → 서버 16 | | **실패** |
+
+  `transaction_timeout` 은 PG17 에 추가된 설정이고, pg_restore 17 이 복구 서두에
+  무조건 `SET` 한다. 서버 16 은 그 이름을 모른다.
+  내가 Dockerfile 주석에 "상위 클라이언트는 하위 서버에 괜찮다"고 적어둔 게 **덤프에는
+  맞고 복구에는 틀렸다.** 애초에 베이스 이미지를 bookworm 으로 가정했던 것도 틀렸다 —
+  `python:3.12-slim` 은 이미 trixie(Debian 13)다. 첫 빌드가 `libldap-2.5-0` 의존성
+  오류로 깨진 게 그 신호였는데, 그때는 저장소 코드네임만 고치고 넘어갔다.
+- 해결: PGDG 저장소에서 **서버와 같은 메이저(16)** 를 받는다. 코드네임은
+  `/etc/os-release` 에서 읽어 하드코딩하지 않는다 — 베이스가 bookworm→trixie 로
+  바뀐 적이 있고 그때 조용히 깨졌다.
+- 배운 것: **이게 복구 리허설을 만든 이유 그 자체다.** 백업 스크립트만 만들고
+  "pg_dump 가 0 으로 끝났다"로 끝냈다면, 멀쩡해 보이는 덤프가 쌓이는 상태로
+  운영에 들어갔을 것이다. 정작 복구가 필요한 날에 알게 된다.
+  "백업했다"의 종료 조건은 **덤프 생성이 아니라 복구 성공**이다.
+- 소요: 약 45분 (이미지 재빌드 3회 포함)
+
+## 2026-11-17 — 보존 기간 0일이 방금 만든 백업을 지웠다
+
+- 증상: `BACKUP_RETENTION_DAYS=0` 으로 돌리면 `backup.sh` 가 성공(exit 0)하는데
+  **디렉토리에 아무 백업도 남지 않는다.** 로그에 `보존 기간 0일 — 2건 삭제`
+- 기대 동작: 보존 기간이 얼마든 **이번 실행이 만든 백업은 남아야 한다**
+- 재현 절차:
+  1. `backend/scripts/backup.sh` 의 `find` 에서 `! -name "$keep"` 를 지운다
+  2. `docker compose --profile rehearsal up -d db-rehearsal`
+  3. `docker compose exec backend uv run pytest -m rehearsal -k retention_zero`
+- 원인: GNU `find` 의 `-mmin` 은 경과 시간을 **올림**한다. 3초 전에 만든 파일도
+  "1분"으로 계산되므로 `-mmin +0` 에 걸린다. `-mtime` 대신 `-mmin` 을 고른 건
+  경계를 테스트로 집기 위해서였는데, 그 선택이 0 의 경계에서 역효과를 냈다.
+- 해결: 정리 대상에서 **이번 실행의 산출물을 이름으로 제외**했다
+  (`! -name "$(basename "$final")"`). 설정값이 무엇이든 자기가 만든 백업을 지우는
+  백업 스크립트는 성립하지 않는다.
+- 배운 것: 경계값 테스트를 **설정의 양 끝까지** 넣어야 보인다. 7일 경계만 봤다면
+  통과했다. 0 은 "쓰지 않을 값"처럼 보여서 빼기 쉬운데, 그런 값이 사고를 낸다.
+  그리고 이 버그는 **exit 0 으로 성공을 보고했다** — 조용한 실패였다.
+- 소요: 약 20분
+
+## 2026-11-17 — CHECK 제약 정의가 복구 후 다르게 렌더링됐다 (기대값 변경 3번째 사례)
+
+- 증상: 복구 전/후 제약 정의 문자열 비교가 `ck_moves_category` 하나에서 실패
+  ```
+  복구 전: ANY ((ARRAY['physical'::character varying, ...])::text[])
+  복구 후: ANY (ARRAY[('physical'::character varying)::text, ...])
+  ```
+- 기대 동작: 복구 후에도 같은 제약이 같은 검사를 수행해야 한다
+- 재현 절차:
+  1. `backend/tests/rehearsal/test_restore_rehearsal.py` 에서
+     `test_constraint_checks_survive_rerendering` 의 `_same_check(...)` 호출을 벗긴다
+     (양쪽을 원문 그대로 비교하게 만든다)
+  2. `docker compose exec backend uv run pytest -m rehearsal -k constraint`
+- 원인: `pg_get_constraintdef` 은 저장된 문자열이 아니라 **파스 트리를 다시 렌더링한
+  결과**다. pg_dump 가 식을 직렬화하고 복구가 다시 파싱하면, 캐스트를 배열 전체에
+  걸었는지 원소마다 걸었는지가 달라진다. **의미는 동일하다.**
+- 해결: 이 층의 오라클을 바로잡았다. 문자열 동일성은 애초에 우리가 지키려는 불변식이
+  아니었다. 셋으로 쪼갰다.
+  - 제약 **이름** 집합은 원문 그대로 비교 (하나라도 사라지거나 생기면 실패)
+  - 제약 **정의**는 캐스트·괄호·공백을 걷어낸 형태로 비교 (값 목록이 바뀌면 여전히 실패)
+  - 제약이 **집행되는지**는 위반을 실제로 INSERT 해서 거부되는지로 별도 단정
+- 배운 것: 기대값을 고치는 건 원칙적으로 금지지만, 여기도 방향이 반대였다 —
+  **오라클이 틀렸다는 근거가 구현과 독립적**이었다(두 식이 의미상 동등하다는 사실,
+  그리고 집행 테스트가 따로 통과한다는 사실). `docs/TEST_STRATEGY.md` 4-4 의 판정
+  기준을 적용한 세 번째 사례다.
+  → 더 중요한 교훈: **"정의가 있다"와 "집행된다"는 다른 단정이다.** 카탈로그에
+  정의가 남아 있어도 인덱스가 INVALID 면 막지 못한다. 그래서 3층은 정의 비교에서
+  멈추지 않고 위반을 넣어본다. ADR-013 의 교훈이 그대로 반복됐다.
+- 소요: 약 25분
