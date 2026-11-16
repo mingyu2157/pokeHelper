@@ -5,6 +5,8 @@
 docs/*
 !docs/adr/
 !docs/decisions/
+# 테스트 전략은 증빙 문서다 (CLAUDE.md 12장). README 가 링크하므로 커밋한다.
+!docs/TEST_STRATEGY.md
 CLAUDE-*.md
 
 # Python
