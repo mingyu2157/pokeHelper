@@ -1,0 +1,19 @@
+{
+  "format": "Singles",
+  "season": "Current",
+  "seasons": ["Current", "M7", "M6"],
+  "rankings": [
+    {
+      "position": 1,
+      "showdownId": "garchomp",
+      "savedName": "Garchomp",
+      "baseName": "Garchomp"
+    },
+    {
+      "position": 2,
+      "showdownId": "raichualola",
+      "savedName": "Raichu-Alola",
+      "baseName": "Raichu"
+    }
+  ]
+}

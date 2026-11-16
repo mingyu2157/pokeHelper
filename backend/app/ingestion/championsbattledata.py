@@ -18,13 +18,13 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime
 from typing import Any, Final
 
 import httpx
 
-from app.ingestion.base import CollectionResult, PokemonUsage, StatsSource
+from app.ingestion.base import Attribution, CollectionResult, PokemonUsage, StatsSource
+from app.ingestion.gate import RequestGate
 from app.ingestion.normalize import normalize_rows
 
 API_ROOT: Final[str] = "https://championsbattledata.com/api"
@@ -36,6 +36,13 @@ TRANSIENT_RETRIES: Final[int] = 3
 RETRY_BACKOFF_SECONDS: Final[float] = 3.0
 
 SOURCE_NAME: Final[str] = "championsbattledata"
+
+# ★ 라이선스가 요구하는 문구다 (CLAUDE.md 8-2). 임의로 바꾸지 않는다.
+#   통계가 표시되는 모든 화면에 이 표기와 링크가 함께 나가야 한다.
+ATTRIBUTION: Final[Attribution] = Attribution(
+    text="Battle data provided by Pokémon Champions Battle Data",
+    url="https://championsbattledata.com",
+)
 
 # API 가 최신 시즌을 가리킬 때 쓰는 별칭. 구체 시즌 이름이 아니다.
 CURRENT_SEASON_ALIAS: Final[str] = "Current"
@@ -75,12 +82,27 @@ def resolve_season(rankings: dict[str, Any]) -> str:
 class ChampionsBattleDataSource(StatsSource):
     """공개 API 어댑터. 사이트별 필드명은 이 클래스 밖으로 나가지 않는다."""
 
-    def __init__(self, *, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        client: httpx.AsyncClient | None = None,
+        gate: RequestGate | None = None,
+    ) -> None:
         self._client = client
+        self._gate = gate or RequestGate(min_interval=REQUEST_DELAY_SECONDS)
 
     @property
     def name(self) -> str:
         return SOURCE_NAME
+
+    @property
+    def attribution(self) -> Attribution:
+        return ATTRIBUTION
+
+    @property
+    def gate(self) -> RequestGate:
+        """적용 중인 요청 예절. 테스트가 정책을 확인할 수 있게 노출한다."""
+        return self._gate
 
     async def collect(self, *, battle_format: str, limit: int) -> CollectionResult:
         if limit < 1:
@@ -99,14 +121,12 @@ class ChampionsBattleDataSource(StatsSource):
             season = resolve_season(rankings)
             entries: list[PokemonUsage] = []
 
-            for index, row in enumerate(rankings["rankings"]):
+            for row in rankings["rankings"]:
                 showdown_id = str(row["showdownId"])
                 position = int(row["position"])
 
-                # 요청 사이에 간격을 둔다. 첫 요청 앞에는 두지 않는다.
-                if index > 0:
-                    await asyncio.sleep(REQUEST_DELAY_SECONDS)
-
+                # 간격·동시성은 `_get` 안의 게이트가 지킨다. 여기서 세지 않는다 —
+                # 루프 안에서 세면 목록 요청과 첫 상세 요청 사이가 0 초가 된다.
                 battle = await self._get(client, f"/battle/{battle_format}/{showdown_id}")
                 entries.append(
                     PokemonUsage(
@@ -121,6 +141,7 @@ class ChampionsBattleDataSource(StatsSource):
 
             return CollectionResult(
                 source=SOURCE_NAME,
+                attribution=ATTRIBUTION,
                 format=battle_format,
                 season=season,
                 collected_at=datetime.now(UTC),
@@ -137,12 +158,20 @@ class ChampionsBattleDataSource(StatsSource):
 
         데이터가 틀린 것과 네트워크가 끊긴 것은 다르다. 전자는 재시도해도 같고,
         후자는 재시도가 맞다.
+
+        ★ 모든 요청이 게이트를 지나간다 ★
+
+        간격과 동시성 제한이 이 한 곳에 모여 있다. 호출 구조가 바뀌어도
+        "요청 간 1초, 동시성 1"(CLAUDE.md 8-6)이 유지된다. 재시도 백오프도
+        게이트의 시계를 쓴다 — `asyncio.sleep` 을 직접 부르면 그 대기만
+        테스트에서 가짜로 만들 수 없다.
         """
         url = f"{API_ROOT}{path}"
         last_error: Exception | None = None
         for attempt in range(TRANSIENT_RETRIES):
             try:
-                response = await client.get(url, params=params)
+                async with self._gate:
+                    response = await client.get(url, params=params)
                 response.raise_for_status()
                 payload: dict[str, Any] = response.json()
                 return payload
@@ -150,5 +179,5 @@ class ChampionsBattleDataSource(StatsSource):
                 raise CollectionError(f"{url}: HTTP {error.response.status_code}") from error
             except (httpx.TransportError, ValueError) as error:
                 last_error = error
-                await asyncio.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
+                await self._gate.wait(RETRY_BACKOFF_SECONDS * (attempt + 1))
         raise CollectionError(f"{url}: {TRANSIENT_RETRIES}회 재시도 후 실패 — {last_error}")

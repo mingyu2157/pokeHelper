@@ -1,0 +1,23 @@
+{
+  "showdownId": "raichualola",
+  "format": "Singles",
+  "season": "M7",
+  "rows": [
+    { "category": "move", "rank": 1, "name": "Thunderbolt", "percentage_value": 88.1 },
+    { "category": "held_item", "rank": 1, "name": "Life Orb", "percentage_value": 44.0 },
+    { "category": "ability", "rank": 1, "name": "Surge Surfer", "percentage_value": 100.0 },
+    { "category": "stat_alignment", "rank": 1, "name": "Timid", "percentage_value": 72.5 },
+    { "category": "teammate", "rank": 1, "name": "Garchomp", "percentage_value": null },
+    {
+      "category": "stat_points",
+      "rank": 1,
+      "percentage_value": 51.3,
+      "hp_points": 0,
+      "attack_points": 0,
+      "defense_points": 2,
+      "sp_atk_points": 32,
+      "sp_def_points": 0,
+      "speed_points": 32
+    }
+  ]
+}
