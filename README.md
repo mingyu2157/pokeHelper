@@ -30,13 +30,14 @@ LLM 에게 "이 공격이 몇 % 들어가?"를 물으면 그럴듯한 숫자가 
 | **이름 매핑 오류는 조용히 틀린 화면을 만든다** | 퍼지 매칭 전면 금지, 7단계 방어선, 매핑 실패 시 fail-closed | [ADR-005](docs/adr/005-name-mapping-defense.md) |
 | **본가 데이터를 재사용하면 조용히 틀린다** | 기술 위력·명중·PP 를 챔피언스 전용 출처에서 재생성, 3출처 교차검증 | [ADR-009](docs/adr/009-move-data-source.md) |
 | **스케줄러 도입이 되돌리기 비싼 결정이 되는 것** | CLI 를 먼저 만들고 Airflow 가 그걸 호출. 의존성을 컨테이너로 격리 | [ADR-011](docs/adr/011-scheduler-staging.md) · [ADR-012](docs/adr/012-airflow-docker-operator.md) |
+| **라이선스 의무가 사람의 기억에 달려 있었다** | 출처 표기를 UI 문구가 아니라 수집 결과의 **기본값 없는 필수 필드**로. 요청 예절은 모든 요청이 지나는 게이트 하나로 — 선언된 1초 간격이 실제로는 0초였다 | [ADR-013](docs/adr/013-attribution-contract.md) · [JOURNAL](docs/decisions/JOURNAL.md) |
 
 ## 먼저 볼 문서
 
 | 문서 | 내용 |
 |---|---|
 | **[docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md)** | 테스트 레벨·유형·설계 기법 매핑, **테스트 오라클 문제와 해결** |
-| **[docs/adr/](docs/adr/)** | 설계 결정 기록 12건. 선택지·근거·포기한 것·**되돌리는 조건** |
+| **[docs/adr/](docs/adr/)** | 설계 결정 기록 13건. 선택지·근거·포기한 것·**되돌리는 조건** |
 | **[docs/decisions/JOURNAL.md](docs/decisions/JOURNAL.md)** | 문제 해결 일지 27건. 증상·기대 동작·재현 절차·원인·해결 |
 | [CLAUDE.md](CLAUDE.md) | 이 저장소의 작업 규칙과 계산 명세 (진실의 원천) |
 
@@ -168,7 +169,7 @@ CI 의 DB 통합 테스트는 **실제 Postgres 16 컨테이너**를 띄운다. 
 | ✅ | 2-5 | ETL + 스냅샷 전환 — **검증 실패 시 적재는 하고 활성화를 막는다** |
 | ✅ | 2-6 | learnset 16,037쌍 · 보존기간 정리 CLI · Airflow ([ADR-011](docs/adr/011-scheduler-staging.md) · [ADR-012](docs/adr/012-airflow-docker-operator.md)) |
 | 🔜 | **2-3c** | **다음 작업** — 도구 한영 매핑. 교차검증 재료가 없는 유일한 대상이라 분류별로 다른 재료를 쓴다 |
-| ⬜ | 2-7 | 출처 표기 컴포넌트 (데이터 제공자 라이선스 조건) |
+| ⬜ | 2-7 | 출처 표기 UI 컴포넌트 — 백엔드 계약은 완료 ([ADR-013](docs/adr/013-attribution-contract.md)), **읽는 코드는 아직 없다** |
 
 **2-5 의 설계가 Phase 2 의 핵심이다.** 수집은 깨질 수 있다 — 출처가 항목을 추가하거나
 이름이 바뀌거나 매핑이 비어 있을 수 있다. 그때 **이전 스냅샷으로 계속 서비스하는 것**이
