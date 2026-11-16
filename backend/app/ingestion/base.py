@@ -18,6 +18,24 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class Attribution:
+    """표시 의무가 있는 출처 표기 (CLAUDE.md 8-2).
+
+    ★ 이것은 품질 항목이 아니라 **사용 조건**이다 ★
+
+    championsbattledata 의 라이선스는 "데이터를 표시하는 모든 화면에 출처 표기와
+    링크"를 요구한다. 지키지 않으면 서비스를 내려야 한다.
+
+    가이드 4-7 은 `attribution: str` 하나로 적어뒀지만 **text 와 url 로 쪼갰다.**
+    라이선스가 요구하는 것은 "표기"와 "링크" 두 개이고, 한 문자열로 합치면
+    UI 가 다시 쪼개야 한다. 쪼개는 로직이 화면마다 생기면 거기서 틀린다.
+    """
+
+    text: str
+    url: str
+
+
+@dataclass(frozen=True)
 class OptionUsage:
     """하나의 선택지 채용률. 기술·도구·특성·성격·파트너가 모두 이 모양이다.
 
@@ -63,9 +81,14 @@ class PokemonUsage:
 
 @dataclass(frozen=True)
 class CollectionResult:
-    """한 번의 수집 결과 전체."""
+    """한 번의 수집 결과 전체.
+
+    `attribution` 에 **기본값을 두지 않는다.** 기본값이 있으면 두 번째 출처를 붙일 때
+    출처 표기를 빼먹어도 코드가 돌아간다 — 라이선스 위반이 조용히 통과한다.
+    """
 
     source: str
+    attribution: Attribution
     format: str
     season: str
     collected_at: datetime
@@ -79,6 +102,18 @@ class StatsSource(ABC):
     @abstractmethod
     def name(self) -> str:
         """`meta_snapshots.source` 에 들어갈 식별자."""
+
+    @property
+    @abstractmethod
+    def attribution(self) -> Attribution:
+        """UI 에 표기할 출처 (CLAUDE.md 8-2).
+
+        ★ 출처 표기를 인터페이스에 넣은 이유 (가이드 4-7) ★
+
+        출처 표기가 UI 쪽 문자열 상수로만 있으면, 화면을 새로 만드는 사람이
+        **깜빡할 수 있다.** 깜빡한 걸 알려주는 장치도 없다. 수집 결과와 함께
+        흐르는 값으로 만들면 출처를 추가하면 표기도 자동으로 따라온다.
+        """
 
     @abstractmethod
     async def collect(self, *, battle_format: str, limit: int) -> CollectionResult:

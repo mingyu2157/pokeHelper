@@ -1,0 +1,24 @@
+{
+  "showdownId": "garchomp",
+  "format": "Singles",
+  "season": "M7",
+  "rows": [
+    { "category": "move", "rank": 1, "name": "Earthquake", "percentage_value": 75.8 },
+    { "category": "move", "rank": 2, "name": "Dragon Claw", "percentage_value": 61.2 },
+    { "category": "held_item", "rank": 1, "name": "Choice Scarf", "percentage_value": 32.9 },
+    { "category": "ability", "rank": 1, "name": "Rough Skin", "percentage_value": 99.3 },
+    { "category": "stat_alignment", "rank": 1, "name": "Jolly", "percentage_value": 31.0 },
+    { "category": "teammate", "rank": 1, "name": "Dragonite", "percentage_value": null },
+    {
+      "category": "stat_points",
+      "rank": 1,
+      "percentage_value": 34.6,
+      "hp_points": 2,
+      "attack_points": 32,
+      "defense_points": 0,
+      "sp_atk_points": 0,
+      "sp_def_points": 0,
+      "speed_points": 32
+    }
+  ]
+}

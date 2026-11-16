@@ -20,7 +20,13 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
 from app.db.models import MetaSnapshot, PokemonMeta, Regulation
-from app.ingestion.base import CollectionResult, OptionUsage, PokemonUsage, SpreadUsage
+from app.ingestion.base import (
+    Attribution,
+    CollectionResult,
+    OptionUsage,
+    PokemonUsage,
+    SpreadUsage,
+)
 from app.repositories import snapshots
 from app.services.ingest import ingest
 
@@ -78,6 +84,11 @@ def _entry(showdown_id: str = "garchomp", *, rank: int = 1, **overrides) -> Poke
 def _result(*entries: PokemonUsage, offset_seconds: int = 0) -> CollectionResult:
     return CollectionResult(
         source="championsbattledata",
+        # 출처 표기는 수집 결과와 함께 흐른다 (CLAUDE.md 8-2, 가이드 4-7).
+        attribution=Attribution(
+            text="Battle data provided by Pokémon Champions Battle Data",
+            url="https://championsbattledata.com",
+        ),
         format="Singles",
         season="Current",
         collected_at=datetime.now(UTC) + timedelta(seconds=offset_seconds),
