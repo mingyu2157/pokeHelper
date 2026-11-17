@@ -12,7 +12,7 @@ LLM 에게 "이 공격이 몇 % 들어가?"를 물으면 그럴듯한 숫자가 
         │                                  │   │                     │
 입력 ──▶│  순수 함수 계산 엔진              │──▶│  수치 해석 · 설명    │──▶ 응답
         │  외부 의존성 0                    │   │  숫자 생성 금지      │
-        │  테스트 538개로 검증              │   │  스키마로만 통제     │
+        │  테스트 559개로 검증              │   │  스키마로만 통제     │
         └──────────────────────────────────┘   └─────────────────────┘
              모든 수치가 여기서만 나온다           여기서 나온 숫자는 버린다
 ```
@@ -32,14 +32,15 @@ LLM 에게 "이 공격이 몇 % 들어가?"를 물으면 그럴듯한 숫자가 
 | **스케줄러 도입이 되돌리기 비싼 결정이 되는 것** | CLI 를 먼저 만들고 Airflow 가 그걸 호출. 의존성을 컨테이너로 격리 | [ADR-011](docs/adr/011-scheduler-staging.md) · [ADR-012](docs/adr/012-airflow-docker-operator.md) |
 | **라이선스 의무가 사람의 기억에 달려 있었다** | 출처 표기를 UI 문구가 아니라 수집 결과의 **기본값 없는 필수 필드**로. 요청 예절은 모든 요청이 지나는 게이트 하나로 — 선언된 1초 간격이 실제로는 0초였다 | [ADR-013](docs/adr/013-attribution-contract.md) · [JOURNAL](docs/decisions/JOURNAL.md) |
 | **검증되지 않은 백업은 백업이 아니다** | 백업→DROP→복구를 pytest 로 수행하고 행 수·체크섬·제약 집행·시퀀스 4층으로 검증. 첫 실행에서 **덤프는 되는데 복구가 안 되는 조합**을 잡았다 | [ADR-014](docs/adr/014-restore-rehearsal.md) · [RUNBOOK](docs/RUNBOOK.md) |
+| **권한을 선언하는 것과 권한이 집행되는 것은 다르다** | DB 계정을 DDL·DML·읽기로 분리하고, **위반을 실제로 실행해서 거부되는지** 테스트. 설정이 슈퍼유저로 되돌아갔는지도 단정한다 | [ADR-015](docs/adr/015-least-privilege-db-accounts.md) · [RUNBOOK §1-B](docs/RUNBOOK.md) |
 
 ## 먼저 볼 문서
 
 | 문서 | 내용 |
 |---|---|
 | **[docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md)** | 테스트 레벨·유형·설계 기법 매핑, **테스트 오라클 문제와 해결** |
-| **[docs/adr/](docs/adr/)** | 설계 결정 기록 14건. 선택지·근거·포기한 것·**되돌리는 조건** |
-| **[docs/decisions/JOURNAL.md](docs/decisions/JOURNAL.md)** | 문제 해결 일지 31건. 증상·기대 동작·재현 절차·원인·해결 |
+| **[docs/adr/](docs/adr/)** | 설계 결정 기록 15건. 선택지·근거·포기한 것·**되돌리는 조건** |
+| **[docs/decisions/JOURNAL.md](docs/decisions/JOURNAL.md)** | 문제 해결 일지 33건. 증상·기대 동작·재현 절차·원인·해결 |
 | **[docs/RUNBOOK.md](docs/RUNBOOK.md)** | 장애 1차 대응. **실제로 실행해 확인한 명령만** 적고, 나머지는 `미검증` 으로 표시 |
 | [CLAUDE.md](CLAUDE.md) | 이 저장소의 작업 규칙과 계산 명세 (진실의 원천) |
 
@@ -118,8 +119,8 @@ ADR 은 결정으로 끝내지 않고 **되돌리는 조건**을 미리 적어�
 2026-11-17 측정.
 
 ```
-테스트 함수      538   (단위 415 / 통합 93 / 복구 리허설 29 / 시스템 1)
-기본 실행        615 passed   (파라미터화 전개 후, 리허설 29 deselected)
+테스트 함수      559   (단위 415 / 통합 114 / 복구 리허설 29 / 시스템 1)
+기본 실행        636 passed   (파라미터화 전개 후, 리허설 29 deselected)
 복구 리허설       29 passed   (pytest -m rehearsal, 전용 컨테이너 필요)
 린트 · 포맷      ruff — 저장소 전체
 타입체크         mypy --strict — app/domain/
@@ -132,7 +133,8 @@ CI 의 DB 통합 테스트는 **실제 Postgres 16 컨테이너**를 띄운다. 
 [TEST_STRATEGY §1-2](docs/TEST_STRATEGY.md#1-2-통합--두-종류를-구분한다).
 
 **아직 없는 것**: 커버리지 CI 게이트, 골든 데미지 케이스(실측 필요), E2E, LLM 응답 검증,
-수집 샘플 응답의 실측 검증, 복구 리허설의 CI 자동 실행, ROLE(계정) 백업.
+수집 샘플 응답의 실측 검증, 복구 리허설의 CI 자동 실행, ROLE(계정) 백업,
+CI 의 계정 분리 단계 실행 확인.
 [TEST_STRATEGY §6](docs/TEST_STRATEGY.md#6-현재-한계) 에 전부 적어뒀다.
 
 ---

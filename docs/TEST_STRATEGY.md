@@ -7,10 +7,10 @@ pokeHelper 의 테스트 설계를 표준 QA 용어로 정리한 문서다.
 미구현·미측정 항목은 숨기지 않고 그렇게 표시했다.
 
 - 측정 시점: **2026-11-17**
-- 테스트 함수: **538개** (`pytest.mark.parametrize` 전개 전 기준)
-  - 단위 415 / 통합 93 / 복구 리허설 29 / 시스템 1
+- 테스트 함수: **559개** (`pytest.mark.parametrize` 전개 전 기준)
+  - 단위 415 / 통합 114 / 복구 리허설 29 / 시스템 1
 - 마지막으로 기록된 실행 (파라미터화 전개 후, 2026-11-17)
-  - 기본 실행: **615 passed** (리허설 29 deselected)
+  - 기본 실행: **636 passed** (리허설 29 deselected)
   - 복구 리허설: **29 passed** — `pytest -m rehearsal`. 전용 컨테이너가 필요해
     기본 실행에서 제외돼 있다 ([ADR-014](adr/014-restore-rehearsal.md))
 
@@ -23,7 +23,7 @@ pokeHelper 의 테스트 설계를 표준 QA 용어로 정리한 문서다.
 | 레벨 | 위치 | 수 | 격리 범위 | 외부 의존 |
 |---|---|---|---|---|
 | **단위** | `tests/unit/` | 415 | 순수 함수 1개 ~ 모듈 1개 | 도메인 없음 / 수집 테스트 더블 |
-| **통합** | `tests/integration/` | 93 | 라우터↔스키마↔도메인, 서비스↔실제 DB | Postgres |
+| **통합** | `tests/integration/` | 114 | 라우터↔스키마↔도메인, 서비스↔실제 DB, **DB 계정 권한** | Postgres |
 | **복구 리허설** | `tests/rehearsal/` | 29 | 백업 스크립트 ↔ 전용 Postgres (DROP·복구 포함) | Postgres (전용 컨테이너) |
 | **시스템** | `tests/test_health.py` | 1 | 앱 기동 + HTTP 계약 | 없음 |
 | **E2E** | — | **0** | — | — |
@@ -607,7 +607,7 @@ A/B 는 경계에서 ±1 어긋난다. 그리고 그 1이 결론을 뒤집는다
 ```
 사용자 요청
    │
-   ├─▶ domain 계산 ──────────▶ 수치   [결정론적 · 538개 테스트의 사정권]
+   ├─▶ domain 계산 ──────────▶ 수치   [결정론적 · 559개 테스트의 사정권]
    │       (데미지·스피드·상성)
    │
    └─▶ 계산 결과를 "사실 블록" JSON 으로 직렬화
@@ -676,6 +676,8 @@ Phase 4 에서 스키마를 만들 때 구현한다.
 | LLM 응답 검증 | **미구현** | Phase 4 |
 | 성능·부하 테스트 | **없음** | Phase 6 배포 후 |
 | 변이 테스트 | 없음 | 미계획 |
+| CI 의 계정 분리 단계 | **아직 한 번도 돌지 않았다** — 러너에 `psql` 이 있다는 전제가 미실측 | 첫 PR 에서 확인 |
+| ROLE 백업 | `pg_dump` 에 역할이 없다. 지금은 `sql/roles.sql` 이 그 역할을 대신한다 | `pg_dumpall --roles-only` |
 | 복구 리허설 CI 실행 | **없음** — 로컬에서 손으로 돌린다. 자동으로 회귀를 막지 못한다 | 러너에서 compose 프로필 기동 |
 | ROLE(계정) 백업 | **없음** — `pg_dump` 에 계정이 안 들어간다. 빈 서버 완전 복구 불가 | `pg_dumpall --roles-only` (계정 분리 작업) |
 | 운영 백업 전략 | 리허설이 증명하는 것은 **논리 백업의 왕복**뿐. 배포 대상 미결 | ADR-001 배포 결정 후 |
@@ -685,7 +687,7 @@ Phase 4 에서 스키마를 만들 때 구현한다.
 ## 참고
 
 - 계산 명세: [`CLAUDE.md`](../CLAUDE.md) 5장
-- 설계 결정 기록: [`docs/adr/`](adr/) — 14건
-- 문제 해결 일지: [`docs/decisions/JOURNAL.md`](decisions/JOURNAL.md) — 31건
-- 장애 1차 대응: [`docs/RUNBOOK.md`](RUNBOOK.md) — 6개 시나리오 (검증 3 / 부분 2 / 미검증 1)
+- 설계 결정 기록: [`docs/adr/`](adr/) — 15건
+- 문제 해결 일지: [`docs/decisions/JOURNAL.md`](decisions/JOURNAL.md) — 33건
+- 장애 1차 대응: [`docs/RUNBOOK.md`](RUNBOOK.md) — 7개 시나리오 (검증 4 / 부분 2 / 미검증 1)
 - CI 설정: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)

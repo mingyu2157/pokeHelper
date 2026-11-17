@@ -110,6 +110,122 @@ docker compose ps
 
 ---
 
+## 1-B. DB 권한 오류 — 붙기는 하는데 거부된다 ✅ 검증
+
+계정이 셋으로 분리돼 있다([ADR-015](adr/015-least-privilege-db-accounts.md)).
+연결은 되는데 특정 작업만 실패하면 거의 항상 **계정을 잘못 골랐거나 역할이 없는** 경우다.
+
+| 계정 | 할 수 있는 것 | 쓰는 곳 |
+|---|---|---|
+| `champs_migrate` | DDL (CREATE/ALTER/DROP) + 객체 소유 | `alembic`, `restore.sh` |
+| `champs_app` | SELECT / INSERT / UPDATE / DELETE | 앱, 시드 적재, 수집, 정리 |
+| `champs_read` | SELECT 만 (`pg_read_all_data`) | 디버깅·분석, `backup.sh` |
+| `champs` | 슈퍼유저 | `init_roles.sh` 와 긴급 상황 **전용** |
+
+### 증상과 원인 (실제로 확인한 메시지)
+
+| 메시지 | 뜻 | 조치 |
+|---|---|---|
+| `permission denied for schema public` | 앱/읽기 계정으로 **DDL** 을 시도했다 | `champs_migrate` 로 바꾼다. 앱 코드라면 DDL 을 하려는 것 자체가 버그다 |
+| `must be owner of table <t>` | 소유자가 아닌 계정으로 DROP/ALTER 를 시도했다 | 소유권이 `champs_migrate` 인지 본다 (아래 ②) |
+| `permission denied for table <t>` | 읽기 계정으로 쓰기를, 또는 **기본 권한이 빠진 새 테이블**에 접근했다 | 아래 ③을 본다 |
+| `FATAL: password authentication failed for user "champs_app"` | 역할이 없거나 비밀번호가 다르다 | `init_roles.sh` 를 돌린다 (아래 1차 조치) |
+| `FATAL: role "champs_app" does not exist` | 역할을 만들지 않았다 | 같음 |
+
+### 확인 명령
+
+```bash
+# ① 지금 어떤 계정으로 붙어 있나 / 역할이 존재하나
+docker compose exec -T backend sh -c \
+  'PGPASSWORD=devread psql -h db -U champs_read -d champs \
+   -c "SELECT rolname, rolsuper, rolcreaterole FROM pg_roles WHERE rolname LIKE '"'"'champs%'"'"' ORDER BY 1"'
+```
+
+확인한 출력:
+
+```
+    rolname     | rolsuper | rolcreaterole
+----------------+----------+---------------
+ champs         | t        | t              ← 부트스트랩. 애플리케이션이 이걸 쓰면 안 된다
+ champs_app     | f        | f
+ champs_migrate | f        | f
+ champs_read    | f        | f
+```
+
+```bash
+# ② 테이블 소유자와 실제 ACL
+docker compose exec -T backend sh -c \
+  'PGPASSWORD=devread psql -h db -U champs_read -d champs \
+   -c "SELECT relname, pg_get_userbyid(relowner) AS owner, relacl::text FROM pg_class \
+       WHERE relname IN ('"'"'pokemon'"'"','"'"'meta_snapshots'"'"') AND relkind='"'"'r'"'"'"'
+```
+
+확인한 출력:
+
+```
+    relname     |     owner      |                                 relacl
+----------------+----------------+------------------------------------------------------------------------
+ meta_snapshots | champs_migrate | {champs_migrate=arwdDxt/champs_migrate,champs_app=arwd/champs_migrate}
+ pokemon        | champs_migrate | {champs_migrate=arwdDxt/champs_migrate,champs_app=arwd/champs_migrate}
+```
+
+ACL 문자 읽는 법: `a`=INSERT, `r`=SELECT, `w`=UPDATE, `d`=DELETE, `D`=TRUNCATE,
+`x`=REFERENCES, `t`=TRIGGER. **`champs_app` 에 `arwd` 만 있고 `D`(TRUNCATE)가 없는 것이
+정상이다.** `champs_read` 는 여기 안 나온다 — 직접 GRANT 가 아니라 `pg_read_all_data`
+역할 멤버십으로 읽기 때문이다. 그래서 `information_schema.role_table_grants` 로는
+보이지 않는다 (실제로 0건이 나온다).
+
+```bash
+# ③ ★ 미래 객체 기본 권한 — 새 테이블에서 권한 오류가 날 때 여기를 본다
+docker compose exec -T backend sh -c \
+  'PGPASSWORD=devread psql -h db -U champs_read -d champs \
+   -c "SELECT pg_get_userbyid(defaclrole) AS creator, defaclobjtype AS objtype, defaclacl::text \
+       FROM pg_default_acl WHERE defaclnamespace='"'"'public'"'"'::regnamespace"'
+```
+
+확인한 출력:
+
+```
+    creator     | objtype |            defaclacl
+----------------+---------+----------------------------------
+ champs_migrate | r       | {champs_app=arwd/champs_migrate}
+ champs_migrate | S       | {champs_app=rU/champs_migrate}
+```
+
+**`creator` 가 `champs_migrate` 여야 한다.** 다른 역할이거나 0건이면,
+`ALTER DEFAULT PRIVILEGES` 에서 `FOR ROLE champs_migrate` 가 빠진 것이다.
+그 경우 **마이그레이션이 새로 만든 테이블만** 앱이 못 읽고, 기존 테이블은 정상이라
+증상이 테이블마다 다르게 나타난다.
+
+### 1차 조치
+
+```bash
+# 역할 생성·권한 재적용. 멱등하다 — 몇 번 돌려도 된다.
+docker compose exec backend bash scripts/init_roles.sh
+```
+
+`.env` 에 `CHAMPS_MIGRATE_PASSWORD` / `CHAMPS_APP_PASSWORD` / `CHAMPS_READ_PASSWORD`
+가 있어야 한다. 없으면 스크립트가 **덤프를 만들기 전에** 멈추고 어느 변수가 비었는지 알려준다.
+
+그 다음 검증:
+
+```bash
+docker compose exec backend uv run pytest tests/integration/test_db_privileges.py
+```
+
+21개가 전부 통과해야 한다. 특히 `TestRuntimeConfiguration` 은 **`.env` 의
+`DATABASE_URL` 이 부트스트랩 계정으로 되돌아갔는지**를 잡는다 — 계정은 그대로 있으니
+다른 테스트는 다 통과하는데 애플리케이션만 슈퍼유저로 도는 상태다
+(실제로 겪었다, JOURNAL 2026-11-17).
+
+### 에스컬레이션 기준
+- `init_roles.sh` 를 돌려도 같은 오류면 → 소유권 문제일 수 있다. ②로 소유자를 확인한다
+- 앱 코드가 DDL 을 하려 한다면 → **권한을 넓히지 않는다.** 그 코드가 잘못된 것이다.
+  스키마 변경은 alembic 마이그레이션으로만 한다
+- 새 테이블에서만 권한 오류가 나면 → ③. 기본 권한 누락이다
+
+---
+
 ## 2. 백업 실패 / 복구 필요 ✅ 검증
 
 ### 증상

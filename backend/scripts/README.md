@@ -49,6 +49,43 @@ docker compose exec backend uv run python -m scripts.cleanup_snapshots
 **활성 스냅샷은 만료돼도 지우지 않는다.** 지우면 서비스가 볼 메타가 사라진다.
 수집이 며칠 멈춰도 마지막 스냅샷으로 서비스해야 한다 (`CLAUDE.md` 8-5).
 
+### 계정 초기화 (최소 권한)
+
+```bash
+docker compose exec backend bash scripts/init_roles.sh
+```
+
+`sql/roles.sql` 을 **부트스트랩 계정**으로 실행해 세 계정을 만들고 권한을 맞춘다
+([ADR-015](../../docs/adr/015-least-privilege-db-accounts.md)). 멱등하다 — 몇 번 돌려도 된다.
+
+| 계정 | 권한 | 쓰는 곳 |
+|---|---|---|
+| `champs_migrate` | DDL + 객체 소유 | `alembic`, `restore.sh` |
+| `champs_app` | SELECT/INSERT/UPDATE/DELETE | 앱, 시드 적재, 수집, 정리 |
+| `champs_read` | SELECT 만 (`pg_read_all_data`) | 디버깅·분석, `backup.sh` |
+
+**언제 돌려야 하나**
+
+| 상황 | 필요한가 |
+|---|---|
+| 새 환경 (`pgdata` 볼륨이 비어 있다) | **아니다** — compose 의 initdb 훅이 자동으로 한다 |
+| 이미 데이터가 있는 DB | **그렇다** — initdb 는 첫 기동에만 돌기 때문이다 |
+| CI | **그렇다** — 서비스 컨테이너에 마운트할 자리가 없다 |
+| 권한 오류가 날 때 | 그렇다. 재적용이 안전하다 |
+
+비밀번호 세 개(`CHAMPS_*_PASSWORD`)가 환경에 있어야 한다. 하나라도 비면 **DB 를
+건드리기 전에** 멈추고 어느 변수가 비었는지 알려준다. 비밀번호 없는 계정이 조용히
+만들어지면 계정 분리 자체가 무의미해진다.
+
+검증:
+
+```bash
+docker compose exec backend uv run pytest tests/integration/test_db_privileges.py
+```
+
+21개가 전부 통과해야 한다. **`GRANT` 문이 있는 것과 권한이 집행되는 것은 다르므로**,
+이 테스트는 위반을 실제로 실행해서 거부되는지 본다.
+
 ### 백업 · 복구
 
 **파이썬이 아니라 bash 다.** `pg_dump` 를 감싸는 일에 파이썬 프로세스를 띄울 이유가
