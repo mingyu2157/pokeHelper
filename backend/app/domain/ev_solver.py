@@ -20,7 +20,7 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from itertools import combinations, product
+from itertools import combinations
 from typing import Final
 
 from app.domain.constants import (
@@ -502,27 +502,103 @@ def _candidates_for(
     return _survive_candidates(chart, catalog, target, constraint, context)
 
 
-def _combine(choices: Sequence[_Candidate]) -> tuple[dict[StatKey, int], int]:
-    """제약마다 고른 안을 합친다. 같은 스탯은 더 큰 요구를 따른다."""
+def _merge_one(
+    merged: Mapping[StatKey, int], candidate: _Candidate
+) -> tuple[dict[StatKey, int], int]:
+    """제약 하나의 안을 합친 사본과 **늘어난 총합**을 돌려준다.
+
+    결합 규칙은 스탯별 `max` 다 — 같은 스탯에 두 제약이 걸리면 더 큰 요구를
+    따른다. **요구가 0이어도 키를 남긴다.** 키를 생략하면 배분은 같은데
+    딕셔너리가 달라져서, 전수 탐색과 대조하는 차등 테스트가 어긋난다.
+    """
+    result = dict(merged)
+    added = 0
+    for stat, value in candidate.points.items():
+        previous = result.get(stat, 0)
+        result[stat] = value if value > previous else previous
+        added += result[stat] - previous
+    return result, added
+
+
+def _search_bound(candidate_sets: Sequence[tuple[_Candidate, ...]]) -> int:
+    """가지치기의 출발 상한. **최적해는 이 값을 넘지 않는다.**
+
+    각 집합에서 총합이 가장 적은 후보만 골라 합친 조합은 그 자체로 하나의 해다.
+    따라서 최적해의 총합은 그 값 이하이고, 예산 66도 넘을 수 없다.
+    상한을 미리 알면 첫 리프를 기다리지 않고 1단계부터 자를 수 있다.
+    """
     merged: dict[StatKey, int] = {}
-    for candidate in choices:
-        for stat, value in candidate.points.items():
-            merged[stat] = max(merged.get(stat, 0), value)
-    return merged, sum(merged.values())
+    total = 0
+    for candidates in candidate_sets:
+        cheapest = min(candidates, key=lambda c: c.total)
+        merged, added = _merge_one(merged, cheapest)
+        total += added
+    return min(total, MAX_TOTAL_POINTS)
+
+
+def _suffix_minimums(candidate_sets: Sequence[tuple[_Candidate, ...]]) -> list[int]:
+    """`[i]` = i번째 이후 집합들의 최소 총합 중 **최댓값** (잔여 하한).
+
+    결합은 스탯별 `max` 라 병합 결과는 고른 후보를 전부 포함한다. 그래서 최종
+    총합은 **남은 어떤 집합의 최소 총합보다도 작을 수 없다.** 이걸 미리 알면
+    부분 총합이 아직 작아도 "어차피 넘는다"를 1단계에서 알 수 있다.
+    """
+    minimums = [0] * (len(candidate_sets) + 1)
+    for index in range(len(candidate_sets) - 1, -1, -1):
+        cheapest = min(c.total for c in candidate_sets[index])
+        minimums[index] = max(minimums[index + 1], cheapest)
+    return minimums
 
 
 def _best_combination(
     candidate_sets: Sequence[tuple[_Candidate, ...]],
 ) -> tuple[dict[StatKey, int], tuple[Justification, ...], int] | None:
-    """총 투자가 가장 적은 조합. 예산을 넘으면 None."""
+    """총 투자가 가장 적은 조합. 예산을 넘으면 None.
+
+    ★ 전수 조합이 아니라 **분기한정(branch and bound)** 이다 (ADR-017).
+
+    결합이 스탯별 `max` 라 **부분 조합의 총합은 단조 증가**한다. 그래서 중간에
+    이미 상한을 넘었으면 그 아래 전부 버릴 수 있다. 전수 순회는 제약 8개 ×
+    전선 23개에서 23^8 ≈ 783억 조합이라 응답이 사실상 돌아오지 않는다.
+
+    **순회 순서는 바꾸지 않는다.** 집합 순서와 후보 순서를 그대로 둬야 동점
+    처리(`_prefers_hp`)와 근거 문장 순서가 전수 탐색과 동일하다.
+    동점에서는 자르지 않는다 — 총합이 같고 HP 가 더 실린 안이 이길 수 있다.
+    """
+    # 빈 집합이 하나라도 있으면 조합이 없다. 전수 탐색의 `product` 도 같았다.
+    # 집합이 아예 없는 경우는 "아무것도 고르지 않은 조합" 하나로, 0포인트 해다.
+    if any(not candidates for candidates in candidate_sets):
+        return None
+
+    depth_limit = len(candidate_sets)
+    remaining = _suffix_minimums(candidate_sets)
+    bound = _search_bound(candidate_sets)
     best: tuple[dict[StatKey, int], tuple[Justification, ...], int] | None = None
-    for choices in product(*candidate_sets):
-        merged, total = _combine(choices)
-        if total > MAX_TOTAL_POINTS:
-            continue
-        if best is None or total < best[2] or (total == best[2] and _prefers_hp(merged, best[0])):
-            justifications = tuple(j for c in choices for j in c.justifications)
-            best = (merged, justifications, total)
+
+    def walk(
+        depth: int,
+        merged: dict[StatKey, int],
+        total: int,
+        chosen: tuple[_Candidate, ...],
+    ) -> None:
+        nonlocal best, bound
+        if depth == depth_limit:
+            if (
+                best is None
+                or total < best[2]
+                or (total == best[2] and _prefers_hp(merged, best[0]))
+            ):
+                best = (merged, tuple(j for c in chosen for j in c.justifications), total)
+                bound = total
+            return
+        for candidate in candidate_sets[depth]:
+            nxt, added = _merge_one(merged, candidate)
+            nxt_total = total + added
+            if max(nxt_total, remaining[depth + 1]) > bound:
+                continue
+            walk(depth + 1, nxt, nxt_total, (*chosen, candidate))
+
+    walk(0, {}, 0, ())
     return best
 
 
