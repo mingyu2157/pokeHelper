@@ -20,10 +20,22 @@
 #   docker compose exec backend bash scripts/restore.sh /app/backups/champs-20261117T...Z.dump
 #
 # 접속 정보는 libpq 표준 환경변수(PGHOST, PGUSER, PGPASSWORD, PGDATABASE)로 받는다.
+# 넘기지 않으면 아래 기본값 블록이 마이그레이션 계정으로 채운다.
 
 set -euo pipefail
 
-DB_NAME="${PGDATABASE:-champs}"
+# ★ 접속 기본값 — 복구는 객체 소유자로 돈다 (ADR-015) ★
+#
+# backend 컨테이너에는 PG* 가 없어서, 기본값이 없으면 libpq 가 로컬 유닉스 소켓을
+# 찾다가 실패한다 (JOURNAL 2026-11-17). `--clean` 이 기존 객체를 DROP 하므로
+# 소유자여야 한다 — champs_app 으로는 복구가 중간에 멈춘다.
+export PGHOST="${PGHOST:-db}"
+export PGPORT="${PGPORT:-5432}"
+export PGUSER="${PGUSER:-champs_migrate}"
+export PGPASSWORD="${PGPASSWORD:-${CHAMPS_MIGRATE_PASSWORD:-}}"
+export PGDATABASE="${PGDATABASE:-${POSTGRES_DB:-champs}}"
+
+DB_NAME="$PGDATABASE"
 
 log() { echo "restore.sh: $*" >&2; }
 die() { log "$*"; exit 1; }
@@ -38,7 +50,7 @@ dump="${1:-}"
 pg_restore --list "$dump" > /dev/null 2>&1 \
     || die "덤프 목차를 읽을 수 없다. 손상된 아카이브다: $dump"
 
-log "복구 시작 — db=${DB_NAME} host=${PGHOST:-<기본값>} file=${dump}"
+log "복구 시작 — db=${DB_NAME} host=${PGHOST} user=${PGUSER} file=${dump}"
 
 # --no-owner: 덤프를 만든 역할이 대상 서버에 없을 수 있다. 소유권 설정 실패로
 #   전체 트랜잭션이 깨지는 것을 막는다. 접속한 역할이 소유자가 된다.

@@ -7,11 +7,11 @@ pokeHelper 의 테스트 설계를 표준 QA 용어로 정리한 문서다.
 미구현·미측정 항목은 숨기지 않고 그렇게 표시했다.
 
 - 측정 시점: **2026-11-17**
-- 테스트 함수: **559개** (`pytest.mark.parametrize` 전개 전 기준)
-  - 단위 415 / 통합 114 / 복구 리허설 29 / 시스템 1
+- 테스트 함수: **563개** (`pytest.mark.parametrize` 전개 전 기준)
+  - 단위 415 / 통합 114 / 복구 리허설 33 / 시스템 1
 - 마지막으로 기록된 실행 (파라미터화 전개 후, 2026-11-17)
-  - 기본 실행: **636 passed** (리허설 29 deselected)
-  - 복구 리허설: **29 passed** — `pytest -m rehearsal`. 전용 컨테이너가 필요해
+  - 기본 실행: **636 passed** (리허설 33 deselected)
+  - 복구 리허설: **33 passed** — `pytest -m rehearsal`. 전용 컨테이너가 필요해
     기본 실행에서 제외돼 있다 ([ADR-014](adr/014-restore-rehearsal.md))
 
 ---
@@ -24,7 +24,7 @@ pokeHelper 의 테스트 설계를 표준 QA 용어로 정리한 문서다.
 |---|---|---|---|---|
 | **단위** | `tests/unit/` | 415 | 순수 함수 1개 ~ 모듈 1개 | 도메인 없음 / 수집 테스트 더블 |
 | **통합** | `tests/integration/` | 114 | 라우터↔스키마↔도메인, 서비스↔실제 DB, **DB 계정 권한** | Postgres |
-| **복구 리허설** | `tests/rehearsal/` | 29 | 백업 스크립트 ↔ 전용 Postgres (DROP·복구 포함) | Postgres (전용 컨테이너) |
+| **복구 리허설** | `tests/rehearsal/` | 33 | 백업·복구·계정 스크립트 ↔ 전용 Postgres (DROP·복구 포함) | Postgres (전용 컨테이너) |
 | **시스템** | `tests/test_health.py` | 1 | 앱 기동 + HTTP 계약 | 없음 |
 | **E2E** | — | **0** | — | — |
 
@@ -412,6 +412,33 @@ class TestDestructionActuallyHappened:
 `test_wait_count_is_one_less_than_request_count` — 요청이 0 회면 대기도 0 회라
 "대기 횟수 = 요청 횟수 - 1" 이 공짜로 성립하므로, 요청 횟수를 따로 단정한다).
 
+### 3-10. 문서에 적힌 명령을 그대로 실행 (교과서 기법 아님)
+
+테스트가 **환경을 전부 명시 주입하면, 사람이 실제로 치는 명령은 아무도 보지 않는다.**
+
+리허설 29개와 권한 테스트 21개가 전부 초록인 상태에서
+`docs/RUNBOOK.md` 의 1차 조치 명령이 동작하지 않았다. 테스트는 `PGHOST`·`PGUSER`·
+`PGPASSWORD` 를 전부 넘기고 돌렸고, 문서에는 짧은 형태를 적었다. **검증한 명령과
+안내한 명령이 달랐고 그 차이가 검증 범위 밖이었다** (JOURNAL 2026-11-17).
+
+```python
+# tests/rehearsal/test_ops_script_defaults.py
+def test_backup_runs_as_the_read_only_account(self, tmp_path):
+    result = run_script(BACKUP_SCRIPT, env=bare_env(BACKUP_DIR=str(tmp_path), ...))
+    assert result.returncode == 0           # ① 문서가 거짓이 아니다
+    assert "user=champs_read" in result.stderr   # ② 그때 최소 권한 계정을 쓴다
+```
+
+②가 없으면 ①을 **부트스트랩 슈퍼유저를 기본값으로 두어 쉽게 통과**시킬 수 있다.
+편의가 계정 분리를 무력화하는 경로가 되므로, 두 단정이 함께 있어야 한다.
+
+검증 방식: 수정 전 스크립트로 되돌려 4개가 전부 실패하는 것을 확인한 뒤
+수정본으로 통과시켰다 (RED → GREEN). 통과만 보고 끝내면 단정이 실제로
+그 결함을 잡는지 알 수 없다.
+
+범위의 한계: `PGHOST` 의 기본값(`db`)은 테스트가 아니라 **실제 명령 실행**으로
+확인했다. 테스트에서 그것까지 기본값에 맡기면 리허설이 개발 DB 를 향한다.
+
 ---
 
 ## 4. 테스트 오라클 문제와 해결 ★
@@ -607,7 +634,7 @@ A/B 는 경계에서 ±1 어긋난다. 그리고 그 1이 결론을 뒤집는다
 ```
 사용자 요청
    │
-   ├─▶ domain 계산 ──────────▶ 수치   [결정론적 · 559개 테스트의 사정권]
+   ├─▶ domain 계산 ──────────▶ 수치   [결정론적 · 563개 테스트의 사정권]
    │       (데미지·스피드·상성)
    │
    └─▶ 계산 결과를 "사실 블록" JSON 으로 직렬화
@@ -677,7 +704,6 @@ Phase 4 에서 스키마를 만들 때 구현한다.
 | 성능·부하 테스트 | **없음** | Phase 6 배포 후 |
 | 변이 테스트 | 없음 | 미계획 |
 | CI 의 계정 분리 단계 | **아직 한 번도 돌지 않았다** — 러너에 `psql` 이 있다는 전제가 미실측 | 첫 PR 에서 확인 |
-| ROLE 백업 | `pg_dump` 에 역할이 없다. 지금은 `sql/roles.sql` 이 그 역할을 대신한다 | `pg_dumpall --roles-only` |
 | 복구 리허설 CI 실행 | **없음** — 로컬에서 손으로 돌린다. 자동으로 회귀를 막지 못한다 | 러너에서 compose 프로필 기동 |
 | ROLE(계정) 백업 | **없음** — `pg_dump` 에 계정이 안 들어간다. 빈 서버 완전 복구 불가 | `pg_dumpall --roles-only` (계정 분리 작업) |
 | 운영 백업 전략 | 리허설이 증명하는 것은 **논리 백업의 왕복**뿐. 배포 대상 미결 | ADR-001 배포 결정 후 |
@@ -688,6 +714,6 @@ Phase 4 에서 스키마를 만들 때 구현한다.
 
 - 계산 명세: [`CLAUDE.md`](../CLAUDE.md) 5장
 - 설계 결정 기록: [`docs/adr/`](adr/) — 15건
-- 문제 해결 일지: [`docs/decisions/JOURNAL.md`](decisions/JOURNAL.md) — 33건
+- 문제 해결 일지: [`docs/decisions/JOURNAL.md`](decisions/JOURNAL.md) — 34건
 - 장애 1차 대응: [`docs/RUNBOOK.md`](RUNBOOK.md) — 7개 시나리오 (검증 4 / 부분 2 / 미검증 1)
 - CI 설정: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)

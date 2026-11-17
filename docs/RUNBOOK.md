@@ -237,20 +237,21 @@ docker compose exec backend uv run pytest tests/integration/test_db_privileges.p
 
 ```bash
 # 백업 실행 (성공하면 생성된 경로를 표준출력 한 줄로 준다)
-docker compose exec backend sh -c \
-  'BACKUP_DIR=/app/backups PGHOST=db PGUSER=champs PGPASSWORD=devpassword PGDATABASE=champs \
-   bash scripts/backup.sh'
+# ★ 계정을 넘기지 않는다 — 스크립트가 읽기 전용 계정(champs_read)을 기본값으로 쓴다
+docker compose exec backend bash scripts/backup.sh
 
 # 덤프가 읽히는 아카이브인가 (backup.sh 가 이미 이 검사를 통과시킨다)
 docker compose exec backend pg_restore --list <덤프경로> | head
 
 # DB 크기로 덤프 크기를 가늠한다
 docker compose exec -T backend sh -c \
-  'PGPASSWORD=devpassword psql -h db -U champs -d champs -At \
+  'PGPASSWORD=devread psql -h db -U champs_read -d champs -At \
    -c "SELECT pg_size_pretty(pg_database_size(current_database()))"'
 ```
 
-확인한 실측값 (2026-11-17): 개발 DB **13 MB**, 리허설 DB 덤프 **20,840 bytes**.
+확인한 실측값 (2026-11-17): 개발 DB **13 MB**, 개발 DB 덤프 **192,193 bytes**,
+리허설 DB 덤프 **20,840 bytes**. 덤프가 DB 크기보다 훨씬 작은 것이 정상이다 —
+인덱스와 빈 공간이 덤프에 들어가지 않는다.
 
 ### 1차 조치
 
@@ -266,10 +267,12 @@ docker compose exec -T backend sh -c \
 복구:
 
 ```bash
-docker compose exec backend sh -c \
-  'PGHOST=db PGUSER=champs PGPASSWORD=devpassword PGDATABASE=champs \
-   bash scripts/restore.sh /app/backups/champs-<타임스탬프>Z.dump'
+# ★ 계정을 넘기지 않는다 — 스크립트가 소유자 계정(champs_migrate)을 기본값으로 쓴다.
+#   champs_app 으로는 --clean 이 기존 객체를 지울 수 없어 복구가 중간에 멈춘다.
+docker compose exec backend bash scripts/restore.sh /app/backups/champs-<타임스탬프>Z.dump
 ```
+
+Git Bash 에서는 경로 인자가 변환된다. `MSYS_NO_PATHCONV=1` 을 앞에 붙인다 (0장).
 
 `restore.sh` 는 `--single-transaction` 이라 **전부 아니면 전무**다. 실패하면 기존
 상태가 그대로 남는다. 손상된 덤프는 객체를 지우기 전에 거부한다.
@@ -278,7 +281,10 @@ docker compose exec backend sh -c \
 
 `pg_dump` 는 데이터베이스 하나만 덤프한다. **ROLE(계정)과 클러스터 전역 권한은
 들어 있지 않다.** 빈 서버에 복구할 때는 계정을 먼저 만들어야 한다.
-`pg_dumpall --roles-only` 가 별도로 필요하고, **아직 없다** — 계정 분리 작업에서 다룬다.
+`pg_dumpall --roles-only` 가 별도로 필요하고, **아직 없다.**
+지금은 `backend/sql/roles.sql` 이 그 역할을 대신한다 — 역할 정의가 저장소에
+있으므로 `init_roles.sh` 로 재현할 수 있다. 다만 운영에서 손으로 바꾼 권한은 유실된다
+([ADR-015](adr/015-least-privilege-db-accounts.md) 의 `포기한 것`).
 
 ### 복구가 되는지 어떻게 아는가
 

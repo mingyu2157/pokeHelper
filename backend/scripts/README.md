@@ -93,14 +93,26 @@ docker compose exec backend uv run pytest tests/integration/test_db_privileges.p
 
 ```bash
 # 백업 — 성공하면 생성된 경로를 표준출력 한 줄로 준다
-docker compose exec backend sh -c   'BACKUP_DIR=/app/backups PGHOST=db PGUSER=champs PGPASSWORD=devpassword PGDATABASE=champs    bash scripts/backup.sh'
+docker compose exec backend bash scripts/backup.sh
 
 # 복구
-docker compose exec backend sh -c   'PGHOST=db PGUSER=champs PGPASSWORD=devpassword PGDATABASE=champs    bash scripts/restore.sh /app/backups/champs-<타임스탬프>Z.dump'
+docker compose exec backend bash scripts/restore.sh /app/backups/champs-<타임스탬프>Z.dump
 ```
 
 접속 정보는 **libpq 표준 환경변수**(`PGHOST` ...)로 받는다. `DATABASE_URL` 을
 파싱하지 않는다 — 파싱기를 하나 더 만들면 거기서 틀린다.
+
+**계정을 넘기지 않으면 스크립트가 최소 권한 계정을 고른다** (ADR-015).
+
+| 스크립트 | 기본 계정 | 왜 |
+|---|---|---|
+| `backup.sh` | `champs_read` | `pg_dump` 에 쓰기 권한이 필요 없다 |
+| `restore.sh` | `champs_migrate` | `--clean` 이 기존 객체를 DROP 하므로 소유자여야 한다 |
+| `init_roles.sh` | 부트스트랩 (`POSTGRES_*`) | 역할 생성에 CREATEROLE 이 필요하다 |
+
+다른 계정으로 돌리려면 `PGUSER`/`PGPASSWORD` 를 넘긴다. 기본값이 없던 동안
+문서에 적힌 짧은 명령이 로컬 소켓을 찾다가 실패했다 (JOURNAL 2026-11-17).
+`tests/rehearsal/test_ops_script_defaults.py` 가 이 기본값을 지킨다.
 
 `backup.sh` 는 세 관문을 통과해야 최종 파일명을 준다. **실패한 백업이 성공처럼
 보이는 것이 최악의 실패 모드**이기 때문이다.

@@ -35,7 +35,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-champs}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
       POSTGRES_DB: ${POSTGRES_DB:-champs}
-      # sql/roles.sql 이 \getenv 로 읽는다 (ADR-015). 첫 기동 때 역할을 만든다.
+      # initdb 훅이 psql -v 로 넘긴다 (ADR-015). 첫 기동 때 역할을 만든다.
       CHAMPS_MIGRATE_PASSWORD: ${CHAMPS_MIGRATE_PASSWORD:-devmigrate}
       CHAMPS_APP_PASSWORD: ${CHAMPS_APP_PASSWORD:-devapp}
       CHAMPS_READ_PASSWORD: ${CHAMPS_READ_PASSWORD:-devread}
@@ -81,7 +81,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-champs}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
       POSTGRES_DB: ${POSTGRES_DB:-champs}
-      # sql/roles.sql 이 \getenv 로 읽는다 (ADR-015). 첫 기동 때 역할을 만든다.
+      # initdb 훅이 psql -v 로 넘긴다 (ADR-015). 첫 기동 때 역할을 만든다.
       CHAMPS_MIGRATE_PASSWORD: ${CHAMPS_MIGRATE_PASSWORD:-devmigrate}
       CHAMPS_APP_PASSWORD: ${CHAMPS_APP_PASSWORD:-devapp}
       CHAMPS_READ_PASSWORD: ${CHAMPS_READ_PASSWORD:-devread}

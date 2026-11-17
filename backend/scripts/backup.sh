@@ -22,7 +22,7 @@
 #
 # 접속 정보는 libpq 표준 환경변수로 받는다 (PGHOST, PGPORT, PGUSER, PGPASSWORD,
 # PGDATABASE). DATABASE_URL 을 파싱하지 않는다 — 파싱기를 하나 더 만들면
-# 거기서 틀린다.
+# 거기서 틀린다. 넘기지 않으면 아래 기본값 블록이 읽기 전용 계정으로 채운다.
 #
 # 사용법:
 #   docker compose exec backend bash scripts/backup.sh
@@ -32,9 +32,21 @@
 
 set -euo pipefail
 
+# ★ 접속 기본값 — 백업은 읽기 전용 계정으로 돈다 (ADR-015) ★
+#
+# backend 컨테이너에는 PG* 가 없어서, 기본값이 없으면 libpq 가 로컬 유닉스 소켓을
+# 찾다가 실패한다 (JOURNAL 2026-11-17). pg_dump 에 쓰기 권한은 필요 없으므로 기본
+# 계정은 champs_read 다. 부트스트랩 슈퍼유저를 기본값으로 두면 아무 생각 없이 돌린
+# 백업이 슈퍼유저로 돌고, 그게 평소 동작이 된다.
+export PGHOST="${PGHOST:-db}"
+export PGPORT="${PGPORT:-5432}"
+export PGUSER="${PGUSER:-champs_read}"
+export PGPASSWORD="${PGPASSWORD:-${CHAMPS_READ_PASSWORD:-}}"
+export PGDATABASE="${PGDATABASE:-${POSTGRES_DB:-champs}}"
+
 BACKUP_DIR="${BACKUP_DIR:-/app/backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
-DB_NAME="${PGDATABASE:-champs}"
+DB_NAME="$PGDATABASE"
 
 log() { echo "backup.sh: $*" >&2; }
 die() { log "$*"; exit 1; }
@@ -56,7 +68,7 @@ trap cleanup EXIT
 
 # --format=custom: pg_restore 가 읽는 형식. 스키마·인덱스·제약·시퀀스를 함께 담고
 #   선택적 복구가 가능하다. 평문 SQL(-Fp)은 목차를 읽을 수 없어 관문 3 을 못 만든다.
-log "덤프 시작 — db=${DB_NAME} host=${PGHOST:-<기본값>}"
+log "덤프 시작 — db=${DB_NAME} host=${PGHOST} user=${PGUSER}"
 if ! pg_dump --format=custom --file="$partial"; then
     die "pg_dump 가 실패했다. 덤프를 남기지 않는다."
 fi

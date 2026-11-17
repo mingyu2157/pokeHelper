@@ -156,6 +156,27 @@ def read_env(**overrides: str) -> dict[str, str]:
     return pg_env(PGUSER="champs_read", PGPASSWORD=password, **overrides)
 
 
+def bare_env(**overrides: str) -> dict[str, str]:
+    """계정을 **일부러 알려주지 않는** 환경. 리허설 DB 호스트만 준다.
+
+    ★ 왜 이런 환경이 필요한가 ★
+
+    나머지 리허설은 PGUSER/PGPASSWORD/PGDATABASE 를 전부 명시 주입한다. 그래서
+    "환경변수를 하나도 주지 않았을 때"는 아무도 보지 않았다 — 리허설 29개가 전부
+    초록인데도 `docs/RUNBOOK.md` 에 적힌 짧은 명령은 깨져 있었다
+    (JOURNAL 2026-11-17). 이 환경은 그 공백을 메운다.
+
+    PGHOST 는 남긴다. 기본값이 `db`(개발 DB)라서 그대로 두면 리허설이 개발 DB 를
+    향한다. 검증 대상은 **계정 기본값**이고, 호스트 기본값은 테스트가 아니라
+    실제 명령으로 확인했다 (RUNBOOK 1-B / 2 의 실측 출력).
+    """
+    env = pg_env()
+    for var in ("PGUSER", "PGPASSWORD", "PGDATABASE", "PGPORT"):
+        env.pop(var, None)
+    env.update(overrides)
+    return env
+
+
 def psql(sql: str, *, env: dict[str, str] | None = None, check: bool = True):
     """psql 로 SQL 한 덩어리를 실행한다. 결과는 탭 구분 평문으로 받는다."""
     return subprocess.run(

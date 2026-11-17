@@ -616,3 +616,45 @@
   선택이 아니라 필수다. 이건 리허설에서 쓴 전제 선행 단정과는 다른 축의 함정이다 —
   그쪽은 "검증이 공짜로 통과하는 것", 이쪽은 "검증이 환경을 오염시키는 것".
 - 소요: 약 10분
+
+## 2026-11-17 — 리허설은 전부 초록인데 런북에 적은 명령은 동작하지 않았다
+
+- 증상: 런북의 1차 조치 명령이 DB 에 닿지 못한다.
+  ```
+  init_roles.sh: 대상 — host=<기본값> db=<기본값> user=<기본값>
+  psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed
+  ```
+  같은 증상이 `backup.sh` 에도 있었다. 그런데 리허설 29개와 권한 테스트 21개는
+  전부 통과한다.
+- 기대 동작: `docs/RUNBOOK.md` 와 스크립트 머리말에 적힌 명령이 추가 환경변수 없이
+  그대로 동작해야 한다. 장애 상황에서 읽는 문서다.
+- 재현 절차:
+  1. `git stash push -- backend/scripts/backup.sh backend/scripts/restore.sh backend/scripts/init_roles.sh`
+  2. `docker compose exec backend bash scripts/init_roles.sh`
+  3. `docker compose exec backend bash scripts/backup.sh`
+  4. `git stash pop`
+- 원인: backend 컨테이너에 `PG*` 가 없다. compose 는 `POSTGRES_USER/PASSWORD/DB` 만
+  넘긴다. `PGHOST` 가 비면 libpq 는 **로컬 유닉스 소켓**을 찾고, 이 컨테이너에
+  postgres 가 없으니 소켓도 없다.
+  테스트가 이걸 못 잡은 이유가 핵심이다 — **리허설 conftest 가 `PGHOST`·`PGUSER`·
+  `PGPASSWORD`·`PGDATABASE` 를 전부 명시 주입한다.** 그래서 "아무것도 주지 않았을
+  때"는 검증 범위 밖이었다. 내가 검증할 때는 변수를 붙여 돌리고, 문서에는 짧은
+  형태를 적었다.
+- 해결: 세 스크립트에 libpq 기본값을 넣었다. 기본 계정은 **최소 권한 쪽**으로 골랐다 —
+  `backup.sh`→`champs_read`, `restore.sh`→`champs_migrate`,
+  `init_roles.sh`→부트스트랩(`POSTGRES_*`, CREATEROLE 이 필요하므로).
+  그리고 `tests/rehearsal/test_ops_script_defaults.py` 4개를 추가했다. 계정을
+  **일부러 알려주지 않는** 환경(`bare_env()`)으로 돌려서, 동작하는지와 그때 어느
+  계정을 쓰는지를 함께 단정한다. 수정 전 스크립트로 4개 전부 실패를 확인했다.
+- 덤으로 고친 것: `init_roles.sh` 머리말의 두 번째 사용법이
+  `PGHOST=db-rehearsal docker compose exec ...` 였다. 이 형태는 변수가 docker CLI
+  에만 걸리고 **컨테이너에는 들어가지 않아** 조용히 개발 DB 로 간다.
+  `docker compose exec -e PGHOST=...` 로 바꿨다.
+  그리고 런북·scripts/README 의 동작하는 긴 명령들이 **부트스트랩 슈퍼유저**를
+  안내하고 있었다. 리허설은 분리 계정으로 도는데 사람이 읽는 문서만 슈퍼유저였다.
+- 배운 것: **명시 주입은 테스트를 결정론적으로 만들지만, 기본값을 검증 범위에서
+  빼낸다.** 그리고 기본값은 사용자가 실제로 밟는 경로다. ADR-013(상수와 게이트),
+  ADR-014(정의와 집행), ADR-015(계정과 설정)에 이어 같은 모양이 네 번째다 —
+  **A 를 검증했다고 A 를 쓰는 B 가 검증된 것은 아니다.**
+  증빙 문서에 명령을 적을 때는 **적은 그 형태 그대로 한 번 돌려본다.**
+- 소요: 약 35분

@@ -16,9 +16,14 @@
 #
 # 사용법:
 #   docker compose exec backend bash scripts/init_roles.sh
-#   PGHOST=db-rehearsal docker compose exec backend bash scripts/init_roles.sh
+#   docker compose exec -e PGHOST=db-rehearsal backend bash scripts/init_roles.sh
 #
-# 접속 정보는 libpq 표준 환경변수로 받는다 (backup.sh 와 같은 규칙).
+# ★ 두 번째 형태에서 `-e` 는 docker compose 쪽에 있어야 한다. `PGHOST=... docker
+#   compose exec ...` 로 쓰면 변수가 docker CLI 에만 걸리고 컨테이너에는 들어가지
+#   않는다. 그러면 조용히 개발 DB 로 간다.
+#
+# 접속 정보는 libpq 표준 환경변수로 받는다 (backup.sh 와 같은 규칙). 넘기지 않으면
+# compose 가 주는 POSTGRES_* 에서 끌어온다 — 아래 기본값 블록 참조.
 # 비밀번호 세 개는 CHAMPS_*_PASSWORD 로 받는다.
 
 set -euo pipefail
@@ -30,6 +35,28 @@ die() { log "$*"; exit 1; }
 
 [ -f "$SQL_FILE" ] || die "SQL 파일이 없다: $SQL_FILE"
 
+# ★ 접속 기본값 — 이게 없으면 문서에 적힌 짧은 명령이 동작하지 않는다 ★
+#
+# backend 컨테이너에는 PG* 가 없다. compose 는 POSTGRES_USER/PASSWORD/DB 만
+# 넘긴다. PGHOST 가 비어 있으면 libpq 는 **로컬 유닉스 소켓**을 찾고, 이 컨테이너에
+# postgres 가 없으므로 `connection to server on socket ... failed` 로 끝난다
+# (JOURNAL 2026-11-17).
+#
+# 역할 생성은 CREATEROLE 이 필요해서 기본 계정이 **부트스트랩 계정**이다.
+# 분리한 세 계정은 이 작업을 할 수 없다 (의도한 것이다, ADR-015).
+export PGHOST="${PGHOST:-db}"
+export PGPORT="${PGPORT:-5432}"
+export PGUSER="${PGUSER:-${POSTGRES_USER:-}}"
+export PGPASSWORD="${PGPASSWORD:-${POSTGRES_PASSWORD:-}}"
+export PGDATABASE="${PGDATABASE:-${POSTGRES_DB:-}}"
+
+# 부트스트랩 접속 정보를 못 찾으면 멈춘다. 비워두면 psql 이 OS 사용자명으로
+# 붙으려 하다가 엉뚱한 오류를 내서 원인 추적이 어려워진다.
+for var in PGUSER PGPASSWORD PGDATABASE; do
+    [ -n "${!var}" ] \
+        || die "$var 를 알 수 없다. POSTGRES_USER/PASSWORD/DB 또는 PG* 를 넘겨라."
+done
+
 # ★ 비밀번호가 비어 있으면 멈춘다.
 # roles.sql 은 환경변수가 없을 때 빈 문자열로 떨어지는데, 그대로 두면 비밀번호 없는
 # 계정이 조용히 만들어진다. 계정 분리의 의미가 사라지므로 여기서 막는다.
@@ -38,7 +65,7 @@ for var in CHAMPS_MIGRATE_PASSWORD CHAMPS_APP_PASSWORD CHAMPS_READ_PASSWORD; do
     [ -n "$value" ] || die "$var 가 비어 있다. .env 를 확인하라 (.env.example 참조)."
 done
 
-log "대상 — host=${PGHOST:-<기본값>} db=${PGDATABASE:-<기본값>} user=${PGUSER:-<기본값>}"
+log "대상 — host=${PGHOST}:${PGPORT} db=${PGDATABASE} user=${PGUSER}"
 log "SQL  — ${SQL_FILE}"
 
 # 비밀번호는 `-v` 로 넘긴다. 환경변수(\getenv)가 아닌 이유는 roles.sql 머리말 참조 —
