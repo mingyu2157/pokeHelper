@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     migration_database_url: str = "postgresql+asyncpg://champs_migrate:devmigrate@db:5432/champs"
     redis_url: str = "redis://redis:6379/0"
 
+    # ── 관측 지표 (ADR-016) ────────────────────────────────────────
+    # /metrics 는 스크랩 때 DB 를 한 번 읽는다. 두 숫자가 그 비용을 가둔다.
+    #   cache: 스크랩이 잦아도 이 간격 안에서는 DB 를 때리지 않는다.
+    #   timeout: DB 가 느릴 때 /metrics 가 같이 느려지는 것을 끊는다.
+    #            끊기면 직전 값을 유지한다 (0 으로 떨구지 않는다).
+    metrics_cache_seconds: float = 15.0
+    metrics_db_timeout_seconds: float = 2.0
+
     # 브라우저가 백엔드를 직접 호출하므로 프론트 오리진을 허용해야 한다.
     cors_origins: str = "http://localhost:3000"
 

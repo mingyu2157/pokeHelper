@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import MetaSnapshot, PokemonMeta, Regulation
@@ -156,3 +156,29 @@ async def delete_expired(session: AsyncSession, *, now: datetime) -> int:
         delete(MetaSnapshot).where(MetaSnapshot.expires_at < now, MetaSnapshot.is_active.is_(False))
     )
     return result.rowcount or 0
+
+
+async def active_freshness(session: AsyncSession) -> list[tuple[str, str, datetime]]:
+    """활성 스냅샷의 (출처, 포맷, 가장 최근 수집 시각). 관측 지표용 (ADR-016).
+
+    ★ 활성 스냅샷만 본다 ★ 비활성 스냅샷이 더 최신이어도 서비스는 그걸 보지
+    않으므로, "서비스가 바라보는 데이터가 얼마나 오래됐는가" 와 무관하다.
+    수집이 실패해 활성 전환이 안 된 경우가 정확히 그 상황이고, 그게 경보로
+    울려야 하는 상태다.
+
+    활성 스냅샷은 (레귤레이션, 포맷)당 하나이므로 레귤레이션이 여러 개면
+    같은 포맷에 여러 행이 나온다. 지표는 레귤레이션을 구분하지 않으니
+    (출처, 포맷)으로 묶어 **가장 최근 것**을 쓴다 — 라벨 조합을 레귤레이션까지
+    늘리면 시즌이 바뀔 때마다 계열이 영구히 쌓인다.
+    """
+    rows = await session.execute(
+        select(
+            MetaSnapshot.source,
+            MetaSnapshot.format,
+            func.max(MetaSnapshot.collected_at),
+        )
+        .where(MetaSnapshot.is_active.is_(True))
+        .group_by(MetaSnapshot.source, MetaSnapshot.format)
+        .order_by(MetaSnapshot.source, MetaSnapshot.format)
+    )
+    return [(source, fmt, collected_at) for source, fmt, collected_at in rows]
