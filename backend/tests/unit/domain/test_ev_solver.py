@@ -7,10 +7,13 @@ CLAUDE.md 5-4 의 6개 규칙을 테스트로 고정한다. 특히:
 """
 
 import json
+import random
+from itertools import product
 from pathlib import Path
 
 import pytest
 
+from app.domain import ev_solver
 from app.domain.constants import MAX_POINTS_PER_STAT, MAX_TOTAL_POINTS
 from app.domain.damage import Weather
 from app.domain.ev_solver import (
@@ -35,6 +38,9 @@ ITEMS_PATH = Path(__file__).resolve().parents[3] / "data" / "items.json"
 
 # 한카리아스 종족값
 GARCHOMP = BaseStats(hp=108, attack=130, defense=95, sp_attack=80, sp_defense=85, speed=102)
+
+# 무작위 입력 생성용. 타입 목록을 손으로 적지 않는다 — 타입이 추가되면 같이 늘어야 한다.
+ALL_TYPES = list(PokemonType)
 
 
 @pytest.fixture(scope="module")
@@ -983,3 +989,260 @@ class TestRankStageWiring:
                 target(),
                 [OutspeedConstraint("상대", 120, opponent_rank_stage=7)],
             )
+
+
+# ---------------------------------------------------------------- 조합 탐색 (ADR-017)
+
+
+def brute_force_best(candidate_sets):
+    """전수 조합 오라클.
+
+    ★ 구현을 호출하지 않고 이 파일에 따로 적는다. 오라클이 구현과 코드를
+    공유하면 같은 실수를 같이 하고, 그러면 대조가 아무것도 증명하지 않는다.
+    규칙은 ADR-008 그대로다 — 스탯별 max 로 합치고, 총합 최소, 동점이면 HP.
+    """
+    best = None
+    for choices in product(*candidate_sets):
+        merged = {}
+        for candidate in choices:
+            for stat, value in candidate.points.items():
+                merged[stat] = max(merged.get(stat, 0), value)
+        total = sum(merged.values())
+        if total > MAX_TOTAL_POINTS:
+            continue
+        better = (
+            best is None
+            or total < best[2]
+            or (total == best[2] and merged.get(StatKey.HP, 0) > best[0].get(StatKey.HP, 0))
+        )
+        if better:
+            best = (merged, tuple(j for c in choices for j in c.justifications), total)
+    return best
+
+
+def random_target(rng):
+    return BuildTarget(
+        base_stats=BaseStats(
+            hp=rng.randrange(40, 170),
+            attack=rng.randrange(40, 170),
+            defense=rng.randrange(40, 170),
+            sp_attack=rng.randrange(40, 170),
+            sp_defense=rng.randrange(40, 170),
+            speed=rng.randrange(40, 170),
+        ),
+        natures={},
+        types=(rng.choice(ALL_TYPES),),
+        item_id=None,
+        rank_stages={},
+    )
+
+
+def random_constraint(rng, index):
+    kind = rng.randrange(3)
+    move = MoveSpec(
+        power=rng.randrange(20, 130, 5),
+        move_type=rng.choice(ALL_TYPES),
+        category=rng.choice([MoveCategory.PHYSICAL, MoveCategory.SPECIAL]),
+    )
+    if kind == 0:
+        attack = rng.randrange(100, 320, 10)
+        return SurviveConstraint(
+            f"survive-{index}",
+            opponent=Attacker(
+                attack_stat=attack, special_attack_stat=attack, types=(rng.choice(ALL_TYPES),)
+            ),
+            move=move,
+        )
+    if kind == 1:
+        return KnockoutConstraint(
+            f"knockout-{index}",
+            opponent=Defender(
+                defense_stat=rng.randrange(60, 200),
+                special_defense_stat=rng.randrange(60, 200),
+                hp_stat=rng.randrange(120, 400),
+                types=(rng.choice(ALL_TYPES),),
+            ),
+            move=move,
+        )
+    return OutspeedConstraint(f"outspeed-{index}", rng.randrange(80, 200))
+
+
+WIDE_FRONTIER_TARGET = BaseStats(
+    hp=60, attack=100, defense=70, sp_attack=100, sp_defense=70, speed=100
+)
+
+
+def wide_frontier_constraint(label):
+    """파레토 전선이 23개가 되는 제약. 전수 조합이면 23^n 이 된다.
+
+    (HP종족 60 / 방어종족 70 / 위력 80 / 상대공격 290) 조합을 훑어서 찾은
+    최댓값이다. 전선 크기는 입력에 따라 1~23 으로 변한다 — "후보 5개"는
+    표본 하나였을 뿐이다 (ADR-017 맥락).
+    """
+    return SurviveConstraint(
+        label,
+        opponent=Attacker(attack_stat=290, special_attack_stat=290, types=(PokemonType.NORMAL,)),
+        move=MoveSpec(power=80, move_type=PokemonType.NORMAL, category=MoveCategory.PHYSICAL),
+    )
+
+
+def wide_frontier_sets(chart, catalog, count):
+    subject = target(base=WIDE_FRONTIER_TARGET, types=(PokemonType.NORMAL,))
+    return [
+        ev_solver._candidates_for(
+            chart, catalog, subject, wide_frontier_constraint(f"w{i}"), BattleContext()
+        )
+        for i in range(count)
+    ]
+
+
+class TestCombinationSearchMatchesBruteForce:
+    """차등 단정 — 분기한정 탐색을 전수 조합 오라클과 대조한다 (ADR-017).
+
+    ADR-008 이 "교체 전에 선형 스캔 결과와 대조하는 테스트를 먼저 만든다"고
+    적어둔 조건을 이 테스트가 이행한다. 가지치기는 **성능만** 바꿔야 하고
+    답은 한 글자도 달라지면 안 된다.
+    """
+
+    def test_random_inputs_agree(self, chart, catalog):
+        rng = random.Random(20261118)
+        compared = 0
+        for _ in range(2000):
+            if compared >= 250:
+                break
+            subject = random_target(rng)
+            constraints = [random_constraint(rng, i) for i in range(rng.randrange(1, 5))]
+            sets = [
+                ev_solver._candidates_for(chart, catalog, subject, c, BattleContext())
+                for c in constraints
+            ]
+            if any(not s for s in sets):
+                continue
+            # 전수 조합이 커지면 오라클 쪽이 먼저 멎는다. 큰 입력은 노드 수
+            # 테스트가 따로 본다.
+            size = 1
+            for candidates in sets:
+                size *= len(candidates)
+            if size > 20_000:
+                continue
+            compared += 1
+            assert ev_solver._best_combination(sets) == brute_force_best(sets)
+        # 전제 선행 단정 — 걸러내기만 하고 아무것도 비교하지 않으면 공짜로 통과한다.
+        assert compared >= 200, f"비교한 입력이 {compared}건뿐이다. 생성기를 확인해야 한다"
+
+    def test_wide_frontier_agrees(self, chart, catalog):
+        """전선이 큰 입력도 일치한다. 2개까지만 — 3개면 오라클이 12,167 조합이다."""
+        for count in (1, 2):
+            sets = wide_frontier_sets(chart, catalog, count)
+            assert len(sets[0]) == 23
+            assert ev_solver._best_combination(sets) == brute_force_best(sets)
+
+
+class TestPruningKeepsTheSearchSmall:
+    """성능 회귀 감지 — 방문 노드 수를 센다 (교과서 기법 아님).
+
+    벽시계 시간이 아니라 **노드 수**를 단정한다. 시간은 CI 러너 부하에 따라
+    흔들려서 임계치를 넉넉히 잡아야 하고, 그러면 회귀를 놓친다. 노드 수는
+    입력에 대해 결정론적이다.
+    """
+
+    def test_eight_wide_constraints_stay_under_a_thousand_nodes(self, chart, catalog, monkeypatch):
+        """제약 8개 × 전선 23개 = 전수면 23^8 ≈ 783억 조합이다."""
+        sets = wide_frontier_sets(chart, catalog, 8)
+        assert len(sets[0]) == 23
+
+        visited = []
+        original = ev_solver._merge_one
+
+        def counted(merged, candidate):
+            visited.append(1)
+            return original(merged, candidate)
+
+        monkeypatch.setattr(ev_solver, "_merge_one", counted)
+        best = ev_solver._best_combination(sets)
+
+        assert best is not None
+        # 실측 506 노드 (2026-11-18). 2배 여유를 두고 1000 으로 막는다.
+        assert len(visited) < 1000, f"노드 {len(visited)}개 — 가지치기가 약해졌다"
+
+    def test_eight_constraints_solve_end_to_end(self, chart, catalog):
+        """solve() 가 제약 8개로 정상 응답한다. 전수 탐색이면 돌아오지 않는다."""
+        subject = target(base=WIDE_FRONTIER_TARGET, types=(PokemonType.NORMAL,))
+        result = solve(
+            chart, catalog, subject, [wide_frontier_constraint(f"w{i}") for i in range(8)]
+        )
+        assert isinstance(result, Solution)
+        assert result.spread.total <= MAX_TOTAL_POINTS
+
+
+class TestSearchBound:
+    """경계값 분석 — 가지치기 상한이 최적해를 잘라내지 않는지 본다.
+
+    상한을 한 칸이라도 낮게 잡으면 최적해가 **조용히 사라진다.** 예외가 아니라
+    "1포인트 더 쓰는 답"이나 "불가능"이 나온다. ADR-008 이 이진 탐색을 거부한
+    이유와 같은 종류의 실패다.
+    """
+
+    def test_bound_is_never_below_the_optimum(self, chart, catalog):
+        rng = random.Random(777)
+        checked = 0
+        for _ in range(600):
+            subject = random_target(rng)
+            constraints = [random_constraint(rng, i) for i in range(rng.randrange(1, 4))]
+            sets = [
+                ev_solver._candidates_for(chart, catalog, subject, c, BattleContext())
+                for c in constraints
+            ]
+            if any(not s for s in sets):
+                continue
+            best = ev_solver._best_combination(sets)
+            if best is None:
+                continue
+            checked += 1
+            assert ev_solver._search_bound(sets) >= best[2]
+        assert checked >= 100, f"검사한 입력이 {checked}건뿐이다"
+
+    def test_bound_never_exceeds_the_budget(self, chart, catalog):
+        """각 제약의 최소안을 합쳐 66을 넘어도 상한은 66에서 멈춘다."""
+        sets = wide_frontier_sets(chart, catalog, 8)
+        assert ev_solver._search_bound(sets) <= MAX_TOTAL_POINTS
+
+    def test_suffix_minimums_are_non_increasing(self, chart, catalog):
+        """잔여 하한은 뒤로 갈수록 작아지거나 같다. 단조성이 깨지면 과하게 자른다."""
+        minimums = ev_solver._suffix_minimums(wide_frontier_sets(chart, catalog, 4))
+        assert minimums[-1] == 0
+        assert all(minimums[i] >= minimums[i + 1] for i in range(len(minimums) - 1))
+
+
+class TestMergeOne:
+    """경계값 분석 — 0 요구를 합칠 때 키를 남기는지 본다.
+
+    ★ 이 테스트는 실제로 깨진 것을 잡아서 생겼다. 증분 병합이 `0 > 0` 이
+    거짓이라 키를 생략했고, 배분과 총합은 같은데 **딕셔너리가 달라서** 차등
+    대조가 379건 어긋났다. 값이 같다고 자료구조가 같은 게 아니다.
+    """
+
+    def test_zero_requirement_still_creates_the_key(self):
+        candidate = ev_solver._Candidate(points={StatKey.SPEED: 0}, justifications=())
+        merged, added = ev_solver._merge_one({}, candidate)
+        assert merged == {StatKey.SPEED: 0}
+        assert added == 0
+
+    def test_larger_requirement_wins(self):
+        candidate = ev_solver._Candidate(points={StatKey.HP: 20}, justifications=())
+        merged, added = ev_solver._merge_one({StatKey.HP: 8}, candidate)
+        assert merged == {StatKey.HP: 20}
+        assert added == 12
+
+    def test_smaller_requirement_does_not_lower_the_merge(self):
+        candidate = ev_solver._Candidate(points={StatKey.HP: 4}, justifications=())
+        merged, added = ev_solver._merge_one({StatKey.HP: 8}, candidate)
+        assert merged == {StatKey.HP: 8}
+        assert added == 0
+
+    def test_the_input_mapping_is_not_mutated(self):
+        """순수 함수여야 한다. 제자리 수정하면 DFS 가 형제 가지를 오염시킨다."""
+        original = {StatKey.HP: 8}
+        candidate = ev_solver._Candidate(points={StatKey.HP: 20}, justifications=())
+        ev_solver._merge_one(original, candidate)
+        assert original == {StatKey.HP: 8}
