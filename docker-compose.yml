@@ -108,6 +108,11 @@ services:
     volumes:
       - ./backend:/app        # 핫리로드
       - /app/.venv            # ★ 호스트 .venv 가 컨테이너 것을 덮어쓰지 않도록 (제거 금지)
+      # 경보 규칙·대시보드가 참조하는 지표명을 테스트가 교차검증한다 (ADR-016).
+      # ★ /app 아래에 마운트하지 않는다 ★ 바인드 마운트는 기존 경로를 **가린다**.
+      #   scripts/ 를 /app/scripts 에 마운트해 파이썬 패키지가 사라진 적이 있다
+      #   (JOURNAL 2026-11-17). 그래서 /opt 에 둔다.
+      - ./infra/observability:/opt/observability:ro
     ports: ["8000:8000"]
     env_file:
       - path: .env
@@ -224,8 +229,108 @@ services:
       airflow-db: { condition: service_healthy }
       airflow-init: { condition: service_completed_successfully }
 
+  # ─────────────────────────────────────────────────────────────────
+  # 관측성 (profile: observability) — 평소에는 뜨지 않는다 (ADR-016).
+  #   docker compose --profile observability up -d
+  #
+  # Airflow·리허설과 같은 방식이다. 개발하면서 늘 켜두면 컨테이너 5개가
+  # 메모리를 쓰고, 정작 필요할 때 "원래 이렇게 느렸나"를 판단할 기준이 없다.
+  # ─────────────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      # 보존 기간을 짧게 둔다. 로컬 관측이고, 무한 누적할 이유가 없다.
+      - --storage.tsdb.retention.time=15d
+      # 경보 규칙을 UI 에서 확인할 수 있게 한다.
+      - --web.enable-lifecycle
+    volumes:
+      - ./infra/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    ports: ["9090:9090"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:11.6.1
+    profiles: ["observability"]
+    environment:
+      # 로컬 전용이다. 운영에서는 절대 이렇게 두지 않는다 (ADR-016 포기한 것).
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # 익명 로그인을 켜지 않는다. 대시보드가 내부 경로별 지연을 보여준다.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # 사용 통계 전송을 끈다.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports: ["3001:3000"]
+    depends_on:
+      prometheus: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ★ 익스포터 계정은 champs_read 다 (ADR-015) ★
+  # 익스포터에 쓰기 권한이 필요 없다. 부트스트랩 슈퍼유저를 주면 "모니터링이
+  # 스키마를 바꿀 수 있는" 상태가 되고, 계정 분리의 의미가 사라진다.
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1
+    profiles: ["observability"]
+    command:
+      # ★ 계정을 넓히는 대신 콜렉터를 끈다 ★
+      # wal 콜렉터는 pg_ls_waldir() 를 호출하고 그 함수는 pg_monitor 를 요구한다.
+      # 켜둔 채로 두면 15초마다 로그에 다음이 쌓인다:
+      #   collector failed name=wal err="pq: permission denied for function pg_ls_waldir"
+      # 해결책이 둘인데 방향이 반대다.
+      #   (가) champs_read 에 pg_monitor 를 부여한다 → 읽기 계정의 권한이 넓어진다.
+      #        ADR-015 의 되돌리는 조건("읽기 계정의 용도가 갈리면")에 해당한다.
+      #   (나) 콜렉터를 끈다 → 지표 하나를 잃는다.
+      # 로컬에 복제 구성이 없어 WAL 지표를 대시보드에 쓰지 않는다. **쓰지도 않는
+      # 지표 때문에 권한을 넓히지 않는다.** 복제를 쓰게 되면 (가)를 다시 본다.
+      - --no-collector.wal
+    environment:
+      DATA_SOURCE_NAME: >-
+        postgresql://champs_read:${CHAMPS_READ_PASSWORD:-devread}@db:5432/${POSTGRES_DB:-champs}?sslmode=disable
+    depends_on:
+      db: { condition: service_healthy }
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.69.0
+    profiles: ["observability"]
+    environment:
+      REDIS_ADDR: ${REDIS_URL:-redis://redis:6379}
+    depends_on:
+      redis: { condition: service_healthy }
+
+  # 컨테이너별 CPU·메모리. node_exporter 를 쓰지 않는 이유는 prometheus.yml 참조.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    profiles: ["observability"]
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
 volumes:
   pgdata:
   airflow-pgdata:
   # 복구 리허설 전용. 개발 DB 와 분리된 이유는 db-rehearsal 서비스 주석 참조.
   rehearsal-pgdata:
+  prometheus-data:
+  grafana-data:

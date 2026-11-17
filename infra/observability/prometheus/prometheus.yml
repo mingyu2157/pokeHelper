@@ -1,0 +1,51 @@
+# Prometheus 설정 (ADR-016).
+#
+# 검증: docker compose --profile observability exec prometheus \
+#         promtool check config /etc/prometheus/prometheus.yml
+
+global:
+  # ★ 15초로 둔 이유: 백엔드 /metrics 의 ETL 신선도 캐시가 15초다
+  #   (Settings.metrics_cache_seconds). 스크랩이 더 잦으면 캐시가 걸러주므로
+  #   DB 부하는 안 늘지만, 지표가 캐시 간격만큼 계단으로 보여 혼란스럽다.
+  #   둘을 같은 값으로 맞춘다.
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    env: local
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # 우리 애플리케이션. HTTP 요청률·지연·오류율과 ETL 신선도가 여기서 나온다.
+  - job_name: backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]
+        labels:
+          component: api
+
+  # PostgreSQL. 연결 수, 트랜잭션, 테이블 통계.
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          component: db
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels:
+          component: cache
+
+  # 컨테이너별 CPU·메모리.
+  #
+  # ★ node_exporter 가 아니라 cadvisor 를 쓴다 ★
+  # Docker Desktop 에서 node_exporter 는 호스트가 아니라 리눅스 VM 의 수치를
+  # 보여준다. "메모리 80%" 가 내 PC 인지 VM 인지 알 수 없어서 판단에 쓸 수 없다.
+  # 전부 컨테이너로 도니 컨테이너 단위 수치가 맞다.
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          component: runtime

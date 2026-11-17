@@ -1,0 +1,18 @@
+# 대시보드 자동 등록 (ADR-016).
+# JSON 파일을 저장소에 두고 Grafana 가 읽게 한다. UI 에서 만든 대시보드는
+# 저장소에 남지 않으므로 증빙이 되지 않는다.
+
+apiVersion: 1
+
+providers:
+  - name: pokehelper
+    orgId: 1
+    folder: pokeHelper
+    type: file
+    disableDeletion: false
+    # UI 에서 고친 내용을 파일로 되돌린다. 파일이 단일 원천이다.
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

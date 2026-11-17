@@ -1,0 +1,162 @@
+{
+  "uid": "pokehelper-overview",
+  "title": "pokeHelper 개요",
+  "description": "패널 4개. 왼쪽 두 개가 사용자가 체감하는 것(요청률·지연), 오른쪽 두 개가 우리가 지켜야 하는 것(수집 신선도·구성요소 상태).",
+  "tags": ["pokehelper"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "API 요청률 (경로별)",
+      "description": "handler 별 초당 요청 수. /metrics 는 제외돼 있다 — 포함하면 스크랩이 상수로 깔려 실제 트래픽이 묻힌다.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (handler) (rate(http_requests_total[5m]))",
+          "legendFormat": "{{handler}}"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum (rate(http_requests_total{status=~\"4xx|5xx\"}[5m]))",
+          "legendFormat": "오류 (4xx+5xx)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "API p95 지연 (경로별)",
+      "description": "버킷을 실측에서 정했다 (0.01~5초). 라이브러리 기본값(0.1/0.5/1.0)이면 솔버의 2.2초가 전부 +Inf 로 들어가 이 패널이 쓸모없어진다.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2, "fillOpacity": 0 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["max"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (handler, le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{handler}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "메타 수집 — 마지막 성공 이후 경과",
+      "description": "경보 임계치는 30시간. DAG 가 하루 주기(06:00)이므로 한 번 거른 것은 다음 새벽 재시도로 덮이고, 연속 실패만 울린다. 활성 스냅샷이 0개면 '없음'이라 경과 시간 자체가 존재하지 않는다 — 그래서 개수를 같이 본다.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 26 },
+              { "color": "red", "value": 30 }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byFrameRefID", "options": "B" },
+            "properties": [
+              { "id": "unit", "value": "short" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "green", "value": 1 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "(time() - max by (source, format) (pokehelper_etl_last_success_timestamp_seconds)) / 3600",
+          "legendFormat": "{{source}} / {{format}}"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "pokehelper_etl_active_snapshots",
+          "legendFormat": "활성 스냅샷 개수"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "구성요소 상태 — 스크랩 대상과 DB 연결",
+      "description": "up 이 0 이면 2분 뒤 PokehelperTargetDown 이 울린다. DB 연결 수가 치솟으면 커넥션 풀 누수를 본다 (pool_pre_ping 은 끊긴 커넥션만 걸러낸다).",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 5 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "up",
+          "legendFormat": "up — {{job}}"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum (pg_stat_database_numbackends{datname=\"champs\"})",
+          "legendFormat": "champs DB 연결 수"
+        }
+      ]
+    }
+  ]
+}
