@@ -7,9 +7,12 @@ pokeHelper 의 테스트 설계를 표준 QA 용어로 정리한 문서다.
 미구현·미측정 항목은 숨기지 않고 그렇게 표시했다.
 
 - 측정 시점: **2026-11-17**
-- 테스트 함수: **509개** (`pytest.mark.parametrize` 전개 전 기준)
-  - 단위 415 / 통합 93 / 시스템 1
-- 마지막으로 기록된 전체 실행: **615 passed** (파라미터화 전개 후, 2026-11-17)
+- 테스트 함수: **563개** (`pytest.mark.parametrize` 전개 전 기준)
+  - 단위 415 / 통합 114 / 복구 리허설 33 / 시스템 1
+- 마지막으로 기록된 실행 (파라미터화 전개 후, 2026-11-17)
+  - 기본 실행: **636 passed** (리허설 33 deselected)
+  - 복구 리허설: **33 passed** — `pytest -m rehearsal`. 전용 컨테이너가 필요해
+    기본 실행에서 제외돼 있다 ([ADR-014](adr/014-restore-rehearsal.md))
 
 ---
 
@@ -20,7 +23,8 @@ pokeHelper 의 테스트 설계를 표준 QA 용어로 정리한 문서다.
 | 레벨 | 위치 | 수 | 격리 범위 | 외부 의존 |
 |---|---|---|---|---|
 | **단위** | `tests/unit/` | 415 | 순수 함수 1개 ~ 모듈 1개 | 도메인 없음 / 수집 테스트 더블 |
-| **통합** | `tests/integration/` | 93 | 라우터↔스키마↔도메인, 서비스↔실제 DB | Postgres |
+| **통합** | `tests/integration/` | 114 | 라우터↔스키마↔도메인, 서비스↔실제 DB, **DB 계정 권한** | Postgres |
+| **복구 리허설** | `tests/rehearsal/` | 33 | 백업·복구·계정 스크립트 ↔ 전용 Postgres (DROP·복구 포함) | Postgres (전용 컨테이너) |
 | **시스템** | `tests/test_health.py` | 1 | 앱 기동 + HTTP 계약 | 없음 |
 | **E2E** | — | **0** | — | — |
 
@@ -376,6 +380,67 @@ def test_zero_item_multiplier_would_not_be_enough(self):
 
 ---
 
+### 3-9. 전제 선행 단정 (교과서 기법 아님)
+
+표준 기법명을 억지로 붙이지 않는다. 확인하는 것은 **"이 테스트가 실제로 무언가를
+검증했다"** 는 전제 그 자체다.
+
+복구 리허설이 이 장치를 필요로 한다. 리허설의 본체는 "백업 → 전체 테이블 DROP →
+복구 → 전후 비교" 인데, **DROP 이 조용히 실패하면 전후 비교가 전부 통과한다.**
+아무것도 파괴되지 않았으니 아무것도 복구할 필요가 없었고, 테스트는 초록이다.
+이건 거짓 음성(false negative) 중에서도 가장 알아채기 어려운 종류다 — 깨지지 않고,
+깨질 이유도 없어 보인다.
+
+```python
+# tests/rehearsal/test_restore_rehearsal.py
+class TestDestructionActuallyHappened:
+    def test_all_tables_were_dropped_before_restore(self, rehearsal):
+        assert rehearsal.tables_after_destroy == 0
+
+    def test_there_was_something_to_lose(self, rehearsal):
+        """파괴 전에 테이블과 행이 실제로 있었다. 빈 DB 를 복구해도 전후는 같다."""
+        assert len(rehearsal.before.row_counts) >= 9
+        assert sum(rehearsal.before.row_counts.values()) > 0
+```
+
+두 번째가 첫 번째보다 미묘하다. 테이블이 0 개인 DB 를 백업하고 복구하면 전후는
+완벽하게 같다 — 네 층 전부 통과한다. **"비교해서 같았다"는 "검증했다"가 아니다.**
+비교 대상이 비어 있지 않았다는 사실이 따로 단정돼야 한다.
+
+같은 성질의 단정을 수집 테스트에서도 쓴다
+(`tests/unit/ingestion/test_championsbattledata.py` 의
+`test_wait_count_is_one_less_than_request_count` — 요청이 0 회면 대기도 0 회라
+"대기 횟수 = 요청 횟수 - 1" 이 공짜로 성립하므로, 요청 횟수를 따로 단정한다).
+
+### 3-10. 문서에 적힌 명령을 그대로 실행 (교과서 기법 아님)
+
+테스트가 **환경을 전부 명시 주입하면, 사람이 실제로 치는 명령은 아무도 보지 않는다.**
+
+리허설 29개와 권한 테스트 21개가 전부 초록인 상태에서
+`docs/RUNBOOK.md` 의 1차 조치 명령이 동작하지 않았다. 테스트는 `PGHOST`·`PGUSER`·
+`PGPASSWORD` 를 전부 넘기고 돌렸고, 문서에는 짧은 형태를 적었다. **검증한 명령과
+안내한 명령이 달랐고 그 차이가 검증 범위 밖이었다** (JOURNAL 2026-11-17).
+
+```python
+# tests/rehearsal/test_ops_script_defaults.py
+def test_backup_runs_as_the_read_only_account(self, tmp_path):
+    result = run_script(BACKUP_SCRIPT, env=bare_env(BACKUP_DIR=str(tmp_path), ...))
+    assert result.returncode == 0           # ① 문서가 거짓이 아니다
+    assert "user=champs_read" in result.stderr   # ② 그때 최소 권한 계정을 쓴다
+```
+
+②가 없으면 ①을 **부트스트랩 슈퍼유저를 기본값으로 두어 쉽게 통과**시킬 수 있다.
+편의가 계정 분리를 무력화하는 경로가 되므로, 두 단정이 함께 있어야 한다.
+
+검증 방식: 수정 전 스크립트로 되돌려 4개가 전부 실패하는 것을 확인한 뒤
+수정본으로 통과시켰다 (RED → GREEN). 통과만 보고 끝내면 단정이 실제로
+그 결함을 잡는지 알 수 없다.
+
+범위의 한계: `PGHOST` 의 기본값(`db`)은 테스트가 아니라 **실제 명령 실행**으로
+확인했다. 테스트에서 그것까지 기본값에 맡기면 리허설이 개발 DB 를 향한다.
+
+---
+
 ## 4. 테스트 오라클 문제와 해결 ★
 
 이 문서의 핵심 항목이다.
@@ -495,6 +560,39 @@ A/B 는 경계에서 ±1 어긋난다. 그리고 그 1이 결론을 뒤집는다
 이 문서에 먼저 있었기 때문에, 실패를 마주한 순간 "고쳐도 되나"를 즉흥으로
 판단하지 않았다. 확인할 것(외부 근거가 독립적인가)이 정해져 있었다.
 
+#### 사례 3 — 오라클이 본 것이 불변식이 아니었다 (2026-11-17)
+
+복구 리허설의 3층(제약·인덱스 생존)에서 제약 정의 문자열을 전후로 비교했는데
+`ck_moves_category` 하나가 달랐다.
+
+```
+복구 전: ANY ((ARRAY['physical'::character varying, ...])::text[])
+복구 후: ANY (ARRAY[('physical'::character varying)::text, ...])
+```
+
+**독립적 근거 두 개**로 오라클이 틀렸다고 판정했다.
+
+1. `pg_get_constraintdef` 은 저장된 문자열이 아니라 **파스 트리를 다시 렌더링한
+   결과**다. pg_dump 가 식을 직렬화하고 복구가 다시 파싱하면 캐스트 위치가
+   재배치된다. 두 식은 같은 검사다 — PostgreSQL 의 동작이고 우리 코드와 무관하다.
+2. **집행 여부를 보는 테스트가 따로 통과했다.** `TestConstraintsStillEnforce` 가
+   위반을 실제로 INSERT 해서 `ck_moves_category` 가 거부하는 것을 확인한다.
+
+즉 지키려는 불변식은 "렌더링 문자열이 같다"가 아니라 "같은 검사가 집행된다"였다.
+오라클이 불변식보다 좁은 것을 보고 있었다.
+
+고친 방향은 **기대값을 느슨하게 한 것이 아니라 셋으로 쪼갠 것**이다.
+
+| 단정 | 엄격도 |
+|---|---|
+| 제약 **이름** 집합 동일 | 원문 그대로 비교. 하나라도 사라지거나 생기면 실패 |
+| 제약 **정의** 동일 | 캐스트·괄호·공백을 걷어낸 형태로 비교. 값 목록이 바뀌면 여전히 실패 |
+| 제약 **집행** | 위반을 INSERT 해서 거부되는지 (정의 비교로는 대체 불가) |
+
+세 번째가 핵심이다. 카탈로그에 정의가 남아 있어도 인덱스가 `INVALID` 상태면
+막지 못한다. **"정의가 있다"와 "집행된다"는 다른 단정이다** — ADR-013 에서 요청
+간격 상수가 선언돼 있는데 지켜지지 않았던 것과 같은 구조가 반복됐다.
+
 ### 4-5. 미해결로 남긴 것 (숨기지 않음)
 
 | 항목 | 현황 |
@@ -536,7 +634,7 @@ A/B 는 경계에서 ±1 어긋난다. 그리고 그 1이 결론을 뒤집는다
 ```
 사용자 요청
    │
-   ├─▶ domain 계산 ──────────▶ 수치   [결정론적 · 509개 테스트의 사정권]
+   ├─▶ domain 계산 ──────────▶ 수치   [결정론적 · 563개 테스트의 사정권]
    │       (데미지·스피드·상성)
    │
    └─▶ 계산 결과를 "사실 블록" JSON 으로 직렬화
@@ -605,12 +703,17 @@ Phase 4 에서 스키마를 만들 때 구현한다.
 | LLM 응답 검증 | **미구현** | Phase 4 |
 | 성능·부하 테스트 | **없음** | Phase 6 배포 후 |
 | 변이 테스트 | 없음 | 미계획 |
+| CI 의 계정 분리 단계 | **아직 한 번도 돌지 않았다** — 러너에 `psql` 이 있다는 전제가 미실측 | 첫 PR 에서 확인 |
+| 복구 리허설 CI 실행 | **없음** — 로컬에서 손으로 돌린다. 자동으로 회귀를 막지 못한다 | 러너에서 compose 프로필 기동 |
+| ROLE(계정) 백업 | **없음** — `pg_dump` 에 계정이 안 들어간다. 빈 서버 완전 복구 불가 | `pg_dumpall --roles-only` (계정 분리 작업) |
+| 운영 백업 전략 | 리허설이 증명하는 것은 **논리 백업의 왕복**뿐. 배포 대상 미결 | ADR-001 배포 결정 후 |
 
 ---
 
 ## 참고
 
 - 계산 명세: [`CLAUDE.md`](../CLAUDE.md) 5장
-- 설계 결정 기록: [`docs/adr/`](adr/) — 12건
-- 문제 해결 일지: [`docs/decisions/JOURNAL.md`](decisions/JOURNAL.md) — 27건
+- 설계 결정 기록: [`docs/adr/`](adr/) — 15건
+- 문제 해결 일지: [`docs/decisions/JOURNAL.md`](decisions/JOURNAL.md) — 34건
+- 장애 1차 대응: [`docs/RUNBOOK.md`](RUNBOOK.md) — 7개 시나리오 (검증 4 / 부분 2 / 미검증 1)
 - CI 설정: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)

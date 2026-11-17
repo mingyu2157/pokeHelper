@@ -49,6 +49,100 @@ docker compose exec backend uv run python -m scripts.cleanup_snapshots
 **활성 스냅샷은 만료돼도 지우지 않는다.** 지우면 서비스가 볼 메타가 사라진다.
 수집이 며칠 멈춰도 마지막 스냅샷으로 서비스해야 한다 (`CLAUDE.md` 8-5).
 
+### 계정 초기화 (최소 권한)
+
+```bash
+docker compose exec backend bash scripts/init_roles.sh
+```
+
+`sql/roles.sql` 을 **부트스트랩 계정**으로 실행해 세 계정을 만들고 권한을 맞춘다
+([ADR-015](../../docs/adr/015-least-privilege-db-accounts.md)). 멱등하다 — 몇 번 돌려도 된다.
+
+| 계정 | 권한 | 쓰는 곳 |
+|---|---|---|
+| `champs_migrate` | DDL + 객체 소유 | `alembic`, `restore.sh` |
+| `champs_app` | SELECT/INSERT/UPDATE/DELETE | 앱, 시드 적재, 수집, 정리 |
+| `champs_read` | SELECT 만 (`pg_read_all_data`) | 디버깅·분석, `backup.sh` |
+
+**언제 돌려야 하나**
+
+| 상황 | 필요한가 |
+|---|---|
+| 새 환경 (`pgdata` 볼륨이 비어 있다) | **아니다** — compose 의 initdb 훅이 자동으로 한다 |
+| 이미 데이터가 있는 DB | **그렇다** — initdb 는 첫 기동에만 돌기 때문이다 |
+| CI | **그렇다** — 서비스 컨테이너에 마운트할 자리가 없다 |
+| 권한 오류가 날 때 | 그렇다. 재적용이 안전하다 |
+
+비밀번호 세 개(`CHAMPS_*_PASSWORD`)가 환경에 있어야 한다. 하나라도 비면 **DB 를
+건드리기 전에** 멈추고 어느 변수가 비었는지 알려준다. 비밀번호 없는 계정이 조용히
+만들어지면 계정 분리 자체가 무의미해진다.
+
+검증:
+
+```bash
+docker compose exec backend uv run pytest tests/integration/test_db_privileges.py
+```
+
+21개가 전부 통과해야 한다. **`GRANT` 문이 있는 것과 권한이 집행되는 것은 다르므로**,
+이 테스트는 위반을 실제로 실행해서 거부되는지 본다.
+
+### 백업 · 복구
+
+**파이썬이 아니라 bash 다.** `pg_dump` 를 감싸는 일에 파이썬 프로세스를 띄울 이유가
+없고, 장애 때 운영자가 컨테이너 안에서 바로 읽을 수 있는 게 낫다.
+
+```bash
+# 백업 — 성공하면 생성된 경로를 표준출력 한 줄로 준다
+docker compose exec backend bash scripts/backup.sh
+
+# 복구
+docker compose exec backend bash scripts/restore.sh /app/backups/champs-<타임스탬프>Z.dump
+```
+
+접속 정보는 **libpq 표준 환경변수**(`PGHOST` ...)로 받는다. `DATABASE_URL` 을
+파싱하지 않는다 — 파싱기를 하나 더 만들면 거기서 틀린다.
+
+**계정을 넘기지 않으면 스크립트가 최소 권한 계정을 고른다** (ADR-015).
+
+| 스크립트 | 기본 계정 | 왜 |
+|---|---|---|
+| `backup.sh` | `champs_read` | `pg_dump` 에 쓰기 권한이 필요 없다 |
+| `restore.sh` | `champs_migrate` | `--clean` 이 기존 객체를 DROP 하므로 소유자여야 한다 |
+| `init_roles.sh` | 부트스트랩 (`POSTGRES_*`) | 역할 생성에 CREATEROLE 이 필요하다 |
+
+다른 계정으로 돌리려면 `PGUSER`/`PGPASSWORD` 를 넘긴다. 기본값이 없던 동안
+문서에 적힌 짧은 명령이 로컬 소켓을 찾다가 실패했다 (JOURNAL 2026-11-17).
+`tests/rehearsal/test_ops_script_defaults.py` 가 이 기본값을 지킨다.
+
+`backup.sh` 는 세 관문을 통과해야 최종 파일명을 준다. **실패한 백업이 성공처럼
+보이는 것이 최악의 실패 모드**이기 때문이다.
+
+1. `pg_dump` 가 0 으로 끝난다
+2. 결과 파일이 비어 있지 않다
+3. `pg_restore --list` 로 아카이브 목차를 읽을 수 있다 ← 끊긴 덤프를 여기서 잡는다
+
+통과 전에는 `.partial` 로 남고, 실패하면 지워진다. 그리고 **이번 실행이 만든 백업은
+어떤 보존 설정에서도 지우지 않는다** (`BACKUP_RETENTION_DAYS=0` 이 방금 만든 것을
+지우는 버그가 있었다 — JOURNAL 2026-11-17).
+
+#### ★ 이 백업에 없는 것
+
+`pg_dump` 는 데이터베이스 하나만 덤프한다. **ROLE(계정)과 클러스터 전역 권한은
+들어 있지 않다.** 빈 서버에 완전 복구가 되지 않는다는 뜻이다.
+`pg_dumpall --roles-only` 가 따로 필요하고 **아직 없다.**
+
+#### 복구가 되는지 확인하는 방법
+
+추측하지 않는다. 리허설이 있다 ([ADR-014](../../docs/adr/014-restore-rehearsal.md)).
+
+```bash
+docker compose --profile rehearsal up -d db-rehearsal
+docker compose exec backend uv run pytest -m rehearsal
+```
+
+전용 DB 에서 백업 → 전체 테이블 DROP → 복구 → 4층 검증(행 수 / 체크섬 / 제약 집행 /
+시퀀스)을 실제로 수행한다. 개발 DB 는 건드리지 않는다.
+
 ### 실행 순서
 
 ```

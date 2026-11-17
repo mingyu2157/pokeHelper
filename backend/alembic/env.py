@@ -29,7 +29,12 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # 환경변수에서 읽어 주입한다. ini 의 sqlalchemy.url 은 비워 둔다.
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+#
+# ★ database_url 이 아니라 migration_database_url 이다 (ADR-015) ★
+# 마이그레이션은 DDL 이고, 앱 계정에는 DDL 권한이 없다. 여기가 DDL 권한을 쓰는
+# 유일한 자리다. 되돌리면 앱 계정에 CREATE/ALTER 를 줘야 하고, 그러면 계정
+# 분리가 무의미해진다.
+config.set_main_option("sqlalchemy.url", get_settings().migration_database_url)
 
 target_metadata = Base.metadata
 

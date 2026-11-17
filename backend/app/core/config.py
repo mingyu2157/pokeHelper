@@ -14,8 +14,13 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
 
-    # Phase 2 에서 실제 연결에 사용한다. Phase 0 에서는 값만 받아둔다.
-    database_url: str = "postgresql+asyncpg://champs:devpassword@db:5432/champs"
+    # ★ 앱 런타임 계정. DML 만 가진다 — DDL 권한이 없다 (ADR-015).
+    # 기본값을 최소 권한 계정으로 둔다. 부트스트랩 계정(POSTGRES_USER)을 기본값으로
+    # 두면 .env 를 안 만든 환경이 조용히 슈퍼유저로 돌아간다.
+    database_url: str = "postgresql+asyncpg://champs_app:devapp@db:5432/champs"
+    # ★ 마이그레이션 전용 계정. DDL 을 가진 유일한 계정이고 alembic 만 쓴다.
+    # 런타임 코드가 이 값을 읽으면 분리의 의미가 없어진다 — alembic/env.py 만 읽는다.
+    migration_database_url: str = "postgresql+asyncpg://champs_migrate:devmigrate@db:5432/champs"
     redis_url: str = "redis://redis:6379/0"
 
     # 브라우저가 백엔드를 직접 호출하므로 프론트 오리진을 허용해야 한다.

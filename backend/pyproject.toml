@@ -53,6 +53,12 @@ warn_unreachable = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q"
+# 리허설 스위트는 기본 실행에서 뺀다 — `--profile rehearsal` 로 띄우는 컨테이너가
+# 필요해서, 포함하면 평소 `pytest` 가 환경에 따라 빨갛게 된다.
+# 돌리는 방법: pytest -m rehearsal   (컨테이너가 없으면 건너뛰지 않고 실패한다)
+addopts = "-q -m 'not rehearsal'"
 asyncio_mode = "auto"
-markers = ["db: Postgres 컨테이너가 필요한 테스트"]
+markers = [
+    "db: Postgres 컨테이너가 필요한 테스트",
+    "rehearsal: db-rehearsal 컨테이너가 필요한 복구 리허설 (--profile rehearsal)",
+]
