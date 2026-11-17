@@ -658,3 +658,106 @@
   **A 를 검증했다고 A 를 쓰는 B 가 검증된 것은 아니다.**
   증빙 문서에 명령을 적을 때는 **적은 그 형태 그대로 한 번 돌려본다.**
 - 소요: 약 35분
+
+## 2026-11-17 — 노력치 솔버가 정상 입력에서 2.2초를 쓴다
+
+- 증상: `POST /api/v1/calc/ev-tune` 에 survive 제약 8개(API 허용 최대)를 보내면
+  p50 **2,215ms**, 최대 2,509ms. 제약 1개는 15.8ms 다. 응답은 `200` 이고
+  답도 맞다 — 느린 것 하나가 문제다.
+- 기대 동작: 제약이 늘어도 비용이 선형으로 늘어야 한다. 제약당 약 14ms 였으므로
+  8개면 110ms 정도가 예상이었다.
+- 재현 절차:
+  1. `docker compose up -d backend`
+  2. 아래를 실행한다 (제약 개수를 3~8 로 바꿔 곡선을 본다).
+     ```bash
+     python -c "
+     import json,time,urllib.request
+     G={'hp':108,'attack':130,'defense':95,'sp_attack':80,'sp_defense':85,'speed':102}
+     S={'kind':'survive','opponent':{'attack_stat':200,'special_attack_stat':200,'types':['ice']},
+        'move':{'power':50,'type':'ice','category':'physical'}}
+     b={'base_stats':G,'types':['dragon','ground'],'nature':'jolly',
+        'constraints':[dict(S,label='ice%d'%i) for i in range(8)]}
+     r=urllib.request.Request('http://localhost:8000/api/v1/calc/ev-tune',
+        data=json.dumps(b).encode(),headers={'Content-Type':'application/json'})
+     t=time.perf_counter(); urllib.request.urlopen(r).read()
+     print(f'{(time.perf_counter()-t)*1000:.0f} ms')"
+     ```
+- 원인: `app/domain/ev_solver.py` 의 `_best_combination` 이 제약별 후보 집합의
+  **데카르트 곱을 전부 순회한다.** 후보가 제약마다 정확히 5개라 `5^n` 이다.
+  실측으로 센 조합 수: 제약 3개 125 / 4개 625 / 6개 15,625 / **8개 390,625**.
+  두 가지가 겹쳐 있다.
+    1. 예산 초과 가지치기(`if total > MAX_TOTAL_POINTS: continue`)가 조합을
+       **만든 뒤**에 있어서 순회 횟수를 전혀 줄이지 못한다.
+    2. `_combine` 이 스탯별 `max` 라서, 같은 제약 8개는 39만 조합이 **전부 같은
+       답으로 합쳐진다.** 390,624번이 버려지는 계산이다.
+- 해결: **아직 고치지 않았다.** 관측성 작업을 먼저 하기로 결정했다 — 대시보드가
+  이 지연을 드러내게 만든 뒤 고치면, "관측 장치를 넣었고 그게 사고를 집었다"가
+  하나의 이야기가 된다. 당장은 정확성 문제가 아니고 단일 사용자 환경이라
+  감당 가능하다. 대신 세 곳에 남겼다.
+    - `docs/RUNBOOK.md` 6장 — **2초대는 정상**이라는 판단 기준 (모르면 정상을
+      장애로 처리한다)
+    - [ADR-016](../adr/016-observability-metrics.md) — 지연 히스토그램 버킷 선택의 근거
+    - 지연 경보를 **의도적으로 넣지 않은** 이유
+  고칠 때 방향: 열거 중 가지치기(DFS 로 누적 합을 들고 중단) + 중복 제약 제거.
+  domain 계산이라 계획·승인·테스트가 필수이고, 답이 바뀌면 엔진 버그다.
+- 배운 것: 측정하지 않으면 이런 건 드러나지 않는다. 테스트 654개가 전부
+  통과하는데 — **테스트는 "맞는가"를 보고 "얼마나 걸리는가"는 보지 않는다.**
+  그리고 입력 상한(`MAX_CONSTRAINTS = 8`)을 정할 때 비용 곡선을 보지 않았다.
+  허용하는 입력은 전부 "정상 동작"이므로, 상한은 성능 계약이기도 하다.
+- 소요: 약 50분 (측정 스크립트 작성·재측정 포함)
+
+## 2026-11-17 — 기본 히스토그램 버킷이 느린 경로를 전부 한 칸에 몰아넣었다
+
+- 증상: `/metrics` 를 붙인 직후, 경로별 지연 히스토그램의 버킷이
+  `0.1 / 0.5 / 1.0 / +Inf` 넷뿐이었다. 솔버의 2.2초 요청이 전부 `+Inf` 로 들어간다.
+- 기대 동작: 경로별 `histogram_quantile` 로 p95 를 계산할 수 있어야 한다.
+  그게 대시보드 패널 하나의 전부다.
+- 재현 절차:
+  1. `curl -s http://localhost:8000/metrics | grep -oE 'http_request_duration_seconds_bucket\{handler="[^"]*",le="[^"]*"' | sed 's/.*le="//' | sort -g -u`
+  2. 기본 설정이면 `0.1 0.5 1.0 +Inf` 가 나온다.
+- 원인: `prometheus-fastapi-instrumentator` 의 `latency_lowr_buckets` 기본값이
+  `(0.1, 0.5, 1)` 이다. 고해상도 쪽(`http_request_duration_highr_seconds`)은
+  버킷이 21개로 충분하지만 **handler 라벨이 없다.** 즉 기본값으로는
+  "경로별이지만 거친 것" 또는 "세밀하지만 전체 합산" 둘 중 하나만 된다.
+  1.1초와 60초가 같은 칸에 있으면 p95 는 상한 없는 추정이 된다.
+- 해결: 실측 분포에 맞춰 버킷을 직접 줬다.
+  `(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 3.0, 5.0)`.
+  2.2초 요청이 `le="3.0"` 에 들어가는 것을 확인했다 (`+Inf` 아님).
+  `tests/integration/test_metrics_endpoint.py::TestLatencyBuckets` 가 "실측
+  최악값이 유한 버킷 사이에 있다" 와 "설정한 버킷이 실제 노출과 일치한다" 를
+  단정한다 — 선언과 노출은 다른 사실이다.
+- 배운 것: 관측 도구의 기본값은 **일반적인 웹 요청**을 가정한다. 우리 솔버처럼
+  초 단위가 정상인 엔드포인트가 있으면 기본값이 조용히 쓸모없어진다.
+  더 나쁜 건 **대시보드가 멀쩡해 보인다**는 점이다 — 그래프가 그려지고 숫자가
+  나오지만, 정작 느린 하나를 구분하지 못한다. 버킷은 측정한 다음에 정한다.
+- 소요: 약 25분
+
+## 2026-11-17 — 읽기 전용 계정으로 익스포터를 돌리니 15초마다 권한 오류가 쌓였다
+
+- 증상: `postgres-exporter` 로그에 스크랩마다 한 줄씩.
+  ```
+  level=ERROR source=collector.go:201 msg="collector failed" name=wal
+    err="pq: permission denied for function pg_ls_waldir"
+  ```
+  지표 수집 자체는 되고 있었다 (`pg_up=1`).
+- 기대 동작: 익스포터가 오류 없이 돌아야 한다. 평소에 에러가 쌓이면 진짜
+  문제가 생겼을 때 로그에서 구분할 수 없다.
+- 재현 절차:
+  1. `docker compose --profile observability up -d postgres-exporter`
+  2. `docker compose logs postgres-exporter | grep -iE 'error|denied'`
+- 원인: `wal` 콜렉터가 `pg_ls_waldir()` 를 호출하고, 그 함수는 `pg_monitor`
+  역할을 요구한다. 익스포터는 `champs_read` 로 도는데 그 계정은
+  `pg_read_all_data` 만 가진다 (ADR-015).
+- 해결: **계정을 넓히는 대신 콜렉터를 껐다** (`--no-collector.wal`).
+  선택지가 둘인데 방향이 반대였다.
+    - `champs_read` 에 `pg_monitor` 부여 → 읽기 계정의 권한이 넓어진다.
+      ADR-015 의 되돌리는 조건("읽기 계정의 용도가 갈리면")에 해당한다.
+    - 콜렉터 끄기 → WAL 지표를 잃는다.
+  로컬에 복제 구성이 없어 WAL 지표를 대시보드에 쓰지 않는다. **쓰지도 않는
+  지표 때문에 권한을 넓히지 않는다.** 끈 뒤 반복 오류가 사라졌고
+  `pg_up=1`·`pg_stat_database`·`pg_stat_user_tables` 는 그대로 수집된다.
+- 배운 것: 도구가 요구하는 권한은 **그 도구가 할 수 있는 일 전부**의 합집합이고,
+  우리가 쓰는 부분집합과 다르다. 기본 설정을 그대로 쓰면 최소 권한이 조용히
+  무너진다 — 가장 쉬운 해결책이 늘 `GRANT` 를 더 주는 쪽이기 때문이다.
+  먼저 물어볼 것은 "**그 지표를 쓰기는 하나**" 다.
+- 소요: 약 20분

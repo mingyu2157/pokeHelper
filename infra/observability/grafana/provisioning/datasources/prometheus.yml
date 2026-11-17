@@ -1,0 +1,19 @@
+# Grafana 데이터소스 자동 등록 (ADR-016).
+#
+# ★ 손으로 클릭해서 추가하지 않는다 ★ UI 설정은 Grafana 볼륨에만 남아서
+# 저장소에 기록되지 않고, 볼륨을 지우면 사라진다. 프로비저닝 파일로 두면
+# `docker compose up` 만으로 같은 상태가 재현된다.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # 대시보드 자동 새로고침 간격의 하한. 스크랩 간격(15초)보다 짧게 두면
+      # 같은 점을 반복해서 그린다.
+      timeInterval: 15s
