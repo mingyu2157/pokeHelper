@@ -16,7 +16,8 @@ x-airflow-common: &airflow-common
     # DAG 가 작업 컨테이너를 띄울 때 쓰는 값들
     POKEHELPER_BACKEND_IMAGE: pokehelper-backend:latest
     POKEHELPER_NETWORK: ${COMPOSE_PROJECT_NAME:-pokehelper}_default
-    POKEHELPER_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-champs}:${POSTGRES_PASSWORD:-devpassword}@db:5432/${POSTGRES_DB:-champs}
+    # 수집·정리 작업은 DML 만 한다. 앱 계정을 넘긴다 (ADR-015).
+    POKEHELPER_DATABASE_URL: postgresql+asyncpg://champs_app:${CHAMPS_APP_PASSWORD:-devapp}@db:5432/${POSTGRES_DB:-champs}
     POKEHELPER_INGEST_LIMIT: ${POKEHELPER_INGEST_LIMIT:-50}
   volumes:
     - ./infra/airflow/dags:/opt/airflow/dags
@@ -34,9 +35,20 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-champs}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
       POSTGRES_DB: ${POSTGRES_DB:-champs}
+      # sql/roles.sql 이 \getenv 로 읽는다 (ADR-015). 첫 기동 때 역할을 만든다.
+      CHAMPS_MIGRATE_PASSWORD: ${CHAMPS_MIGRATE_PASSWORD:-devmigrate}
+      CHAMPS_APP_PASSWORD: ${CHAMPS_APP_PASSWORD:-devapp}
+      CHAMPS_READ_PASSWORD: ${CHAMPS_READ_PASSWORD:-devread}
     ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # ★ 첫 기동에만 실행된다 (데이터 디렉토리가 빈 경우). 이미 데이터가 있는 DB 는
+      # `docker compose exec backend bash scripts/init_roles.sh` 로 같은 SQL 을 돌린다.
+      #
+      # 훅(.sh)과 SQL 을 따로 마운트한다 — SQL 을 initdb 디렉토리에 두면
+      # 엔트리포인트가 `-v` 변수 없이 한 번 더 실행해서 실패한다.
+      - ./backend/sql/initdb-roles.sh:/docker-entrypoint-initdb.d/01-roles.sh:ro
+      - ./backend/sql/roles.sql:/opt/roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-champs} -d ${POSTGRES_DB:-champs}"]
       interval: 5s
@@ -69,8 +81,19 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-champs}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
       POSTGRES_DB: ${POSTGRES_DB:-champs}
+      # sql/roles.sql 이 \getenv 로 읽는다 (ADR-015). 첫 기동 때 역할을 만든다.
+      CHAMPS_MIGRATE_PASSWORD: ${CHAMPS_MIGRATE_PASSWORD:-devmigrate}
+      CHAMPS_APP_PASSWORD: ${CHAMPS_APP_PASSWORD:-devapp}
+      CHAMPS_READ_PASSWORD: ${CHAMPS_READ_PASSWORD:-devread}
     volumes:
       - rehearsal-pgdata:/var/lib/postgresql/data
+      # ★ 첫 기동에만 실행된다 (데이터 디렉토리가 빈 경우). 이미 데이터가 있는 DB 는
+      # `docker compose exec backend bash scripts/init_roles.sh` 로 같은 SQL 을 돌린다.
+      #
+      # 훅(.sh)과 SQL 을 따로 마운트한다 — SQL 을 initdb 디렉토리에 두면
+      # 엔트리포인트가 `-v` 변수 없이 한 번 더 실행해서 실패한다.
+      - ./backend/sql/initdb-roles.sh:/docker-entrypoint-initdb.d/01-roles.sh:ro
+      - ./backend/sql/roles.sql:/opt/roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-champs} -d ${POSTGRES_DB:-champs}"]
       interval: 5s

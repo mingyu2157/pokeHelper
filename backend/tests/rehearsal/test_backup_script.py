@@ -53,25 +53,25 @@ class TestBackupContract:
     조용히 깨지는 것. 경로를 표준출력 한 줄로 주는 게 계약이다.
     """
 
-    def test_prints_the_created_path_on_stdout(self, rehearsal_env, tmp_path: Path):
-        result = _backup(rehearsal_env, tmp_path)
+    def test_prints_the_created_path_on_stdout(self, backup_env, tmp_path: Path):
+        result = _backup(backup_env, tmp_path)
         assert result.returncode == 0, result.stderr
         created = Path(result.stdout.strip())
         assert created.is_file()
         assert created.parent == tmp_path
         assert created.suffix == ".dump"
 
-    def test_filename_carries_a_utc_timestamp(self, rehearsal_env, tmp_path: Path):
+    def test_filename_carries_a_utc_timestamp(self, backup_env, tmp_path: Path):
         """파일명으로 정렬하면 시간순이 되어야 한다. 로컬 시간대로 찍으면 깨진다."""
-        result = _backup(rehearsal_env, tmp_path)
+        result = _backup(backup_env, tmp_path)
         name = Path(result.stdout.strip()).name
         assert name.endswith("Z.dump")
         stamp = name.rsplit("-", 1)[-1].removesuffix(".dump")
         assert len(stamp) == len("20261117T000000Z")
         assert stamp[8] == "T"
 
-    def test_no_partial_file_is_left_behind(self, rehearsal_env, tmp_path: Path):
-        _backup(rehearsal_env, tmp_path)
+    def test_no_partial_file_is_left_behind(self, backup_env, tmp_path: Path):
+        _backup(backup_env, tmp_path)
         assert not list(tmp_path.glob("*.partial"))
 
 
@@ -85,44 +85,44 @@ class TestRetentionBoundary:
     적어둔다. 재현 불가능한 단정을 넣으면 깜빡이는 테스트가 된다.
     """
 
-    def test_a_backup_just_under_the_limit_survives(self, rehearsal_env, tmp_path: Path):
+    def test_a_backup_just_under_the_limit_survives(self, backup_env, tmp_path: Path):
         old = tmp_path / "champs-20260101T000000Z.dump"
         old.write_bytes(b"stale but within retention")
         _age(old, RETENTION_MINUTES - 5)
 
-        _backup(rehearsal_env, tmp_path)
+        _backup(backup_env, tmp_path)
         assert old.name in _dumps(tmp_path)
 
-    def test_a_backup_just_over_the_limit_is_deleted(self, rehearsal_env, tmp_path: Path):
+    def test_a_backup_just_over_the_limit_is_deleted(self, backup_env, tmp_path: Path):
         old = tmp_path / "champs-20250101T000000Z.dump"
         old.write_bytes(b"beyond retention")
         _age(old, RETENTION_MINUTES + 5)
 
-        _backup(rehearsal_env, tmp_path)
+        _backup(backup_env, tmp_path)
         assert old.name not in _dumps(tmp_path)
 
-    def test_the_backup_just_created_is_never_deleted(self, rehearsal_env, tmp_path: Path):
+    def test_the_backup_just_created_is_never_deleted(self, backup_env, tmp_path: Path):
         """정리가 방금 만든 백업을 지우면 백업이 하나도 남지 않는다."""
-        result = _backup(rehearsal_env, tmp_path)
+        result = _backup(backup_env, tmp_path)
         created = Path(result.stdout.strip())
         assert created.is_file()
 
-    def test_stale_partial_files_are_cleaned_up(self, rehearsal_env, tmp_path: Path):
+    def test_stale_partial_files_are_cleaned_up(self, backup_env, tmp_path: Path):
         """중단된 덤프의 잔해도 보존 기간을 넘기면 지운다. 쌓이면 디스크를 먹는다."""
         junk = tmp_path / "champs-20250101T000000Z.dump.partial"
         junk.write_bytes(b"interrupted")
         _age(junk, RETENTION_MINUTES + 5)
 
-        _backup(rehearsal_env, tmp_path)
+        _backup(backup_env, tmp_path)
         assert junk.name not in _dumps(tmp_path)
 
-    def test_retention_zero_keeps_only_the_new_backup(self, rehearsal_env, tmp_path: Path):
+    def test_retention_zero_keeps_only_the_new_backup(self, backup_env, tmp_path: Path):
         """0일이면 즉시 만료다. 방금 만든 것만 남는다 (경계의 아래쪽 끝)."""
         old = tmp_path / "champs-20260101T000000Z.dump"
         old.write_bytes(b"older than zero days")
         _age(old, 10)
 
-        result = _backup(rehearsal_env, tmp_path, BACKUP_RETENTION_DAYS="0")
+        result = _backup(backup_env, tmp_path, BACKUP_RETENTION_DAYS="0")
         assert result.returncode == 0, result.stderr
         assert old.name not in _dumps(tmp_path)
         assert Path(result.stdout.strip()).is_file()
@@ -135,17 +135,17 @@ class TestFailurePaths:
     "백업 있음"으로 오인되는 것. 정작 복구가 필요한 날에 알게 된다.
     """
 
-    def test_unreachable_database_leaves_no_artifact(self, rehearsal_env, tmp_path: Path):
-        result = _backup(rehearsal_env, tmp_path, PGHOST="db-rehearsal-nonexistent-host")
+    def test_unreachable_database_leaves_no_artifact(self, backup_env, tmp_path: Path):
+        result = _backup(backup_env, tmp_path, PGHOST="db-rehearsal-nonexistent-host")
         assert result.returncode != 0
         assert _dumps(tmp_path) == set(), "실패했는데 파일이 남았다"
 
     def test_invalid_retention_is_rejected_before_touching_the_database(
-        self, rehearsal_env, tmp_path: Path
+        self, backup_env, tmp_path: Path
     ):
         """숫자가 아닌 보존 기간으로 돌면 `find -mmin +abc` 가 되어 정리가 조용히
         실패하거나 엉뚱한 파일을 지운다. 덤프를 만들기 전에 막는다."""
-        result = _backup(rehearsal_env, tmp_path, BACKUP_RETENTION_DAYS="abc")
+        result = _backup(backup_env, tmp_path, BACKUP_RETENTION_DAYS="abc")
         assert result.returncode != 0
         assert _dumps(tmp_path) == set()
 

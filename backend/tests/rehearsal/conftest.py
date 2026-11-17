@@ -101,6 +101,15 @@ def pg_env(**overrides: str) -> dict[str, str]:
 
     ★ 개발 DB 를 가리키면 안 된다 ★ 이 환경으로 DROP 이 돌아간다. 그래서
     `REHEARSAL_DATABASE_URL` 이 `db` 를 가리키면 즉시 실패시킨다.
+
+    ★ MIGRATION_DATABASE_URL 도 함께 덮어쓴다 (ADR-015) ★
+    alembic 은 `database_url` 이 아니라 `migration_database_url` 을 읽는다.
+    여기서 둘 중 하나만 덮어쓰면 **alembic 이 개발 DB 에 마이그레이션을 돌린다.**
+    조용히 일어나고, 리허설 결과는 멀쩡하게 통과한다.
+
+    접속 계정은 **분리된 실제 계정**이다 (부트스트랩 슈퍼유저가 아니다).
+    그래야 "복구 계정이 정말 복구할 수 있는가"가 함께 검증된다 — 리허설을
+    슈퍼유저로 돌리면 운영에서 `champs_migrate` 로 복구가 안 되는 걸 못 잡는다.
     """
     raw = os.environ.get("REHEARSAL_DATABASE_URL") or DEFAULT_REHEARSAL_URL
     parsed = urlparse(raw.replace("+asyncpg", ""))
@@ -113,21 +122,38 @@ def pg_env(**overrides: str) -> dict[str, str]:
             "이 환경으로 DROP 이 실행되므로 중단한다. REHEARSAL_DATABASE_URL 을 확인하라."
         )
 
+    database = (parsed.path or "/champs").lstrip("/")
+    port = str(parsed.port or 5432)
+    # DDL·DML 을 모두 하는 쪽. 리허설 본체(DROP, alembic, 시드, 복구)가 이 계정이다.
+    migrate_password = os.environ.get("CHAMPS_MIGRATE_PASSWORD") or "devmigrate"
+    migrate_url = f"postgresql+asyncpg://champs_migrate:{migrate_password}@{host}:{port}/{database}"
+
     env = os.environ.copy()
     env.update(
         {
             "PGHOST": host,
-            "PGPORT": str(parsed.port or 5432),
-            "PGUSER": parsed.username or "champs",
-            "PGPASSWORD": parsed.password or "",
-            "PGDATABASE": (parsed.path or "/champs").lstrip("/"),
-            # alembic 은 app.core.config 로 DATABASE_URL 을 읽는다. 별도 프로세스라
-            # 환경변수 덮어쓰기가 먹는다 — 개발 DB 에 마이그레이션이 돌면 안 된다.
-            "DATABASE_URL": raw,
+            "PGPORT": port,
+            "PGUSER": "champs_migrate",
+            "PGPASSWORD": migrate_password,
+            "PGDATABASE": database,
+            # 두 변수를 모두 리허설 DB 로 묶는다. 하나만 바꾸면 alembic 이 개발 DB 로 간다.
+            "DATABASE_URL": migrate_url,
+            "MIGRATION_DATABASE_URL": migrate_url,
         }
     )
     env.update(overrides)
     return env
+
+
+def read_env(**overrides: str) -> dict[str, str]:
+    """백업 계정(`champs_read`)으로 접속하는 환경 (ADR-015).
+
+    백업을 읽기 전용 계정으로 돌려야 **`pg_read_all_data` 만으로 pg_dump 가
+    되는지**가 함께 검증된다. 리허설을 전부 슈퍼유저로 돌리면, 운영에서
+    백업 계정이 덤프를 못 만드는 상황을 못 잡는다.
+    """
+    password = os.environ.get("CHAMPS_READ_PASSWORD") or "devread"
+    return pg_env(PGUSER="champs_read", PGPASSWORD=password, **overrides)
 
 
 def psql(sql: str, *, env: dict[str, str] | None = None, check: bool = True):
@@ -269,6 +295,15 @@ def rehearsal_env() -> dict[str, str]:
 
 
 @pytest.fixture(scope="session")
+def backup_env(rehearsal_env: dict[str, str]) -> dict[str, str]:
+    """백업 스크립트용 환경. 읽기 전용 계정으로 붙는다 (ADR-015).
+
+    `rehearsal_env` 에 의존해 접속 가능 여부를 먼저 확인받는다.
+    """
+    return read_env()
+
+
+@pytest.fixture(scope="session")
 def rehearsal(rehearsal_env: dict[str, str], tmp_path_factory: pytest.TempPathFactory):
     """백업 → 파괴 → 복구를 **한 번** 수행하고 전후 상태를 돌려준다.
 
@@ -298,7 +333,8 @@ def rehearsal(rehearsal_env: dict[str, str], tmp_path_factory: pytest.TempPathFa
     # ---- 2. 백업 (스크립트를 실제로 실행한다) ----
     backup = run_script(
         BACKUP_SCRIPT,
-        env={**env, "BACKUP_DIR": str(backup_dir), "BACKUP_RETENTION_DAYS": "7"},
+        # ★ 백업만 읽기 계정이다. 복구는 DDL 이라 champs_migrate 로 돈다.
+        env=read_env(BACKUP_DIR=str(backup_dir), BACKUP_RETENTION_DAYS="7"),
         check=False,
     )
     if backup.returncode != 0:

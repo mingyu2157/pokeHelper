@@ -573,3 +573,46 @@
   정의가 남아 있어도 인덱스가 INVALID 면 막지 못한다. 그래서 3층은 정의 비교에서
   멈추지 않고 위반을 넣어본다. ADR-013 의 교훈이 그대로 반복됐다.
 - 소요: 약 25분
+
+## 2026-11-17 — 계정은 분리했는데 앱은 여전히 슈퍼유저로 붙고 있었다
+
+- 증상: 권한 테스트 21개 중 2개 실패.
+  `AssertionError: 설정된 앱 계정 'champs' 이 테이블을 만들 수 있다`
+  나머지 19개(각 계정의 거부·허용)는 전부 통과했다.
+- 기대 동작: 애플리케이션이 `champs_app` 으로 붙고, 그 계정으로는 DDL 이 안 돼야 한다
+- 재현 절차:
+  1. `.env` 의 `DATABASE_URL` 을 `postgresql+asyncpg://champs:devpassword@db:5432/champs` 로 되돌린다
+  2. `docker compose up -d backend`
+  3. `docker compose exec backend uv run pytest tests/integration/test_db_privileges.py`
+- 원인: 역할을 만들고(`init_roles.sh`) `.env.example` 을 고쳤지만 **기존 `.env` 는
+  그대로였다.** pydantic-settings 는 환경변수를 우선하므로 앱은 계속 예전 URL 을 읽었다.
+  즉 **계정 분리는 DB 에만 적용되고 애플리케이션은 아무것도 바뀌지 않은 상태**였다.
+- 해결: `.env` 를 갱신했다(백업: `.env.bak`). 그리고 이 상태를 상시 감시하도록
+  `TestRuntimeConfiguration` 을 남겼다 — 설정된 계정으로 실제 `CREATE TABLE` 을
+  시도해서 거부되는지 본다.
+- 배운 것: **"계정을 만들었다"와 "앱이 그 계정을 쓴다"는 다른 사실이다.** 계정별
+  권한만 테스트하면 19/21 이 통과하고, 정작 애플리케이션은 슈퍼유저로 돈다.
+  ADR-013(상수는 1.0인데 경로는 0초), ADR-014(정의는 있는데 집행은 별개)와 같은
+  구조가 세 번째로 반복됐다. 이번엔 **설정 자체를 단정 대상에 넣어** 잡았다.
+- 소요: 약 15분
+
+## 2026-11-17 — 실패한 권한 테스트가 개발 DB 에 테이블을 남겼다
+
+- 증상: 위 테스트가 실패한 뒤 개발 DB `public` 스키마에
+  `zz_configured_app_should_not_create` 테이블이 남아 있었다
+- 기대 동작: 테스트는 통과하든 실패하든 DB 를 원래 상태로 되돌려야 한다
+- 재현 절차:
+  1. `.env` 의 `DATABASE_URL` 을 부트스트랩 계정으로 되돌린다
+  2. `docker compose exec backend uv run pytest tests/integration/test_db_privileges.py -k configured_app`
+  3. `docker compose exec -T backend sh -c 'PGPASSWORD=devpassword psql -h db -U champs -d champs -c "\dt zz_*"'`
+- 원인: 이 테스트는 **"DDL 이 거부되는가"** 를 본다. 거부되지 않으면 그 `CREATE TABLE`
+  은 **성공한다.** 정리 코드를 성공 경로(= 단정 통과 뒤)에만 두면, 단정이 실패하는
+  바로 그 경우에 정리가 안 된다. 부작용이 생기는 조건과 정리가 건너뛰어지는 조건이
+  **정확히 일치**했다.
+- 해결: `try/finally` 로 옮기고, **만든 계정으로** `DROP TABLE IF EXISTS` 를 돌린다
+  (다른 계정은 소유자가 아니라 지울 수 없다).
+- 배운 것: 부정 테스트에서 "하면 안 되는 일"을 실제로 시도할 때는, **단정이
+  실패하는 경우가 곧 부작용이 남는 경우**다. 정리를 `finally` 에 두는 것이
+  선택이 아니라 필수다. 이건 리허설에서 쓴 전제 선행 단정과는 다른 축의 함정이다 —
+  그쪽은 "검증이 공짜로 통과하는 것", 이쪽은 "검증이 환경을 오염시키는 것".
+- 소요: 약 10분
