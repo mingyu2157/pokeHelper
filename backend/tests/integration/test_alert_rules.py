@@ -13,9 +13,15 @@ PromQL 에서 존재하지 않는 지표는 **오류가 아니라 빈 결과**�
 ADR-013(상수와 게이트), ADR-014(정의와 집행), ADR-015(계정과 설정)와 같은
 모양이다 — **선언한 것과 그것을 쓰는 쪽은 별개의 사실이다.**
 
-범위의 한계: 교차검증 대상은 `pokehelper_*` 뿐이다. `up`, `pg_*`, `redis_*`,
-`container_*` 는 익스포터가 내보내므로 백엔드 `/metrics` 에 없다. 그쪽은
-스택을 띄워 `promtool`·타깃 상태로 확인한다 (docs/RUNBOOK.md 6장).
+범위: **백엔드가 내보내는 지표 전부**를 본다 — 우리가 정의한 `pokehelper_*` 와
+계측 라이브러리가 만드는 `http_*` 둘 다다. `http_*` 를 범위에 넣은 것은
+`PokehelperApiSlow` 가 `http_request_duration_seconds_bucket` 을 참조하기
+때문이다. 우리가 이름을 짓지 않았다고 해서 오타가 안 나는 게 아니고,
+**라이브러리를 올리면 이름이 바뀔 수도 있다.**
+
+범위의 한계: `up`, `pg_*`, `redis_*`, `container_*` 는 익스포터가 내보내므로
+백엔드 `/metrics` 에 없다. 그쪽은 스택을 띄워 `promtool`·타깃 상태로 확인한다
+(docs/RUNBOOK.md 6장).
 """
 
 from __future__ import annotations
@@ -40,7 +46,12 @@ _CANDIDATES = (
     Path(__file__).resolve().parents[3] / "infra" / "observability",
 )
 
-OUR_METRIC = re.compile(r"\bpokehelper_[a-z0-9_]+\b")
+# 백엔드가 내보내는 지표의 접두사. 익스포터(`up`, `pg_*`, `redis_*`,
+# `container_*`)는 백엔드 `/metrics` 에 없으므로 제외한다 — 여기 넣으면
+# 전부 "없는 지표"로 잡혀 테스트가 거짓으로 깨진다.
+APP_PREFIXES = ("pokehelper_", "http_")
+
+OUR_METRIC = re.compile(r"\b(?:pokehelper|http)_[a-z0-9_]+\b")
 
 
 def observability_dir() -> Path:
@@ -67,7 +78,7 @@ def exposed_metrics() -> set[str]:
     derived = set()
     for name in names:
         derived |= {f"{name}_total", f"{name}_bucket", f"{name}_sum", f"{name}_count"}
-    return {n for n in names | derived if n.startswith("pokehelper_")}
+    return {n for n in names | derived if n.startswith(APP_PREFIXES)}
 
 
 @pytest.fixture(scope="module")

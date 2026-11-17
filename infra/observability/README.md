@@ -26,7 +26,7 @@ Grafana 포트가 3001 인 이유: 3000 은 프론트엔드가 쓴다.
 ```
 prometheus/
   prometheus.yml          스크랩 대상 4개
-  rules/alerts.yml        경보 2개
+  rules/alerts.yml        경보 3개
 grafana/
   provisioning/           데이터소스·대시보드 자동 등록
   dashboards/pokehelper.json
@@ -87,10 +87,20 @@ curl -s 'http://localhost:9090/api/v1/alerts'
 |---|---|---|---|
 | `PokehelperEtlStale` | 활성 스냅샷이 30시간 넘게 안 갱신, **또는 0개** | 10분 | warning |
 | `PokehelperTargetDown` | `up == 0` | 2분 | critical |
+| `PokehelperApiSlow` | 경로별 p95 > 0.5초 **그리고** 0.05 req/s 이상 | 5분 | warning |
 
-`or ... == 0` 절이 있는 이유: 타임스탬프 게이지만으로는 **"한 번도 수집되지
-않았다"** 를 표현할 수 없다. 계열이 아예 없으면 `time() - metric > 30h` 가
-평가되지 않아 조용히 지나간다.
+경보식마다 **조건이 둘씩 붙어 있는 이유**가 있다.
 
-**Alertmanager 가 없다.** 경보는 Prometheus UI 에만 뜨고 아무에게도 전달되지
-않는다 (ADR-016 포기한 것).
+`PokehelperEtlStale` 의 `or ... == 0`: 타임스탬프 게이지만으로는 **"한 번도
+수집되지 않았다"** 를 표현할 수 없다. 계열이 아예 없으면 `time() - metric > 30h`
+가 평가되지 않아 조용히 지나간다.
+
+`PokehelperApiSlow` 의 `and ... > 0.05`: **p95 는 표본이 적으면 p95 가 아니다.**
+트래픽이 거의 없을 때 느린 요청 하나가 그대로 p95 가 되어 거짓 경보를 만든다.
+트래픽이 없으면 이 경보는 아예 평가되지 않는다 — 의도한 동작이다.
+임계치 0.5초는 실측 최악(96ms)의 5배이자 **ADR-017 의 되돌리는 조건에 적힌 값**이다.
+
+**경보는 셋이 상한이다.** ADR-016 되돌리는 조건이 "경보가 셋을 넘어가면
+Alertmanager 를 도입한다" 이다. 지금은 Alertmanager 가 없어서 경보가
+Prometheus UI 에만 뜨고 **아무에게도 전달되지 않는다.** 넷째를 넣으려면
+그 결정을 먼저 연다.

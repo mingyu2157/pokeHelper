@@ -46,7 +46,7 @@ LLM 에게 "이 공격이 몇 % 들어가?"를 물으면 그럴듯한 숫자가 
 | **[docs/adr/](docs/adr/)** | 설계 결정 기록 17건. 선택지·근거·포기한 것·**되돌리는 조건** |
 | **[docs/decisions/JOURNAL.md](docs/decisions/JOURNAL.md)** | 문제 해결 일지 38건. 증상·기대 동작·재현 절차·원인·해결 |
 | **[docs/RUNBOOK.md](docs/RUNBOOK.md)** | 장애 1차 대응. **실제로 실행해 확인한 명령만** 적고, 나머지는 `미검증` 으로 표시 |
-| **[infra/observability/README.md](infra/observability/README.md)** | 관측 스택 띄우기·검증 명령·경보 2개 |
+| **[infra/observability/README.md](infra/observability/README.md)** | 관측 스택 띄우기·검증 명령·경보 3개 |
 | [CLAUDE.md](CLAUDE.md) | 이 저장소의 작업 규칙과 계산 명세 (진실의 원천) |
 
 ADR 은 결정으로 끝내지 않고 **되돌리는 조건**을 미리 적어둔다. 예를 들어 ADR-012 는
