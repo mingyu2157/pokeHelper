@@ -446,23 +446,84 @@ docker compose logs --tail 100 <서비스>
 
 ---
 
-## 6. API 응답 지연 ❌ 미검증
+## 6. API 응답 지연 ✅ 검증
 
-**재현 수단이 없다.** 지연을 측정할 관측 스택(메트릭·히스토그램)이 아직 없어서,
-"p95 가 올랐다"를 판별할 방법이 이 저장소에 존재하지 않는다.
-
-지금 할 수 있는 것은 단건 측정뿐이다 (명령 자체는 동작을 확인했다):
+관측 스택이 있다. 추측하지 않는다 ([ADR-016](adr/016-observability-metrics.md)).
 
 ```bash
-docker compose exec -T backend python -c "import urllib.request,time; \
-t=time.monotonic(); urllib.request.urlopen('http://localhost:8000/health').read(); \
-print(f'{(time.monotonic()-t)*1000:.1f} ms')"
+docker compose --profile observability up -d
 ```
 
-채워 넣으려면 필요한 것:
-- 요청률·에러율·응답시간 히스토그램 (`/metrics`)
-- 느린 쿼리 식별 (`pg_stat_statements` 는 아직 활성화하지 않았다)
-- 임계치와 그 근거
+| 주소 | 무엇 |
+|---|---|
+| http://localhost:3001 | Grafana 대시보드 `pokeHelper 개요` (`admin`/`admin`) |
+| http://localhost:9090 | Prometheus — 쿼리·타깃·경보 |
 
-관측 스택을 세우기 전까지 이 항목은 **비워 둔다.** 추측으로 채우면 장애 때 한 번 더
-시간을 쓰게 된다.
+### ★ 먼저 알아야 하는 것 — 느린 것이 정상일 수 있다
+
+노력치 솔버는 **정상 입력에서도 느리다.** 2026-11-17 실측값이다.
+
+| 요청 | p50 | 최대 |
+|---|---|---|
+| `GET /health` | 2.6ms | 22.5ms |
+| `POST /api/v1/calc/ev-tune` — 제약 1개 | 3.3ms | 19.0ms |
+| 〃 survive 제약 4개 | 55.8ms | 74.3ms |
+| 〃 survive 제약 7개 | 442ms | — |
+| 〃 survive 제약 8개 (허용 최대) | **2,215ms** | 2,509ms |
+
+원인은 `_best_combination` 의 데카르트 곱이고, 제약 8개면 **390,625 조합**을 돈다
+(JOURNAL 2026-11-17). 즉 **`ev-tune` 이 2초대인 것은 장애가 아니다.**
+이걸 모르고 보면 정상 동작을 장애로 처리하게 된다.
+
+판단 기준:
+
+| 관측 | 뜻 |
+|---|---|
+| `ev-tune` p95 가 2~3초, 제약이 많은 요청 | **정상.** 위 표와 비교한다 |
+| `ev-tune` p95 가 3초 초과 | 비정상. 솔버 밖의 원인을 본다 |
+| `/health` p95 가 100ms 초과 | 비정상. DB·이벤트 루프를 본다 |
+| 모든 경로가 동시에 느려짐 | 솔버가 아니다. 컨테이너 자원 또는 DB |
+
+### 확인 명령
+
+```bash
+# 경로별 p95 (5분 창)
+curl -s --get 'http://localhost:9090/api/v1/query' --data-urlencode \
+  'query=histogram_quantile(0.95, sum by (handler, le) (rate(http_request_duration_seconds_bucket[5m])))'
+
+# 오류율
+curl -s --get 'http://localhost:9090/api/v1/query' --data-urlencode \
+  'query=sum(rate(http_requests_total{status=~"5xx"}[5m]))'
+
+# DB 연결 수 — 치솟으면 커넥션 풀 누수를 본다
+curl -s --get 'http://localhost:9090/api/v1/query' --data-urlencode \
+  'query=sum(pg_stat_database_numbackends{datname="champs"})'
+
+# 스크랩이 실제로 되는가 ("설정했다"와 "긁힌다"는 다른 사실)
+curl -s 'http://localhost:9090/api/v1/targets?state=any'
+```
+
+### 지연 경보는 아직 없다 ⚠️
+
+경보는 둘뿐이고 지연은 포함되지 않는다. 솔버가 정상 입력에서 2.2초를 쓰는
+상태라 **어떤 임계치를 넣어도 그 경로가 지배한다.** 솔버를 고친 뒤 실측으로
+정한다 (ADR-016 되돌리는 조건).
+
+즉 **지금 API 가 느려져도 알림은 오지 않는다.** 대시보드를 봐야 안다.
+
+### 1차 조치
+
+| 증상 | 조치 |
+|---|---|
+| `ev-tune` 만 느리다 | 요청의 제약 개수를 본다. 위 표와 비교한다 |
+| 전부 느리다 | `docker stats` 로 컨테이너 자원 → **4. 디스크 부족** 도 함께 |
+| `/metrics` 자체가 느리다 | DB 조회(타임아웃 2초)가 걸린 것이다 → **1. DB 연결 실패** |
+| 지표가 안 보인다 | 프로필을 켰는지, 타깃이 `up` 인지 |
+
+### 아직 없는 것
+
+- **느린 쿼리 식별** — `pg_stat_statements` 확장을 활성화하지 않았다.
+  지금은 "DB 가 느리다"까지만 알 수 있고 "어느 쿼리"는 모른다.
+- **ETL 실행 시간** — 측정하는 것은 결과(신선도)뿐이다.
+  "어제보다 수집이 느려졌다"는 알 수 없다.
+- **Alertmanager** — 경보가 UI 에만 뜨고 전달되지 않는다.
