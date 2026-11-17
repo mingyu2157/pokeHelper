@@ -43,7 +43,7 @@
       "id": 2,
       "type": "timeseries",
       "title": "API p95 지연 (경로별)",
-      "description": "버킷을 실측에서 정했다 (0.01~5초). 라이브러리 기본값(0.1/0.5/1.0)이면 솔버의 2.2초가 전부 +Inf 로 들어가 이 패널이 쓸모없어진다.",
+      "description": "임계선 0.5초는 PokehelperApiSlow 경보와 같은 값이다 — 대시보드가 경보보다 늦게 빨개지면 둘이 다른 이야기를 한다. 버킷은 실측에서 정했다 (0.01~5초). 라이브러리 기본값(0.1/0.5/1.0)이면 2초대가 전부 +Inf 로 들어가 이 패널이 쓸모없어진다.",
       "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -54,8 +54,8 @@
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "orange", "value": 1 },
-              { "color": "red", "value": 3 }
+              { "color": "orange", "value": 0.25 },
+              { "color": "red", "value": 0.5 }
             ]
           }
         },
