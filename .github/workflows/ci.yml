@@ -41,12 +41,6 @@ jobs:
       CHAMPS_MIGRATE_PASSWORD: devmigrate
       CHAMPS_APP_PASSWORD: devapp
       CHAMPS_READ_PASSWORD: devread
-      # 역할 생성용 부트스트랩 자격증명. 이 단계에서만 쓴다.
-      PGHOST: localhost
-      PGPORT: "5432"
-      PGUSER: champs
-      PGPASSWORD: devpassword
-      PGDATABASE: champs
 
     steps:
       - uses: actions/checkout@v7
@@ -82,6 +76,18 @@ jobs:
         run: bash scripts/init_roles.sh
         env:
           ROLES_SQL: sql/roles.sql
+          # ★ 부트스트랩 자격증명은 이 단계에만 둔다 ★
+          # 잡 레벨 env 에 두면 pytest 를 포함한 **모든 단계**가 슈퍼유저
+          # 자격증명을 환경에 들고 돈다. 스크립트들이 PG* 를 기본값보다
+          # 우선하므로, 나중에 CI 에 backup.sh 를 추가하면 champs_read 가
+          # 아니라 슈퍼유저로 돌게 된다 — 실패하지 않고 조용히 그렇게 된다.
+          #
+          # compose 안에서는 호스트명이 db 지만 러너에서는 localhost 다.
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: champs
+          PGPASSWORD: devpassword
+          PGDATABASE: champs
 
       # 스키마를 만들고 시드를 넣어야 통합 테스트가 돈다.
       # 마이그레이션이 실제로 적용되는지도 여기서 같이 검증된다 —
