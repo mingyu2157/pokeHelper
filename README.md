@@ -129,7 +129,7 @@ ADR 은 결정으로 끝내지 않고 **되돌리는 조건**을 미리 적어�
 복구 리허설       33 passed   (pytest -m rehearsal, 전용 컨테이너 필요)
 린트 · 포맷      ruff — 저장소 전체
 타입체크         mypy --strict — app/domain/
-CI               모든 PR 에서 lint → format → mypy → 마이그레이션 → 시드 → pytest
+CI               모든 PR 에서 lint → format → mypy → 계정 생성 → 마이그레이션 → 시드 → pytest
 ```
 
 CI 의 DB 통합 테스트는 **실제 Postgres 16 컨테이너**를 띄운다. SQLite 로 대체하지 않는다
@@ -139,7 +139,7 @@ CI 의 DB 통합 테스트는 **실제 Postgres 16 컨테이너**를 띄운다. 
 
 **아직 없는 것**: 커버리지 CI 게이트, 골든 데미지 케이스(실측 필요), E2E, LLM 응답 검증,
 수집 샘플 응답의 실측 검증, 복구 리허설의 CI 자동 실행, ROLE(계정) 백업,
-CI 의 계정 분리 단계 실행 확인.
+저트래픽 구간의 지연 감지(경보가 최소 트래픽 절로 막는다), 경보 수신(Alertmanager).
 [TEST_STRATEGY §6](docs/TEST_STRATEGY.md#6-현재-한계) 에 전부 적어뒀다.
 
 ---
