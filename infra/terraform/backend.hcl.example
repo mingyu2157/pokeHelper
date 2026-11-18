@@ -1,0 +1,9 @@
+# `terraform init -backend-config=backend.hcl` 로 넘긴다.
+# 실제 backend.hcl 은 계정 ID 가 들어가므로 커밋하지 않는다(.gitignore).
+# 값은 bootstrap 의 `terraform output backend_config` 가 그대로 찍어준다.
+
+bucket         = "pokehelper-tfstate-000000000000"
+key            = "pokehelper/prod/terraform.tfstate"
+region         = "ap-northeast-2"
+dynamodb_table = "pokehelper-tfstate-000000000000-lock"
+encrypt        = true

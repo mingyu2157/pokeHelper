@@ -113,6 +113,9 @@ services:
       #   scripts/ 를 /app/scripts 에 마운트해 파이썬 패키지가 사라진 적이 있다
       #   (JOURNAL 2026-11-17). 그래서 /opt 에 둔다.
       - ./infra/observability:/opt/observability:ro
+      # 보안그룹 규칙을 테스트가 집행한다 (ADR-020). 퍼블릭 서브넷을 골랐으므로
+      # 보안그룹 한 줄이 유일한 방어선이고, 틀려도 서비스는 멀쩡히 돈다.
+      - ./infra/terraform:/opt/terraform:ro
     ports: ["8000:8000"]
     environment:
       # ★ /metrics 토큰 (ADR-019) ★ 로컬에서도 켜둔다. 꺼두면 인증 경로가
