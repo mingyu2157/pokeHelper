@@ -17,6 +17,10 @@ dependencies = [
     # 경로별 히스토그램 버킷을 바꾸는데, 그 인자가 없으면 느린 경로가 전부
     # +Inf 버킷에 몰린다 (ADR-016). 실제로 검증한 버전은 8.1.0 이다.
     "prometheus-fastapi-instrumentator>=8.1.0",
+    # 속도 제한 저장소 (ADR-019). CLAUDE.md 2장이 Redis 용도로 "rate limit" 을
+    # 이미 명시해뒀는데 앱이 쓰지 않고 있었다 — 결정은 있고 구현만 없던 상태다.
+    # 메모리 저장소는 프로세스당 세므로 워커가 여럿인 운영에서는 틀린 숫자다.
+    "redis>=5.2.0",
 ]
 
 [dependency-groups]

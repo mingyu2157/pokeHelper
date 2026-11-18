@@ -34,6 +34,7 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
+from app.core.config import get_settings
 from app.main import app
 
 pytestmark = pytest.mark.db
@@ -65,9 +66,25 @@ def observability_dir() -> Path:
 
 @pytest.fixture(scope="module")
 def exposed_metrics() -> set[str]:
-    """`/metrics` 가 실제로 내보내는 우리 지표 이름들."""
-    client = TestClient(app)
-    body = client.get("/metrics").text
+    """`/metrics` 가 실제로 내보내는 우리 지표 이름들.
+
+    ★ 토큰을 붙이고, **읽기에 성공했는지 단정한다** (ADR-019) ★
+
+    `/metrics` 에 토큰 검사를 붙였을 때 이 픽스처가 401 을 받아 본문이
+    비었고, 교차검증은 "참조하는 지표가 전부 없다"로 읽어 거짓 경보를 냈다.
+    응답이 비는 이유를 구분하지 못하면, 반대로 **참조 쪽도 비었을 때
+    공짜로 통과**할 수 있다. 상태 코드를 직접 본다.
+    """
+    token = get_settings().metrics_token
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    client = TestClient(app, headers=headers)
+    response = client.get("/metrics")
+    assert response.status_code == 200, (
+        f"/metrics 를 읽지 못했다 ({response.status_code}). "
+        "토큰이 필요한데 붙이지 않았을 가능성이 높다 — 그대로 두면 이 교차검증이 "
+        "거짓으로 깨지거나 거짓으로 통과한다."
+    )
+    body = response.text
     names: set[str] = set()
     for line in body.splitlines():
         if line.startswith("# TYPE "):

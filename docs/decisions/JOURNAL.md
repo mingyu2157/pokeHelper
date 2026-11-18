@@ -1022,3 +1022,71 @@
   잡지 못한다. 그리고 "나중에 되살린다"는 주석은 **아무도 알려주지 않는다** —
   되살려야 할 조건을 아는 것은 주석이 아니라 테스트뿐이다.
 - 소요: 약 1시간
+
+## 2026-11-18 — 보호장치를 켜자 기존 테스트 33개가 깨졌다
+
+- 증상: 속도 제한과 `/metrics` 토큰을 붙이자 통과하던 테스트가 세 묶음으로 깨졌다.
+  ```
+  31 failed  tests/integration/test_calc_ev_tune.py   assert 429 == 422
+   9 errors  tests/integration/test_metrics_endpoint.py (401)
+   2 failed  tests/integration/test_alert_rules.py    "지표가 전부 없다"
+  ```
+- 기대 동작: 보호장치를 켜도 기존 테스트는 **자기가 검증하던 것**을 계속 검증해야
+  한다. 깨진다면 테스트가 보호장치를 모르고 있었다는 뜻이다.
+- 재현 절차:
+  ```bash
+  # 제한을 끈 상태 (기존)
+  docker compose exec -T backend uv run pytest tests/integration/test_calc_ev_tune.py
+  # 제한을 켠 상태
+  docker compose exec -T -e RATE_LIMIT_CALC_REQUESTS=20 backend \
+    uv run pytest tests/integration/test_calc_ev_tune.py
+  ```
+- 원인: 세 가지가 각각 달랐다.
+  1. **속도 제한 누적** — `TestClient` 는 전부 같은 클라이언트로 보인다. 한 모듈의
+     요청이 한 바구니에 쌓여 20건을 넘겼다.
+  2. **`/metrics` 401** — 테스트가 토큰 없이 호출했다.
+  3. ★ **교차검증이 401 을 "지표가 없다"로 읽었다** — 가장 고약하다.
+     `exposed_metrics` 가 응답 본문만 보고 상태 코드를 안 봤다. 401 이면 본문이
+     비고, 비면 "참조하는 지표가 전부 없다"가 된다. **거짓 경보였다.**
+     그리고 같은 맹점이 반대로도 작동한다 — 참조 쪽도 비면 **공짜로 통과**한다.
+- 해결:
+  - 속도 제한은 **끄지 않았다.** 끄면 라우터에 의존성이 붙어 있는지조차 보지
+    못하고 "정의했지만 적용되지 않은" 상태를 놓친다. 대신 전역 conftest 에서
+    테스트마다 카운터를 비운다 (테스트 하나 = 클라이언트 하나).
+  - `/metrics` 를 쓰는 테스트는 설정에서 토큰을 읽어 **조건부로 붙인다.**
+    토큰이 없는 환경에서도 그대로 돈다.
+  - 교차검증 픽스처에 **`status_code == 200` 단정**을 넣었다. 읽기에 실패한
+    것과 지표가 없는 것을 구분한다.
+- 배운 것: **보호장치를 켤 때 깨지는 테스트는 버그 신호다.** 끄고 통과시키면
+  그 보호장치는 테스트 밖으로 나가고, 그 순간 "붙어 있는지"를 아무도 확인하지
+  않는다. 그리고 ★ **빈 응답을 "값이 없음"으로 읽는 코드는 전부 의심해야 한다** —
+  PromQL 이 없는 지표를 빈 결과로 주는 것과 같은 함정이 테스트 안에도 있었다.
+- 소요: 약 35분
+
+## 2026-11-18 — compose 의 `:?` 가드가 무관한 명령까지 전부 막았다
+
+- 증상: Grafana 기본 비밀번호(`admin/admin`)를 없애려고 `${GRAFANA_ADMIN_USER:?...}`
+  를 넣었더니, Grafana 와 아무 상관 없는 명령이 전부 실패했다.
+  ```
+  $ docker compose exec -T backend sh -c 'echo hi'
+  error while interpolating services.grafana.environment.GF_SECURITY_ADMIN_USER:
+    required variable GRAFANA_ADMIN_USER is missing a value
+  ```
+- 기대 동작: Grafana 를 띄울 때만 막혀야 한다. `exec backend` 는 Grafana 를
+  쓰지 않는다.
+- 재현 절차:
+  ```bash
+  # docker-compose.yml 의 grafana 환경변수를 ${GRAFANA_ADMIN_USER:?...} 로 바꾼 뒤
+  unset GRAFANA_ADMIN_USER
+  docker compose exec -T backend sh -c 'echo hi'   # 실패한다
+  ```
+- 원인: compose 의 변수 보간은 **파일 전체에서 한 번에** 일어난다. 서비스를
+  고르거나 프로필을 거는 것과 무관하게, 파일 안의 모든 `${...}` 가 평가된다.
+  `grafana` 가 `observability` 프로필 뒤에 있어도 소용없다.
+- 해결: 로컬 기본값(`:-admin`)으로 되돌렸다. 로컬 Grafana 는 포트가 localhost
+  에만 열리고, 운영 자격증명은 SSM 에서 주입한다 (ADR-019). **가드를 없앤 게
+  아니라 자리를 옮긴 것**이다 — 강제는 배포 경로에 둔다.
+- 배운 것: 가드를 넣을 때 **그 가드가 언제 평가되는지**를 봐야 한다. "필요할 때만
+  막는다"고 생각한 장치가 실제로는 **항상** 평가되면, 막으려던 것보다 더 많은
+  것을 막는다. 그리고 로컬 개발을 막는 가드는 결국 우회된다.
+- 소요: 약 10분
