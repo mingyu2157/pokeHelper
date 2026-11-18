@@ -22,7 +22,24 @@ pokeHelper 운영 인프라. 구성과 그렇게 고른 이유는
 
 ---
 
-## 1. state 저장소 만들기 (최초 1회)
+## 1. 자격증명 준비 (손으로)
+
+**[ACCESS.md](ACCESS.md) 를 먼저 끝낸다.** Terraform 이 AWS API 를 호출하려면
+자격증명이 있어야 하는데, 그 자격증명은 Terraform 으로 만들 수 없다.
+
+요약: 루트에 MFA → IAM Identity Center 켜기 → 권한 세트 → `aws configure sso`
+→ `export AWS_PROFILE=pokehelper`. 권한을 좁히는 절차도 거기 있다
+([ADR-021](../../docs/adr/021-aws-access-and-least-privilege.md)).
+
+```bash
+aws sso login --profile pokehelper
+export AWS_PROFILE=pokehelper     # PowerShell: $env:AWS_PROFILE = "pokehelper"
+aws sts get-caller-identity       # Arn 이 assumed-role/... 이면 된다
+```
+
+---
+
+## 2. state 저장소 만들기 (최초 1회)
 
 ```bash
 cd bootstrap
@@ -37,11 +54,11 @@ terraform output backend_config      # 아래에서 쓴다
 
 ---
 
-## 2. 본체 초기화
+## 3. 본체 초기화
 
 ```bash
 cd ..
-cp backend.hcl.example backend.hcl         # 1단계 output 을 붙여넣는다
+cp backend.hcl.example backend.hcl         # 2단계 output 을 붙여넣는다
 cp terraform.tfvars.example terraform.tfvars
 
 terraform init -backend-config=backend.hcl
@@ -53,7 +70,7 @@ terraform plan
 
 ---
 
-## 3. 적용 순서
+## 4. 적용 순서
 
 한 번에 전부 올리지 않는다. 깨지면 **무엇 때문에 깨졌는지** 알 수 없다.
 
@@ -75,7 +92,7 @@ terraform apply -target=aws_vpc.main -target=aws_subnet.public ...
 
 ---
 
-## 4. 검사
+## 5. 검사
 
 ```bash
 terraform fmt -check -recursive
@@ -91,7 +108,7 @@ docker compose exec backend uv run pytest tests/integration/test_terraform_secur
 
 ---
 
-## 5. 내릴 때
+## 6. 내릴 때
 
 ```bash
 terraform destroy
@@ -112,7 +129,7 @@ terraform destroy
 
 ---
 
-## 6. 비용
+## 7. 비용
 
 ADR-020 기준 **월 약 $98** (프리 티어 없음 가정, 730시간).
 가장 큰 항목은 ALB($22) · RDS($18) · ElastiCache($18) · 태스크($28) 다.
