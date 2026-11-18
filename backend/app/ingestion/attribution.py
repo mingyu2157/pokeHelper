@@ -26,6 +26,7 @@ from __future__ import annotations
 from typing import Final
 
 from app.ingestion.base import Attribution
+from app.ingestion.exceptions import UnknownSourceError
 
 #: championsbattledata 공개 API. 라이선스가 요구하는 문구이므로 임의로 바꾸지 않는다.
 CHAMPIONSBATTLEDATA: Final[Attribution] = Attribution(
@@ -48,10 +49,6 @@ _REGISTRY: Final[dict[str, Attribution]] = {
     "championsbattledata": CHAMPIONSBATTLEDATA,
     "opgg": OPGG,
 }
-
-
-class UnknownSourceError(Exception):
-    """출처 표기를 모르는 출처다. 표기 없이 내보내느니 실패한다."""
 
 
 def for_source(source: str) -> Attribution:

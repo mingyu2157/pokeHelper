@@ -18,6 +18,7 @@ from typing import Any, Final
 
 from app.domain.constants import MAX_POINTS_PER_STAT, MAX_TOTAL_POINTS
 from app.ingestion.base import OptionUsage, SpreadUsage
+from app.ingestion.exceptions import NormalizationError
 
 # 출처의 category -> 내부 이름
 CATEGORY_FIELD: Final[dict[str, str]] = {
@@ -41,8 +42,9 @@ POINT_FIELDS: Final[tuple[tuple[str, str], ...]] = (
 SPREAD_CATEGORY: Final[str] = "stat_points"
 
 
-class NormalizationError(Exception):
-    """원본이 우리 가정과 다르다. 스냅샷을 활성화하지 않는다."""
+# 정의는 `ingestion/exceptions.py` 에 있다. 계층 공통 베이스(`IngestionError`)
+# 아래로 모으기 위해서다. 여기서 재노출해 기존 import 경로를 유지한다.
+__all__ = ["NormalizationError"]
 
 
 def to_id(text: str) -> str:

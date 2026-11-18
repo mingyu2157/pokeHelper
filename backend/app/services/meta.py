@@ -32,6 +32,10 @@ from app.schemas.meta import (
     UsageEntryOut,
     UsageListOut,
 )
+from app.services.exceptions import (
+    PokemonNotInSnapshotError,
+    SnapshotNotFoundError,
+)
 
 # UI 표준 HABCDS 표기 (CLAUDE.md 4장). 표기 순서가 곧 H-A-B-C-D-S 다.
 # `services/ev_tune.py` 와 같은 순서를 쓴다 — 두 화면이 다른 순서로 쓰면
@@ -53,18 +57,6 @@ _CATEGORIES: Final[tuple[OptionCategory, ...]] = (
     "natures",
     "teammates",
 )
-
-
-class SnapshotNotFoundError(Exception):
-    """해당 포맷의 활성 스냅샷이 없다.
-
-    오류가 아니라 **상태**다. 수집을 한 번도 안 했거나, 검증 실패로 활성 전환이
-    막혀 있다. 계산 기능은 이것과 무관하게 동작해야 한다 (CLAUDE.md 8-5).
-    """
-
-
-class PokemonNotInSnapshotError(Exception):
-    """그 포켓몬이 활성 스냅샷에 없다. 순위권 밖이거나 id 가 틀렸다."""
 
 
 def _snapshot_out(snapshot: repo.SnapshotInfo) -> SnapshotOut:

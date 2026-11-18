@@ -25,6 +25,7 @@ import httpx
 
 from app.ingestion import attribution as attribution_registry
 from app.ingestion.base import Attribution, CollectionResult, PokemonUsage, StatsSource
+from app.ingestion.exceptions import CollectionError
 from app.ingestion.gate import RequestGate
 from app.ingestion.normalize import normalize_rows
 
@@ -48,10 +49,6 @@ ATTRIBUTION: Final[Attribution] = attribution_registry.CHAMPIONSBATTLEDATA
 
 # API 가 최신 시즌을 가리킬 때 쓰는 별칭. 구체 시즌 이름이 아니다.
 CURRENT_SEASON_ALIAS: Final[str] = "Current"
-
-
-class CollectionError(Exception):
-    """수집이 실패했다. 스냅샷을 활성화하지 않는다."""
 
 
 def resolve_season(rankings: dict[str, Any]) -> str:
