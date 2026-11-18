@@ -28,6 +28,7 @@ from app.schemas.meta import (
     UsageListOut,
 )
 from app.services import meta
+from app.services.exceptions import NotAvailableError
 
 router = APIRouter(prefix="/api/v1/meta", tags=["meta"])
 
@@ -66,8 +67,10 @@ async def usage_endpoint(
 ) -> UsageListOut:
     try:
         return await meta.usage_list(session, battle_format=battle_format, limit=limit)
-    except meta.SnapshotNotFoundError as exc:
+    except NotAvailableError as exc:
         # 404 다. 서버 오류가 아니라 "아직 수집된 메타가 없다"는 상태다.
+        # 개별 원인이 아니라 **계층 베이스**를 잡는다 — 돌려줄 게 없는 이유가
+        # 늘어나도 라우터는 그대로다 (CLAUDE.md 6장).
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
@@ -90,5 +93,5 @@ async def pokemon_endpoint(
         return await meta.pokemon_detail(
             session, battle_format=battle_format, pokemon_id=pokemon_id
         )
-    except (meta.SnapshotNotFoundError, meta.PokemonNotInSnapshotError) as exc:
+    except NotAvailableError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

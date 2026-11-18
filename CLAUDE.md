@@ -335,7 +335,24 @@ class DamageResult:
 - Python 3.12, 전 함수 타입힌트 필수
 - 포매터/린터: `ruff` (format + lint), 타입체크: `mypy --strict` (domain 한정)
 - 도메인 모델은 `@dataclass(frozen=True)` — 불변 객체
-- 예외는 `app/core/exceptions.py` 에 정의한 도메인 예외를 쓴다. 맨 `Exception` 금지
+- **예외는 계층마다 자급한다.** 맨 `Exception` 을 상속하는 것은 계층 베이스 셋뿐이고,
+  나머지는 전부 그중 하나를 상속한다. 이름은 `~Error` 로 끝낸다.
+
+  | 계층 | 베이스 | 정의 위치 |
+  |---|---|---|
+  | 도메인 | `DomainError` | `app/domain/exceptions.py` |
+  | 수집 | `IngestionError` | `app/ingestion/exceptions.py` |
+  | 서비스 | `ServiceError` | `app/services/exceptions.py` |
+
+  ★ **한 곳에 모으지 않는 이유**: 1-5 가 "도메인은 아무것도 import 하지 않는다"
+  이므로, 도메인 예외를 `core/` 에 두면 도메인이 `core` 를 import 하게 된다.
+  계층 독립이 예외에도 적용된다. (`app/core/exceptions.py` 는 카탈로그가 아니라
+  **도메인 예외를 HTTP 로 옮기는 핸들러 등록 모듈**이다. 이름이 헷갈리니 주의.)
+
+  잡을 때는 **가능한 한 베이스를 잡는다** — 라우터가 `NotAvailableError` 를 잡으면
+  "돌려줄 게 없는 이유"가 늘어나도 라우터는 그대로다.
+  이 규칙은 `tests/unit/test_exception_layering.py` 가 집행한다. 문서는 읽는
+  사람에게만 작동하고, 테스트는 읽지 않는 사람에게도 작동한다.
 - 매직 넘버 금지. 상수는 `app/domain/constants.py` 에 이름을 붙여 정의
 
 ### TypeScript
