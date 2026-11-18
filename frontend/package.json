@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "generate:api": "openapi-typescript ${OPENAPI_SCHEMA:-../backend/openapi.json} -o src/types/api.ts",
+    "check:api": "openapi-typescript ${OPENAPI_SCHEMA:-../backend/openapi.json} -o /tmp/api.generated.ts && diff -u src/types/api.ts /tmp/api.generated.ts"
   },
   "dependencies": {
     "next": "16.3.6",
@@ -21,6 +23,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.18.0",
     "eslint-config-next": "16.3.6",
+    "openapi-typescript": "^7.9.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.0"
