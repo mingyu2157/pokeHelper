@@ -12,7 +12,7 @@ LLM 에게 "이 공격이 몇 % 들어가?"를 물으면 그럴듯한 숫자가 
         │                                  │   │                     │
 입력 ──▶│  순수 함수 계산 엔진              │──▶│  수치 해석 · 설명    │──▶ 응답
         │  외부 의존성 0                    │   │  숫자 생성 금지      │
-        │  테스트 588개로 검증              │   │  스키마로만 통제     │
+        │  테스트 609개로 검증              │   │  스키마로만 통제     │
         └──────────────────────────────────┘   └─────────────────────┘
              모든 수치가 여기서만 나온다           여기서 나온 숫자는 버린다
 ```
@@ -37,14 +37,17 @@ LLM 에게 "이 공격이 몇 % 들어가?"를 물으면 그럴듯한 숫자가 
 | **울리지 않는 경보는 경보가 아니다** | PromQL 은 없는 지표를 오류가 아니라 빈 결과로 본다. 경보가 참조하는 지표명을 pytest 가 노출 지표와 **교차검증**한다 — `promtool` 은 문법만 보므로 잡지 못한다 | [test_alert_rules.py](backend/tests/integration/test_alert_rules.py) |
 | **'측정했다'가 '최악값을 측정했다'는 아니다** | 솔버의 2.2초를 런북에 '정상'으로 적었는데, 그건 표본 하나였다. 입력에 따라 조합이 `23^8 ≈ 783억` 까지 커져 **유효한 요청 하나로 워커를 영구 점유**할 수 있었다. 분기한정으로 96ms. 전수 조합 오라클과 대조해 답이 동일함을 검증했다 | [ADR-017](docs/adr/017-constraint-combination-search.md) · [ADR-008 결과](docs/adr/008-solver-search-strategy.md) |
 | **되돌리는 조건의 트리거는 맞고 처방은 틀릴 수 있다** | ADR-008 은 느려질 것을 예측하고 대응책까지 적어뒀지만, 그 처방은 **병목이 아닌 계층**을 가리켰다. 실행했다면 2.2초는 그대로 남는다. 트리거는 미리 적고 처방은 발동 시점에 다시 측정해서 정한다 | [ADR-008 결과](docs/adr/008-solver-search-strategy.md) |
+| **라이선스 의무는 문서가 아니라 타입이 지킨다** | 출처 표기를 응답 스키마의 **기본값 없는 필수 필드**로 두고, 출처 조회를 fail-closed 로 만들었다. 표기 누락은 화면에 숫자가 멀쩡히 나오고 출처 줄만 비는 **조용한 위반**이라 사람이 못 잡는다. 덤프 금지도 `limit` 상한과 '원본을 SELECT 하지 않는' 저장소로 집행한다 | [ADR-018](docs/adr/018-meta-read-api-and-attribution.md) · [test_meta_api.py](backend/tests/integration/test_meta_api.py) |
+| **모르는 것을 아는 척하지 않는 화면** | 출처가 사용률 %를 주지 않아 그 열을 만들지 않았고, 도구 한글명 89종이 비어서 **'한글명 미등록'으로 드러냈다.** 영문 id 를 한글명 자리에 넣으면 사용자는 그게 우리 표기라고 읽는다 | [/meta](frontend/src/app/meta/page.tsx) · CLAUDE.md 1-3, 8-4 |
+| **스키마와 프론트 타입은 별개의 사실이다** | OpenAPI 를 파일로 커밋하고, CI 가 **두 지점에서** 어긋남을 잡는다 — 코드↔스키마, 스키마↔생성 타입. 손으로 쓴 타입은 백엔드가 바뀌어도 타입체크를 통과하며 틀린 모양을 믿는다 | [ci.yml](.github/workflows/ci.yml) · [dump_openapi.py](backend/scripts/dump_openapi.py) |
 
 ## 먼저 볼 문서
 
 | 문서 | 내용 |
 |---|---|
 | **[docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md)** | 테스트 레벨·유형·설계 기법 매핑, **테스트 오라클 문제와 해결** |
-| **[docs/adr/](docs/adr/)** | 설계 결정 기록 17건. 선택지·근거·포기한 것·**되돌리는 조건** |
-| **[docs/decisions/JOURNAL.md](docs/decisions/JOURNAL.md)** | 문제 해결 일지 38건. 증상·기대 동작·재현 절차·원인·해결 |
+| **[docs/adr/](docs/adr/)** | 설계 결정 기록 18건. 선택지·근거·포기한 것·**되돌리는 조건** |
+| **[docs/decisions/JOURNAL.md](docs/decisions/JOURNAL.md)** | 문제 해결 일지 40건. 증상·기대 동작·재현 절차·원인·해결 |
 | **[docs/RUNBOOK.md](docs/RUNBOOK.md)** | 장애 1차 대응. **실제로 실행해 확인한 명령만** 적고, 나머지는 `미검증` 으로 표시 |
 | **[infra/observability/README.md](infra/observability/README.md)** | 관측 스택 띄우기·검증 명령·경보 3개 |
 | [CLAUDE.md](CLAUDE.md) | 이 저장소의 작업 규칙과 계산 명세 (진실의 원천) |
@@ -124,8 +127,8 @@ ADR 은 결정으로 끝내지 않고 **되돌리는 조건**을 미리 적어�
 2026-11-18 측정.
 
 ```
-테스트 함수      588   (단위 426 / 통합 128 / 복구 리허설 33 / 시스템 1)
-기본 실행        665 passed   (파라미터화 전개 후, 리허설 33 deselected)
+테스트 함수      609   (단위 426 / 통합 149 / 복구 리허설 33 / 시스템 1)
+기본 실행        686 passed   (파라미터화 전개 후, 리허설 33 deselected)
 복구 리허설       33 passed   (pytest -m rehearsal, 전용 컨테이너 필요)
 린트 · 포맷      ruff — 저장소 전체
 타입체크         mypy --strict — app/domain/

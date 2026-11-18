@@ -826,3 +826,68 @@
   3. **가지치기 품질과 성능 사이에 완만한 구간이 없다.** RED 검증으로 상한을
      12포인트만 느슨하게 했더니 테스트가 10분을 넘겨 중단해야 했다.
 - 소요: 약 2시간 30분 (측정 1시간, 구현·검증 1시간, 기록 30분)
+
+## 2026-11-18 — 메타 API 테스트가 단독 실행에서는 통과하고 전체 실행에서만 깨졌다
+
+- 증상: `tests/integration/test_meta_api.py` 가 단독으로는 21개 전부 통과하는데,
+  `pytest` 전체 실행에서는 13개가 **setup 단계에서** 에러로 끝났다.
+  ```
+  ERROR at setup of TestUsageList.test_entries_are_ranked_in_order
+  RuntimeError: Event loop is closed
+  ```
+- 기대 동작: 테스트 결과는 실행 순서에 의존하지 않아야 한다. 단독으로 초록인데
+  전체에서 빨간 테스트는 **둘 중 어느 쪽이 진실인지 알 수 없게** 만든다.
+- 재현 절차:
+  ```bash
+  # 단독 — 통과한다
+  docker compose exec -T backend uv run pytest tests/integration/test_meta_api.py
+
+  # 전체 — 같은 테스트가 깨진다
+  docker compose exec -T backend uv run pytest
+  ```
+- 원인: 두 가지가 겹쳤다.
+  1. `TestClient(app)` 를 `with` 없이 쓰면 **요청마다 새 이벤트 루프**가 돈다.
+     앞 요청이 만든 비동기 DB 커넥션은 이미 닫힌 루프에 묶여 있다.
+  2. 엔진이 `@lru_cache` 로 **프로세스당 하나**다 (`app/db/session.py`).
+     운영에서는 옳다 — 요청마다 만들면 커넥션 풀이 매번 새로 생긴다.
+     그런데 테스트에서는 앞선 모듈이 **자기 루프에서** 엔진을 먼저 쓰고,
+     풀에 남은 커넥션이 그 **닫힌 루프에 묶인 채** 다음 모듈로 넘어온다.
+
+  1번만 고쳤을 때 단독 실행이 통과해서 다 된 줄 알았다. 2번은 **앞선 모듈이
+  있을 때만** 발현하므로 단독 실행으로는 영원히 안 보인다.
+- 해결: 테스트 픽스처에서 `with TestClient(app)` 로 루프를 하나로 묶고,
+  `get_engine.cache_clear()` / `get_session_factory.cache_clear()` 로 이 모듈의
+  루프에서 엔진을 새로 만들게 했다. 모듈이 끝나면 다시 비워 다음 모듈도 같게 한다.
+  **운영 코드는 건드리지 않았다** — 운영에는 루프가 하나뿐이라 이 문제가 없고,
+  테스트 격리를 위해 운영 구조를 바꾸는 건 거꾸로다.
+- 배운 것: **"단독으로 돌려서 통과"는 통과가 아니다.** 프로세스 전역 상태
+  (`lru_cache`, 싱글턴, 모듈 변수)가 있으면 테스트 결과가 실행 순서에 의존하고,
+  그 의존은 파일 하나만 돌릴 때 숨는다. 새 통합 테스트는 **반드시 전체 실행으로도**
+  확인한다.
+- 소요: 약 25분
+
+## 2026-11-18 — 같은 이름의 응답 모델이 OpenAPI 에서 모듈 경로로 뭉개졌다
+
+- 증상: 프론트 타입 생성 후 타입체크가 실패했다.
+  ```
+  error TS2339: Property 'OptionOut' does not exist on type
+    '{ ...; app__schemas__meta__SpreadOut: ...; }'
+  ```
+- 기대 동작: 생성된 타입에 `OptionOut` / `SpreadOut` 이 그 이름으로 있어야 한다.
+- 재현 절차:
+  ```bash
+  docker compose exec -T backend uv run python -m scripts.dump_openapi
+  python -c "import json; d=json.load(open('backend/openapi.json', encoding='utf-8')); \
+    print([k for k in d['components']['schemas'] if 'Option' in k or 'Spread' in k])"
+  ```
+- 원인: `app/schemas/ev_tune.py` 와 `app/schemas/meta.py` 에 **같은 이름**의
+  Pydantic 모델(`OptionOut`, `SpreadOut`)이 있었다. FastAPI 는 이름이 충돌하면
+  **모듈 경로를 붙여** 구분한다 (`app__schemas__meta__SpreadOut`).
+  오류가 아니라 자동 처리라 백엔드 쪽에서는 아무 신호도 없었다.
+- 해결: 메타 쪽을 `MetaOptionOut` / `MetaSpreadOut` 으로 바꿨다. 스키마를
+  재생성하니 이름이 그대로 나온다.
+- 배운 것: **내부 모듈 경로가 공개 API 계약에 새어 나갈 수 있다.** 모델 이름은
+  파일 안에서만 유일하면 되는 게 아니라 **애플리케이션 전체에서** 유일해야 한다.
+  그리고 이걸 알려준 건 백엔드가 아니라 **프론트 타입체크**였다 — 타입 생성을
+  붙이지 않았으면 계약이 그 모양인 줄도 몰랐을 것이다.
+- 소요: 약 10분
