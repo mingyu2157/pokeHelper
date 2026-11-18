@@ -31,6 +31,7 @@ services:
       POSTGRES_USER: champs
       POSTGRES_PASSWORD: devpassword
       POSTGRES_DB: champs
+      CHAMPS_MASTER_PASSWORD: devmaster
       CHAMPS_MIGRATE_PASSWORD: devmigrate
       CHAMPS_APP_PASSWORD: devapp
       CHAMPS_READ_PASSWORD: devread
@@ -43,6 +44,7 @@ services:
       #   엔트리포인트가 `-v` 변수 없이 한 번 더 실행해서 실패한다.
       - ./backend/sql/initdb-roles.sh:/docker-entrypoint-initdb.d/01-roles.sh:ro
       - ./backend/sql/roles.sql:/opt/roles.sql:ro
+      - ./backend/sql/master-role.sql:/opt/master-role.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U champs -d champs"]
       interval: 5s

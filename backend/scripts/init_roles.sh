@@ -29,11 +29,13 @@
 set -euo pipefail
 
 SQL_FILE="${ROLES_SQL:-/app/sql/roles.sql}"
+MASTER_SQL="${MASTER_ROLE_SQL:-$(dirname "$SQL_FILE")/master-role.sql}"
 
 log() { echo "init_roles.sh: $*" >&2; }
 die() { log "$*"; exit 1; }
 
-[ -f "$SQL_FILE" ] || die "SQL 파일이 없다: $SQL_FILE"
+[ -f "$SQL_FILE" ]   || die "SQL 파일이 없다: $SQL_FILE"
+[ -f "$MASTER_SQL" ] || die "SQL 파일이 없다: $MASTER_SQL"
 
 # ★ 접속 기본값 — 이게 없으면 문서에 적힌 짧은 명령이 동작하지 않는다 ★
 #
@@ -60,7 +62,7 @@ done
 # ★ 비밀번호가 비어 있으면 멈춘다.
 # roles.sql 은 환경변수가 없을 때 빈 문자열로 떨어지는데, 그대로 두면 비밀번호 없는
 # 계정이 조용히 만들어진다. 계정 분리의 의미가 사라지므로 여기서 막는다.
-for var in CHAMPS_MIGRATE_PASSWORD CHAMPS_APP_PASSWORD CHAMPS_READ_PASSWORD; do
+for var in CHAMPS_MASTER_PASSWORD CHAMPS_MIGRATE_PASSWORD CHAMPS_APP_PASSWORD CHAMPS_READ_PASSWORD; do
     value="${!var:-}"
     [ -n "$value" ] || die "$var 가 비어 있다. .env 를 확인하라 (.env.example 참조)."
 done
@@ -71,7 +73,21 @@ log "SQL  — ${SQL_FILE}"
 # 비밀번호는 `-v` 로 넘긴다. 환경변수(\getenv)가 아닌 이유는 roles.sql 머리말 참조 —
 # psql 16 미만 호환성과, 변수 누락 시 조용히 빈 비밀번호가 되는 문제 때문이다.
 # ON_ERROR_STOP 은 SQL 안에서도 켜지만, 메타커맨드 실패까지 잡으려면 여기도 준다.
+# ★ 2단계로 돈다 (JOURNAL 2026-11-19) ★
+#   1. 부트스트랩(슈퍼유저)으로 champs_master 를 만든다
+#   2. **champs_master 로** roles.sql 을 돌린다 — RDS 마스터와 같은 조건이다
+#
+# 1단계만 슈퍼유저가 필요하다. 2단계가 슈퍼유저로 돌면 RDS 에서만 깨지는 구문을
+# 영원히 못 잡는다. 실제로 그래서 못 잡고 있었다.
+log "1/2 champs_master (NOSUPERUSER) 생성"
 psql \
+    --no-psqlrc \
+    --set=ON_ERROR_STOP=1 \
+    -v master_password="$CHAMPS_MASTER_PASSWORD" \
+    --file="$MASTER_SQL"
+
+log "2/2 champs_master 로 최소 권한 계정 생성"
+PGUSER=champs_master PGPASSWORD="$CHAMPS_MASTER_PASSWORD" psql \
     --no-psqlrc \
     --set=ON_ERROR_STOP=1 \
     -v migrate_password="$CHAMPS_MIGRATE_PASSWORD" \
