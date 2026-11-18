@@ -40,6 +40,8 @@ LLM 에게 "이 공격이 몇 % 들어가?"를 물으면 그럴듯한 숫자가 
 | **라이선스 의무는 문서가 아니라 타입이 지킨다** | 출처 표기를 응답 스키마의 **기본값 없는 필수 필드**로 두고, 출처 조회를 fail-closed 로 만들었다. 표기 누락은 화면에 숫자가 멀쩡히 나오고 출처 줄만 비는 **조용한 위반**이라 사람이 못 잡는다. 덤프 금지도 `limit` 상한과 '원본을 SELECT 하지 않는' 저장소로 집행한다 | [ADR-018](docs/adr/018-meta-read-api-and-attribution.md) · [test_meta_api.py](backend/tests/integration/test_meta_api.py) |
 | **모르는 것을 아는 척하지 않는 화면** | 출처가 사용률 %를 주지 않아 그 열을 만들지 않았고, 도구 한글명 89종이 비어서 **'한글명 미등록'으로 드러냈다.** 영문 id 를 한글명 자리에 넣으면 사용자는 그게 우리 표기라고 읽는다 | [/meta](frontend/src/app/meta/page.tsx) · CLAUDE.md 1-3, 8-4 |
 | **스키마와 프론트 타입은 별개의 사실이다** | OpenAPI 를 파일로 커밋하고, CI 가 **두 지점에서** 어긋남을 잡는다 — 코드↔스키마, 스키마↔생성 타입. 손으로 쓴 타입은 백엔드가 바뀌어도 타입체크를 통과하며 틀린 모양을 믿는다 | [ci.yml](.github/workflows/ci.yml) · [dump_openapi.py](backend/scripts/dump_openapi.py) |
+| **열린 채로 배포해도 아무것도 깨지지 않는다** | 속도 제한 없음·`/metrics` 공개·CORS 에 남은 localhost 는 셋 다 서비스가 멀쩡히 응답한다. 그래서 경고 로그가 아니라 **기동을 거부**하게 했다 — 배포 파이프라인이 멈춰야 사람이 본다. 보호장치는 테스트할 수 있도록 ALB·WAF 가 아니라 앱 안에 뒀다 | [ADR-019](docs/adr/019-deployment-target-and-prerequisites.md) · [test_deploy_prereqs.py](backend/tests/integration/test_deploy_prereqs.py) |
+| **보호장치를 켤 때 깨지는 테스트는 버그 신호다** | 제한을 켜자 기존 테스트 33개가 깨졌다. 끄고 통과시키면 그 보호장치는 테스트 밖으로 나가고 **라우터에 붙어 있는지조차** 아무도 확인하지 않는다. 그중 2건은 교차검증이 **401 응답을 '지표가 전부 없다'로 읽은** 거짓 경보였다 | [ADR-019 결과](docs/adr/019-deployment-target-and-prerequisites.md) · [JOURNAL](docs/decisions/JOURNAL.md) |
 
 ## 먼저 볼 문서
 
