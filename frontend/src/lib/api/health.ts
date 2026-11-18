@@ -1,10 +1,16 @@
-export type HealthResponse = {
-  status: "ok";
-  service: string;
-  version: string;
-};
+import type { components } from "@/types/api";
+import { API_BASE_URL } from "./config";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+/**
+ * ★ 손으로 쓰던 타입을 생성 타입으로 바꿨다 (CLAUDE.md 6장) ★
+ *
+ * 전에는 `{ status: "ok"; service: string; version: string }` 를 여기 직접
+ * 적어뒀다. 백엔드가 필드를 바꿔도 이 파일은 모르고, 타입체크는 통과한다.
+ * 이제 `backend/openapi.json` 에서 생성한 타입을 참조한다.
+ */
+export type HealthResponse = components["schemas"]["HealthResponse"];
+
+export { API_BASE_URL };
 
 /**
  * 브라우저에서 백엔드 /health 를 직접 호출한다.

@@ -1,0 +1,1333 @@
+{
+  "components": {
+    "schemas": {
+      "AttackerIn": {
+        "description": "상대 공격 측. **보정 전 순수 실수치**다 — 랭크·도구는 제약의 별도 필드로 받는다.",
+        "properties": {
+          "attack_stat": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 337.0,
+            "title": "Attack Stat",
+            "type": "integer"
+          },
+          "is_burned": {
+            "default": false,
+            "title": "Is Burned",
+            "type": "boolean"
+          },
+          "special_attack_stat": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 337.0,
+            "title": "Special Attack Stat",
+            "type": "integer"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "attack_stat",
+          "special_attack_stat",
+          "types"
+        ],
+        "title": "AttackerIn",
+        "type": "object"
+      },
+      "AttributionOut": {
+        "description": "표시 의무가 있는 출처 표기. 문구와 링크는 **쌍으로** 나간다.",
+        "properties": {
+          "text": {
+            "description": "화면에 그대로 띄우는 문구. 임의로 고치지 않는다.",
+            "title": "Text",
+            "type": "string"
+          },
+          "url": {
+            "description": "출처 링크. 표기와 링크 둘 다가 라이선스 조건이다.",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "url"
+        ],
+        "title": "AttributionOut",
+        "type": "object"
+      },
+      "BaseStatsIn": {
+        "properties": {
+          "attack": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 255.0,
+            "title": "Attack",
+            "type": "integer"
+          },
+          "defense": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 255.0,
+            "title": "Defense",
+            "type": "integer"
+          },
+          "hp": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 255.0,
+            "title": "Hp",
+            "type": "integer"
+          },
+          "sp_attack": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 255.0,
+            "title": "Sp Attack",
+            "type": "integer"
+          },
+          "sp_defense": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 255.0,
+            "title": "Sp Defense",
+            "type": "integer"
+          },
+          "speed": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 255.0,
+            "title": "Speed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hp",
+          "attack",
+          "defense",
+          "sp_attack",
+          "sp_defense",
+          "speed"
+        ],
+        "title": "BaseStatsIn",
+        "type": "object"
+      },
+      "BattleContextIn": {
+        "description": "대면 상황. 제약 전체에 공통으로 걸린다.",
+        "properties": {
+          "field_multiplier": {
+            "default": 1.0,
+            "description": "필드 배율. 챔피언스 수치가 확인되지 않아 호출자가 정한다.",
+            "maximum": 4.0,
+            "minimum": 0.1,
+            "title": "Field Multiplier",
+            "type": "number"
+          },
+          "is_critical": {
+            "default": false,
+            "title": "Is Critical",
+            "type": "boolean"
+          },
+          "screen": {
+            "default": 1.0,
+            "description": "벽 배율. 리플렉터·빛의장막·오로라베일은 모두 0.5 다.",
+            "maximum": 4.0,
+            "minimum": 0.1,
+            "title": "Screen",
+            "type": "number"
+          },
+          "weather": {
+            "default": "clear",
+            "enum": [
+              "clear",
+              "sun",
+              "rain",
+              "sand",
+              "snow"
+            ],
+            "title": "Weather",
+            "type": "string"
+          }
+        },
+        "title": "BattleContextIn",
+        "type": "object"
+      },
+      "DefenderIn": {
+        "description": "상대 방어 측. **보정 전 순수 실수치**다 — 랭크·도구는 제약의 별도 필드로 받는다.",
+        "properties": {
+          "defense_stat": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 337.0,
+            "title": "Defense Stat",
+            "type": "integer"
+          },
+          "hp_stat": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 362.0,
+            "title": "Hp Stat",
+            "type": "integer"
+          },
+          "special_defense_stat": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 337.0,
+            "title": "Special Defense Stat",
+            "type": "integer"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "defense_stat",
+          "special_defense_stat",
+          "hp_stat",
+          "types"
+        ],
+        "title": "DefenderIn",
+        "type": "object"
+      },
+      "EvTuneInfeasible": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "budget": {
+            "title": "Budget",
+            "type": "integer"
+          },
+          "feasible": {
+            "const": false,
+            "default": false,
+            "title": "Feasible",
+            "type": "boolean"
+          },
+          "impossible": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Impossible",
+            "type": "array"
+          },
+          "nature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nature"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/OptionOut"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "per_constraint_points": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Per Constraint Points",
+            "type": "object"
+          },
+          "total_required": {
+            "title": "Total Required",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nature",
+          "budget",
+          "total_required",
+          "per_constraint_points",
+          "impossible",
+          "options",
+          "assumptions"
+        ],
+        "title": "EvTuneInfeasible",
+        "type": "object"
+      },
+      "EvTuneRequest": {
+        "properties": {
+          "base_stats": {
+            "$ref": "#/components/schemas/BaseStatsIn"
+          },
+          "constraints": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "knockout": "#/components/schemas/KnockoutIn",
+                  "outspeed": "#/components/schemas/OutspeedIn",
+                  "survive": "#/components/schemas/SurviveIn"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/OutspeedIn"
+                },
+                {
+                  "$ref": "#/components/schemas/KnockoutIn"
+                },
+                {
+                  "$ref": "#/components/schemas/SurviveIn"
+                }
+              ]
+            },
+            "maxItems": 8,
+            "title": "Constraints",
+            "type": "array"
+          },
+          "context": {
+            "$ref": "#/components/schemas/BattleContextIn"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "우리 도구 영문 식별자 (예: lifeorb).",
+            "title": "Item"
+          },
+          "nature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "성격 영문 식별자 (예: jolly). 생략하면 무보정으로 본다.",
+            "title": "Nature"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "enum": [
+                  "PHYSICAL_OFFENSE",
+                  "SPECIAL_OFFENSE",
+                  "PHYSICAL_BULK",
+                  "SPECIAL_BULK",
+                  "SPEED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "남은 포인트를 부을 곳. 생략하면 제약 만족에 필요한 만큼만 쓴다.",
+            "title": "Priority"
+          },
+          "rank_stages": {
+            "additionalProperties": {
+              "maximum": 6.0,
+              "minimum": -6.0,
+              "type": "integer"
+            },
+            "description": "랭크(능력 변화). HP 는 받지 않는다.",
+            "propertyNames": {
+              "enum": [
+                "HP",
+                "ATTACK",
+                "DEFENSE",
+                "SP_ATTACK",
+                "SP_DEFENSE",
+                "SPEED"
+              ]
+            },
+            "title": "Rank Stages",
+            "type": "object"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "base_stats",
+          "types"
+        ],
+        "title": "EvTuneRequest",
+        "type": "object"
+      },
+      "EvTuneSolution": {
+        "properties": {
+          "alternatives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "feasible": {
+            "const": true,
+            "default": true,
+            "title": "Feasible",
+            "type": "boolean"
+          },
+          "justifications": {
+            "items": {
+              "$ref": "#/components/schemas/JustificationOut"
+            },
+            "title": "Justifications",
+            "type": "array"
+          },
+          "nature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nature"
+          },
+          "spread": {
+            "$ref": "#/components/schemas/SpreadOut"
+          }
+        },
+        "required": [
+          "nature",
+          "spread",
+          "justifications",
+          "alternatives",
+          "assumptions"
+        ],
+        "title": "EvTuneSolution",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "service": {
+            "title": "Service",
+            "type": "string"
+          },
+          "status": {
+            "const": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "service",
+          "version"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "JustificationOut": {
+        "properties": {
+          "constraint": {
+            "title": "Constraint",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "points": {
+            "title": "Points",
+            "type": "integer"
+          },
+          "stat": {
+            "enum": [
+              "HP",
+              "ATTACK",
+              "DEFENSE",
+              "SP_ATTACK",
+              "SP_DEFENSE",
+              "SPEED"
+            ],
+            "title": "Stat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stat",
+          "points",
+          "constraint",
+          "detail"
+        ],
+        "title": "JustificationOut",
+        "type": "object"
+      },
+      "KnockoutIn": {
+        "properties": {
+          "hits": {
+            "default": 1,
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Hits",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "knockout",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "move": {
+            "$ref": "#/components/schemas/MoveIn"
+          },
+          "opponent": {
+            "$ref": "#/components/schemas/DefenderIn"
+          },
+          "opponent_item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent Item"
+          },
+          "opponent_rank_stage": {
+            "default": 0,
+            "maximum": 6.0,
+            "minimum": -6.0,
+            "title": "Opponent Rank Stage",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "opponent",
+          "move"
+        ],
+        "title": "KnockoutIn",
+        "type": "object"
+      },
+      "MetaOptionOut": {
+        "description": "선택지 하나의 채용률.\n\n`rate` 가 null 인 경우가 있다 — 파트너는 순위만 주고 비율을 주지 않는다.\n0.0 으로 채우지 않는다.",
+        "properties": {
+          "name_ko": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "한글명. **매핑이 없으면 null 이다.** 영문 id 를 한글명 자리에 넣지 않는다.",
+            "title": "Name Ko"
+          },
+          "option_id": {
+            "title": "Option Id",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          }
+        },
+        "required": [
+          "option_id",
+          "name_ko",
+          "rank",
+          "rate"
+        ],
+        "title": "MetaOptionOut",
+        "type": "object"
+      },
+      "MetaSpreadOut": {
+        "description": "노력치 배분 채용률.\n\n★ 챔피언스 표기다 (CLAUDE.md 5-0) ★ 스탯당 0~32, 총합 66 이하.\n252 EV 표기는 이 프로젝트에 존재하지 않는다.",
+        "properties": {
+          "notation": {
+            "description": "UI 표준 HABCDS 표기 (예: A32S32H2)",
+            "title": "Notation",
+            "type": "string"
+          },
+          "points": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Points",
+            "type": "object"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          }
+        },
+        "required": [
+          "notation",
+          "points",
+          "rank",
+          "rate"
+        ],
+        "title": "MetaSpreadOut",
+        "type": "object"
+      },
+      "MoveIn": {
+        "properties": {
+          "category": {
+            "enum": [
+              "physical",
+              "special",
+              "status"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "power": {
+            "maximum": 300.0,
+            "minimum": 0.0,
+            "title": "Power",
+            "type": "integer"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "power",
+          "type",
+          "category"
+        ],
+        "title": "MoveIn",
+        "type": "object"
+      },
+      "OptionOut": {
+        "properties": {
+          "dropped": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dropped",
+            "type": "array"
+          },
+          "justifications": {
+            "items": {
+              "$ref": "#/components/schemas/JustificationOut"
+            },
+            "title": "Justifications",
+            "type": "array"
+          },
+          "satisfied": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Satisfied",
+            "type": "array"
+          },
+          "spread": {
+            "$ref": "#/components/schemas/SpreadOut"
+          }
+        },
+        "required": [
+          "satisfied",
+          "dropped",
+          "spread",
+          "justifications"
+        ],
+        "title": "OptionOut",
+        "type": "object"
+      },
+      "OutspeedIn": {
+        "properties": {
+          "kind": {
+            "const": "outspeed",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "opponent_item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent Item"
+          },
+          "opponent_rank_stage": {
+            "default": 0,
+            "maximum": 6.0,
+            "minimum": -6.0,
+            "title": "Opponent Rank Stage",
+            "type": "integer"
+          },
+          "target_speed": {
+            "description": "상대의 보정 전 스피드 실수치. 도구·랭크는 아래 필드로 받는다.",
+            "exclusiveMinimum": 0.0,
+            "maximum": 337.0,
+            "title": "Target Speed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "target_speed"
+        ],
+        "title": "OutspeedIn",
+        "type": "object"
+      },
+      "PokemonMetaOut": {
+        "description": "포켓몬 하나의 채용률 상세.",
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionOut"
+            },
+            "title": "Attributions",
+            "type": "array"
+          },
+          "name_ko": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Ko"
+          },
+          "options": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/MetaOptionOut"
+              },
+              "type": "array"
+            },
+            "propertyNames": {
+              "enum": [
+                "moves",
+                "items",
+                "abilities",
+                "natures",
+                "teammates"
+              ]
+            },
+            "title": "Options",
+            "type": "object"
+          },
+          "pokemon_id": {
+            "title": "Pokemon Id",
+            "type": "string"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "rank_change": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Change"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotOut"
+          },
+          "spreads": {
+            "items": {
+              "$ref": "#/components/schemas/MetaSpreadOut"
+            },
+            "title": "Spreads",
+            "type": "array"
+          },
+          "unmapped": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "카테고리별 한글명 미매핑 개수. 0 이 아니면 화면이 그 사실을 표시해야 한다. 숨기면 사용자는 영문 id 를 우리가 고른 표기로 오해한다.",
+            "propertyNames": {
+              "enum": [
+                "moves",
+                "items",
+                "abilities",
+                "natures",
+                "teammates"
+              ]
+            },
+            "title": "Unmapped",
+            "type": "object"
+          }
+        },
+        "required": [
+          "snapshot",
+          "attributions",
+          "pokemon_id",
+          "name_ko",
+          "rank",
+          "rank_change",
+          "options",
+          "spreads",
+          "unmapped"
+        ],
+        "title": "PokemonMetaOut",
+        "type": "object"
+      },
+      "SnapshotOut": {
+        "description": "이 응답이 어느 수집분에서 나왔는가.\n\n수집 시각을 **같이 내보내는 것이 필수다** (CLAUDE.md 1-2). 통계는 언제\n수집했는지에 따라 의미가 달라지는데, 화면에 숫자만 있으면 사용자는 그게\n오늘 것인지 2주 전 것인지 알 수 없다.",
+        "properties": {
+          "collected_at": {
+            "format": "date-time",
+            "title": "Collected At",
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "Singles",
+              "Doubles"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "regulation": {
+            "description": "레귤레이션 코드 (예: M7)",
+            "title": "Regulation",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "format",
+          "regulation",
+          "collected_at"
+        ],
+        "title": "SnapshotOut",
+        "type": "object"
+      },
+      "SpreadOut": {
+        "properties": {
+          "attack": {
+            "title": "Attack",
+            "type": "integer"
+          },
+          "defense": {
+            "title": "Defense",
+            "type": "integer"
+          },
+          "hp": {
+            "title": "Hp",
+            "type": "integer"
+          },
+          "notation": {
+            "description": "UI 표준 HABCDS 표기 (예: A10C24S32)",
+            "title": "Notation",
+            "type": "string"
+          },
+          "sp_attack": {
+            "title": "Sp Attack",
+            "type": "integer"
+          },
+          "sp_defense": {
+            "title": "Sp Defense",
+            "type": "integer"
+          },
+          "speed": {
+            "title": "Speed",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hp",
+          "attack",
+          "defense",
+          "sp_attack",
+          "sp_defense",
+          "speed",
+          "total",
+          "notation"
+        ],
+        "title": "SpreadOut",
+        "type": "object"
+      },
+      "SurviveIn": {
+        "properties": {
+          "hits": {
+            "default": 1,
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Hits",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "survive",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "move": {
+            "$ref": "#/components/schemas/MoveIn"
+          },
+          "opponent": {
+            "$ref": "#/components/schemas/AttackerIn"
+          },
+          "opponent_item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent Item"
+          },
+          "opponent_rank_stage": {
+            "default": 0,
+            "maximum": 6.0,
+            "minimum": -6.0,
+            "title": "Opponent Rank Stage",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "opponent",
+          "move"
+        ],
+        "title": "SurviveIn",
+        "type": "object"
+      },
+      "UsageEntryOut": {
+        "description": "순위표 한 줄.\n\n★ `usage_rate` 는 거의 항상 null 이다 ★ 출처 API 가 순위만 주고 사용률\n퍼센트를 주지 않는다. **0 으로 채우지 않는다** — \"사용률 0%\"와 \"사용률을\n모른다\"는 다르다. 화면은 순위를 보여준다.",
+        "properties": {
+          "name_ko": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "한국 서버 명칭. 매핑이 없으면 null 이고, 화면은 이를 미매핑으로 표시한다.",
+            "title": "Name Ko"
+          },
+          "pokemon_id": {
+            "description": "Showdown 내부 ID. 상세 조회의 키다.",
+            "title": "Pokemon Id",
+            "type": "string"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "rank_change": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "직전 스냅샷 대비 순위 변동. 양수가 상승이다. 비교 대상이 없으면 null.",
+            "title": "Rank Change"
+          },
+          "usage_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "출처가 주지 않는다. 거의 항상 null 이며 0 으로 대체하지 않는다.",
+            "title": "Usage Rate"
+          }
+        },
+        "required": [
+          "pokemon_id",
+          "name_ko",
+          "rank",
+          "rank_change",
+          "usage_rate"
+        ],
+        "title": "UsageEntryOut",
+        "type": "object"
+      },
+      "UsageListOut": {
+        "description": "순위표 응답.",
+        "properties": {
+          "attributions": {
+            "description": "이 응답에 들어간 데이터의 출처 전부. 기본값 없음 — 라이선스 조건이다.",
+            "items": {
+              "$ref": "#/components/schemas/AttributionOut"
+            },
+            "title": "Attributions",
+            "type": "array"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/UsageEntryOut"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotOut"
+          }
+        },
+        "required": [
+          "snapshot",
+          "attributions",
+          "entries"
+        ],
+        "title": "UsageListOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "포켓몬 챔피언스 파티 구축 + 선출 판단 보조 API",
+    "title": "pokeHelper API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/calc/ev-tune": {
+      "post": {
+        "description": "제약조건을 만족하는 노력치 배분을 역산한다. 해가 없으면 `feasible: false` 와 함께 무엇이 충돌하는지, 무엇을 포기하면 되는지를 돌려준다. 오류가 아니라 유효한 결과다.",
+        "operationId": "ev_tune_endpoint_api_v1_calc_ev_tune_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvTuneRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/EvTuneSolution"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EvTuneInfeasible"
+                    }
+                  ],
+                  "title": "Response Ev Tune Endpoint Api V1 Calc Ev Tune Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "노력치 미세조정",
+        "tags": [
+          "calc"
+        ]
+      }
+    },
+    "/api/v1/meta/pokemon/{pokemon_id}": {
+      "get": {
+        "description": "기술·도구·특성·성격·파트너 채용률과 노력치 배분(HABCDS 표기). 한글명 매핑이 없는 선택지는 `name_ko` 가 null 이고 `unmapped` 에 개수가 잡힌다 — 영문 id 를 한글명 자리에 넣지 않는다.",
+        "operationId": "pokemon_endpoint_api_v1_meta_pokemon__pokemon_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pokemon_id",
+            "required": true,
+            "schema": {
+              "title": "Pokemon Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "대전 포맷. 이 서비스는 싱글 기준이다 (CLAUDE.md 8-1).",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "Singles",
+              "description": "대전 포맷. 이 서비스는 싱글 기준이다 (CLAUDE.md 8-1).",
+              "enum": [
+                "Singles",
+                "Doubles"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PokemonMetaOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "포켓몬 채용률 상세",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/usage": {
+      "get": {
+        "description": "활성 스냅샷의 포켓몬 사용 순위. **사용률 퍼센트는 출처가 주지 않으므로 `usage_rate` 는 거의 항상 null 이고 0 으로 대체하지 않는다.** 모든 응답에 출처 표기와 수집 시각이 함께 나간다.",
+        "operationId": "usage_endpoint_api_v1_meta_usage_get",
+        "parameters": [
+          {
+            "description": "대전 포맷. 이 서비스는 싱글 기준이다 (CLAUDE.md 8-1).",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "Singles",
+              "description": "대전 포맷. 이 서비스는 싱글 기준이다 (CLAUDE.md 8-1).",
+              "enum": [
+                "Singles",
+                "Doubles"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "돌려줄 엔트리 수. 상한 60 — 덤프 방지 장치다.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "돌려줄 엔트리 수. 상한 60 — 덤프 방지 장치다.",
+              "maximum": 60,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "사용 순위표",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  }
+}

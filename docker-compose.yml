@@ -140,10 +140,21 @@ services:
       - ./frontend:/app
       - /app/node_modules     # ★ 호스트 node_modules 덮어쓰기 방지 (제거 금지)
       - /app/.next
+      # 프론트 타입은 OpenAPI 에서 생성한다 (CLAUDE.md 6장). 생성기가 읽을
+      # 스키마 파일 **하나만** 읽기 전용으로 넣는다. backend 디렉토리를 통째로
+      # 넣으면 프론트 컨테이너가 백엔드 소스를 들고 있게 된다.
+      - ./backend/openapi.json:/schema/openapi.json:ro
     ports: ["3000:3000"]
     environment:
       # 브라우저가 직접 호출하는 주소다. 컨테이너명(backend)이 아니라 localhost 가 맞다.
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      # 타입 생성기가 읽을 스키마 경로. 호스트에서 돌릴 때는 기본값
+      # (../backend/openapi.json)이 맞고, 컨테이너 안에서는 마운트 경로다.
+      OPENAPI_SCHEMA: /schema/openapi.json
+      # ★ 서버 컴포넌트용 주소 ★ SSR 은 컨테이너 **안**에서 돌기 때문에
+      # localhost 로 부르면 프론트 자기 자신을 부른다. 컨테이너 네트워크
+      # 이름으로 백엔드를 가리켜야 한다.
+      SERVER_API_URL: ${SERVER_API_URL:-http://backend:8000}
       WATCHPACK_POLLING: "true"   # Windows 바인드 마운트에서 파일 변경 감지
     depends_on:
       backend: { condition: service_healthy }

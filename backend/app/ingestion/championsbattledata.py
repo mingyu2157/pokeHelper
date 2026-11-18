@@ -23,6 +23,7 @@ from typing import Any, Final
 
 import httpx
 
+from app.ingestion import attribution as attribution_registry
 from app.ingestion.base import Attribution, CollectionResult, PokemonUsage, StatsSource
 from app.ingestion.gate import RequestGate
 from app.ingestion.normalize import normalize_rows
@@ -39,10 +40,11 @@ SOURCE_NAME: Final[str] = "championsbattledata"
 
 # ★ 라이선스가 요구하는 문구다 (CLAUDE.md 8-2). 임의로 바꾸지 않는다.
 #   통계가 표시되는 모든 화면에 이 표기와 링크가 함께 나가야 한다.
-ATTRIBUTION: Final[Attribution] = Attribution(
-    text="Battle data provided by Pokémon Champions Battle Data",
-    url="https://championsbattledata.com",
-)
+#
+# 정의는 `ingestion/attribution.py` 레지스트리에 있다. 표시 경로(저장소 →
+# 서비스 → API)는 `source` 문자열만 알고 이 모듈을 import 하지 않기 때문에,
+# 양쪽이 같은 출처를 가리키려면 정의가 한 곳에 있어야 한다.
+ATTRIBUTION: Final[Attribution] = attribution_registry.CHAMPIONSBATTLEDATA
 
 # API 가 최신 시즌을 가리킬 때 쓰는 별칭. 구체 시즌 이름이 아니다.
 CURRENT_SEASON_ALIAS: Final[str] = "Current"
