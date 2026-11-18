@@ -77,7 +77,7 @@ terraform plan
 | 단계 | 대상 | 확인할 것 |
 |---|---|---|
 | 1 | `network.tf`, `security_groups.tf` | 서브넷 4개, 보안그룹 4개 |
-| 2 | `ecr.tf` + ARM 이미지 push | `docker pull` 이 되는가 |
+| 2 | `ecr.tf` + ARM 이미지 push | 태그가 **git SHA** 인가 (`:latest` 를 쓰지 않는다) |
 | 3 | `data.tf` (RDS·ElastiCache) | 태스크에서 접속되는가 |
 | 4 | `iam.tf`, `secrets.tf` | SSM 값을 손으로 넣었는가 |
 | 5 | `dns.tf`, `alb.tf`, `ecs.tf` | `/health` 가 200 인가 |
@@ -121,10 +121,10 @@ terraform destroy
 | state 버킷 · 잠금 테이블 | `prevent_destroy`. 본체와 생애주기가 다르다 |
 | 도메인 등록 | Terraform 이 관리하지 않는다 |
 | RDS 최종 스냅샷 | `skip_final_snapshot = false` 면 남는다. **남으면 과금된다** |
-| ECR 이미지 | 리포지토리를 지우려면 `force_delete` 가 필요하다 |
+| ~~ECR 이미지~~ | `force_delete = true` 라 **지워진다**. git 에서 다시 빌드하면 된다 |
 | CloudWatch 로그 | 보존 기간이 지나야 사라진다 |
 
-`destroy` 후 **콘솔에서 RDS 스냅샷과 ECR 이미지를 직접 확인**한다. "지웠는데
+`destroy` 후 **콘솔에서 RDS 스냅샷을 직접 확인**한다. "지웠는데
 요금이 나온다"의 대부분이 여기서 나온다.
 
 ---
