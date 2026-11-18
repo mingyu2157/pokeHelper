@@ -9,7 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "generate:api": "openapi-typescript ${OPENAPI_SCHEMA:-../backend/openapi.json} -o src/types/api.ts",
-    "check:api": "npm run generate:api && git diff --exit-code -- src/types/api.ts"
+    "check:api": "openapi-typescript ${OPENAPI_SCHEMA:-../backend/openapi.json} -o /tmp/api.generated.ts && diff -u src/types/api.ts /tmp/api.generated.ts"
   },
   "dependencies": {
     "next": "16.3.6",
