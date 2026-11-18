@@ -1129,3 +1129,58 @@
   같은 실수를 이틀 연속 다른 모양으로 했다는 뜻이고, 그래서 이 단정은
   관례가 아니라 **필수**다.
 - 소요: 약 20분
+
+## 2026-11-19 — 운영 compose 의 DB 가 첫 기동에서 죽었다
+
+- 증상: `docker-compose.prod.yml` 을 처음 띄우자 DB 가 initdb 중에 종료되고
+  나머지가 전부 따라 죽었다.
+  ```
+  dependency failed to start: container pokehelper-prod-db-1 exited (1)
+  db-1 | /docker-entrypoint-initdb.d/init_roles.sh: SQL 파일이 없다: /app/sql/roles.sql
+  ```
+- 기대 동작: 개발 스택과 똑같이 최소 권한 계정 세 개(ADR-015)가 만들어지고
+  DB 가 healthy 가 돼야 한다.
+- 재현 절차:
+  ```bash
+  docker compose -f docker-compose.prod.yml down -v
+  docker compose -f docker-compose.prod.yml up -d --build
+  docker compose -f docker-compose.prod.yml logs db
+  ```
+- 원인: initdb 훅으로 `backend/scripts/init_roles.sh` 를 마운트했는데, 그건
+  **컨테이너 안에서 손으로 돌리는 용도**라 `/app/sql/roles.sql` 을 찾는다.
+  개발 compose 는 전용 훅(`backend/sql/initdb-roles.sh`)과 SQL 을 **따로**
+  마운트하고 있었고, 그 이유가 바로 위 줄 주석에 적혀 있었다 — SQL 을 initdb
+  디렉토리에 두면 엔트리포인트가 `-v` 변수 없이 한 번 더 실행해서 실패한다.
+  **이름이 비슷해서 스크립트만 보고 가져왔고, 옆의 주석을 읽지 않았다.**
+- 해결: 개발 compose 와 같은 두 줄을 그대로 쓴다. 비밀번호 환경변수
+  (`CHAMPS_*_PASSWORD`)도 같이 빠져 있었다.
+- 배운 것: ★ **파일을 쓰고 돌려보지 않았으면 몰랐다.** `docker-compose.prod.yml`
+  은 CLAUDE.md 3장에 **이름만 있고 존재하지 않던 파일**이고, 운영 이미지를
+  한 번도 돌려본 적이 없어 결함 두 개를 뒤늦게 발견한 것과 같은 종류다
+  (ADR-019 맥락). 설정 파일은 "작성했다"가 "동작한다"가 아니다.
+  그리고 **비슷한 이름의 스크립트를 복사할 때는 옆 주석을 먼저 읽는다** —
+  그 주석은 과거의 누군가가 같은 자리에서 넘어졌다는 표시다.
+- 소요: 약 15분
+
+## 2026-11-19 — ARM 빌드가 x86 보다 6~14배 느렸다
+
+- 결정: ARM(`linux/arm64`) 채택은 유지하되, **CI 에서 ARM 을 매번 빌드하지
+  않는다.** Dockerfile·의존성 파일이 바뀐 PR 과 주 1회 스케줄에만 돌린다.
+- 측정 (로컬, 캐시 없음):
+
+  | 이미지 | x86 | arm64 (QEMU) | 배율 |
+  |---|---|---|---|
+  | 백엔드 | 11.5초 | 2분 45초 | 14배 |
+  | 프론트 | 1분 10초 | 7분 47초 | 6.6배 |
+
+- 판단: ARM 으로 아끼는 돈은 월 $6.96 인데 PR 마다 9분이 더 든다. 매번 돌릴
+  값이 아니다. 그렇다고 아예 안 돌리면 배포 당일에 안다.
+- 범위를 좁힌 근거: **ARM 고유 실패는 베이스 이미지와 의존성에서만 나온다.**
+  aarch64 휠이 없는 패키지, 아키텍처별 바이너리가 원인이다. 애플리케이션
+  코드가 바뀐다고 ARM 에서만 깨지지 않는다.
+- ★ 빌드 성공만으로 끝내지 않았다. `docker image inspect --format
+  '{{.Architecture}}'` 로 **정말 arm64 인지** 단정한다. `--platform` 이
+  무시되거나 캐시가 섞이면 x86 이미지가 나오고, 그러면 "ARM 에서 빌드된다"를
+  검증했다고 믿으면서 아무것도 검증하지 않은 상태가 된다.
+- 남은 것: 네이티브 arm64 러너(`ubuntu-24.04-arm`)면 에뮬레이션이 사라진다.
+  퍼블릭 저장소면 무료다. 러너 가용성을 확인하지 않아 지금은 QEMU 다.
