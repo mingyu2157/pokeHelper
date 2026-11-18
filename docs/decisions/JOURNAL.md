@@ -978,3 +978,47 @@
   어기고 있을 때 **먼저 의심할 것은 코드가 아니라 문서**다 — 이번엔 문서가
   물리적으로 불가능한 것을 요구하고 있었다.
 - 소요: 약 40분
+
+## 2026-11-18 — 운영 이미지를 한 번도 띄워본 적이 없었다
+
+- 증상: 테스트 698개가 초록이고 CI 도 초록인데, **운영 이미지로는 마이그레이션을
+  돌릴 수 없는 상태**였다. 배포를 시작하려고 처음 띄워보고 알았다.
+  ```
+  $ docker run ... --target prod ...
+  [ERROR] Control server error: [Errno 13] Permission denied: '/home/appuser'
+  $ docker exec prodtest ls /app
+  app  data          # ← alembic 도 alembic.ini 도 scripts 도 없다
+  ```
+- 기대 동작: 운영 이미지는 배포 절차가 필요로 하는 것을 전부 들고 있어야 하고,
+  기동 로그가 깨끗해야 한다.
+- 재현 절차:
+  ```bash
+  docker build --target prod -t pokehelper-backend:prodtest ./backend
+  docker run --rm -d --name prodtest -p 8099:8000 pokehelper-backend:prodtest
+  docker logs prodtest | grep -i error
+  docker exec prodtest ls /app
+  docker rm -f prodtest
+  ```
+- 원인: 두 가지가 겹쳤다.
+  1. `Dockerfile` prod 스테이지에 **"Phase 2 에서 alembic 도입 시 아래 두 줄을
+     되살린다"** 는 주석과 주석 처리된 COPY 두 줄이 있었다. **Phase 2 가 끝났는데
+     주석은 그대로였다.** 미래의 나에게 남긴 메모는 알림이 아니다.
+  2. `adduser --no-create-home` 이라 `/home/appuser` 가 없는데, gunicorn 23 의
+     control server 가 거기에 쓰려고 한다. 서비스는 정상 동작해서 **응답만 보면
+     아무 문제가 없어 보인다.**
+
+  ★ 공통 원인은 하나다 — **단위·통합 테스트는 전부 dev 이미지에서 돈다.**
+  dev 는 소스를 마운트하고 개발 의존성을 포함한다. 그래서 운영 이미지에만
+  있는 결함은 어떤 테스트도 보지 않는다. "빌드 성공"도 못 잡는다 —
+  **빌드는 둘 다 성공했다.**
+- 해결: 이미지를 고치고, **CI 에 `prod-image` 잡을 추가**했다.
+  - `alembic` / `alembic.ini` / `scripts` 를 COPY 하고 홈 디렉토리를 만든다
+  - CI 가 운영 이미지를 빌드해 **띄우고, 헬스체크하고, 기동 로그에
+    `[ERROR]`·`Traceback`·`Permission denied` 가 없는지 본다**
+  - 배포에 필요한 파일 존재, 개발 의존성 미포함(`pytest` 없음), 비루트 실행도 단정
+  - 두 수정을 각각 되돌려 CI 검사가 실제로 잡는 것을 확인했다 (RED → GREEN)
+- 배운 것: **테스트가 도는 이미지와 배포되는 이미지가 다르면, 테스트는 배포에
+  대해 아무것도 말해주지 않는다.** 커버리지 90%도 운영 이미지의 빠진 파일을
+  잡지 못한다. 그리고 "나중에 되살린다"는 주석은 **아무도 알려주지 않는다** —
+  되살려야 할 조건을 아는 것은 주석이 아니라 테스트뿐이다.
+- 소요: 약 1시간

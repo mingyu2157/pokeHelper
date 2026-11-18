@@ -141,3 +141,81 @@ jobs:
 
       - name: build
         run: npm run build
+
+  # ──────────────────────────────────────────────────────────────────
+  # ★ 운영 이미지가 **실제로 뜨는가** ★
+  #
+  # 단위·통합 테스트는 전부 dev 이미지(소스 마운트, 개발 의존성 포함)에서 돈다.
+  # 그래서 **운영 이미지에만 있는 결함**을 아무도 보지 못한다. 실제로 두 개
+  # 있었다 (2026-11-18 실측):
+  #
+  #   1. prod 스테이지가 alembic 을 COPY 하지 않았다. "Phase 2 에서 되살린다"
+  #      는 주석만 남은 채 Phase 2 가 끝나 있었다. 이 이미지로는 스키마를
+  #      올릴 수 없고, 그건 **첫 배포에서** 터진다.
+  #   2. `--no-create-home` 때문에 gunicorn 이 부팅마다 Permission denied 를
+  #      남겼다. 서비스는 돌지만 평소에 에러가 쌓이면 진짜 문제를 못 가린다.
+  #
+  # 둘 다 "빌드 성공"으로는 안 잡힌다. **띄워서 로그를 봐야** 잡힌다.
+  prod-image:
+    name: prod 이미지 (빌드 + 기동)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: backend prod 이미지 빌드
+        run: docker build --target prod -t pokehelper-backend:ci ./backend
+
+      - name: frontend prod 이미지 빌드
+        run: docker build --target prod -t pokehelper-frontend:ci ./frontend
+
+      # 배포 절차가 이 이미지 안에서 돌아야 하는 것들이다. 빠지면 배포가
+      # 아니라 **배포 직전**에 막힌다.
+      - name: 배포에 필요한 것이 이미지에 들어 있는가
+        run: |
+          docker run --rm pokehelper-backend:ci sh -c '
+            set -e
+            test -d /app/alembic   || { echo "alembic 디렉토리가 없다 - 마이그레이션 불가"; exit 1; }
+            test -f /app/alembic.ini || { echo "alembic.ini 가 없다"; exit 1; }
+            test -d /app/data      || { echo "시드 데이터가 없다 - 계산 엔진이 읽는다"; exit 1; }
+            test -d /app/scripts   || { echo "scripts 가 없다 - 시드 적재 불가"; exit 1; }
+            echo "필요한 파일 전부 있음"
+          '
+
+      # ★ 개발 의존성이 운영 이미지에 새지 않았는가 ★
+      # pytest 가 들어 있으면 멀티스테이지가 깨진 것이다.
+      - name: 개발 의존성이 섞이지 않았는가
+        run: |
+          if docker run --rm pokehelper-backend:ci sh -c 'test -e /app/.venv/bin/pytest'; then
+            echo "운영 이미지에 pytest 가 있다 - deps 스테이지가 --no-dev 를 잃었다"
+            exit 1
+          fi
+          echo "개발 의존성 없음"
+
+      - name: 비루트로 도는가
+        run: |
+          user=$(docker run --rm pokehelper-backend:ci sh -c 'id -un')
+          test "$user" != "root" || { echo "root 로 돈다"; exit 1; }
+          echo "실행 사용자: $user"
+
+      # ★ 여기가 핵심이다 ★ 띄우고, 응답을 받고, **로그에 에러가 없는지** 본다.
+      # /health 는 DB 를 보지 않으므로(liveness) DB 없이 기동 검증이 된다.
+      - name: 기동 + 헬스체크 + 로그 검사
+        run: |
+          docker run -d --name prodsmoke -p 8000:8000 pokehelper-backend:ci
+          for i in $(seq 1 30); do
+            if curl -fs http://localhost:8000/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -fs http://localhost:8000/health | tee /dev/stderr | grep -q '"status":"ok"'
+
+          echo "--- 기동 로그 ---"
+          docker logs prodsmoke
+          if docker logs prodsmoke 2>&1 | grep -iE '\[ERROR\]|Traceback|Permission denied'; then
+            echo "::error::기동 로그에 에러가 있다. 평소에 에러가 쌓이면 진짜 문제를 구분할 수 없다"
+            exit 1
+          fi
+          echo "기동 로그 깨끗함"
+
+      - name: 정리
+        if: always()
+        run: docker rm -f prodsmoke || true
