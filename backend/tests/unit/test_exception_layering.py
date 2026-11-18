@@ -15,9 +15,10 @@ import 하게 된다. **규칙끼리 모순이었고, 코드가 옳았다.**
 모양이다: 선언한 것과 집행되는 것은 별개의 사실이다.)
 
 규칙:
-- 계층마다 베이스 예외를 하나 둔다 (`DomainError` / `IngestionError` / `ServiceError`)
-- 그 밖의 모든 예외는 셋 중 하나를 상속한다
-- 베이스 셋만 맨 `Exception` 을 상속한다
+- 계층마다 베이스 예외를 하나 둔다
+  (`DomainError` / `IngestionError` / `ServiceError` / `ConfigError`)
+- 그 밖의 모든 예외는 그중 하나를 상속한다
+- 베이스들만 맨 `Exception` 을 상속한다
 """
 
 from __future__ import annotations
@@ -29,18 +30,25 @@ from pathlib import Path
 import pytest
 
 import app as app_package
+from app.core.exceptions import ConfigError
 from app.domain.exceptions import DomainError
 from app.ingestion.exceptions import IngestionError
 from app.services.exceptions import ServiceError
 
 #: 계층 베이스. 이 셋만 맨 `Exception` 을 상속해도 된다.
-LAYER_BASES: tuple[type[Exception], ...] = (DomainError, IngestionError, ServiceError)
+LAYER_BASES: tuple[type[Exception], ...] = (
+    DomainError,
+    IngestionError,
+    ServiceError,
+    ConfigError,
+)
 
 #: 베이스가 사는 모듈. 각 계층이 예외를 **자급**한다는 규칙의 실체다.
 BASE_MODULES = {
     "app.domain.exceptions": DomainError,
     "app.ingestion.exceptions": IngestionError,
     "app.services.exceptions": ServiceError,
+    "app.core.exceptions": ConfigError,
 }
 
 

@@ -26,7 +26,15 @@ pytestmark = pytest.mark.db
 
 @pytest.fixture(scope="module")
 def client() -> TestClient:
-    return TestClient(app)
+    """★ 토큰이 설정돼 있으면 붙여서 보낸다 (ADR-019) ★
+
+    `/metrics` 는 토큰으로 막혀 있다. 토큰을 끄고 테스트하면 **인증이 붙어
+    있는지조차 보지 못하고**, 그 경로는 배포 전까지 한 번도 돌지 않는다.
+    토큰이 비어 있는 환경에서도 그대로 돌도록 조건부로 붙인다.
+    """
+    token = get_settings().metrics_token
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    return TestClient(app, headers=headers)
 
 
 @pytest.fixture(scope="module")

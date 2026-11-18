@@ -114,6 +114,11 @@ services:
       #   (JOURNAL 2026-11-17). 그래서 /opt 에 둔다.
       - ./infra/observability:/opt/observability:ro
     ports: ["8000:8000"]
+    environment:
+      # ★ /metrics 토큰 (ADR-019) ★ 로컬에서도 켜둔다. 꺼두면 인증 경로가
+      # 배포 전까지 한 번도 돌지 않고, 처음 도는 곳이 운영이 된다.
+      # 값은 prometheus 가 읽는 metrics_token 파일과 같아야 한다.
+      METRICS_TOKEN: ${METRICS_TOKEN:-dev-metrics-token}
     env_file:
       - path: .env
         required: false
@@ -260,6 +265,11 @@ services:
     volumes:
       - ./infra/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./infra/observability/prometheus/rules:/etc/prometheus/rules:ro
+      # ★ /metrics 토큰 (ADR-019) ★ 로컬 개발용 값이고 비밀이 아니다 —
+      # compose 의 devpassword 들과 같은 성격이다. 운영에서는 SSM 에서 온다.
+      # 로컬에서도 토큰을 켜두는 이유: 꺼두면 인증 경로가 배포 전까지
+      # 한 번도 돌지 않고, 처음 도는 곳이 운영이 된다.
+      - ./infra/observability/prometheus/metrics_token:/etc/prometheus/metrics_token:ro
       - prometheus-data:/prometheus
     ports: ["9090:9090"]
     healthcheck:
@@ -273,6 +283,12 @@ services:
     profiles: ["observability"]
     environment:
       # 로컬 전용이다. 운영에서는 절대 이렇게 두지 않는다 (ADR-016 포기한 것).
+      # ★ 로컬 기본값은 admin 이다. 의도한 것이다 ★
+      # 처음엔 `:?` 로 미설정 시 실패하게 했는데, compose 의 변수 보간은
+      # **파일 전체에서 한 번에** 일어나서 `docker compose exec backend ...`
+      # 같은 무관한 명령까지 전부 막혔다. 가드가 틀린 자리에 있었다.
+      # 운영 자격증명은 SSM 에서 주입한다 (ADR-019). 그 강제는 배포 경로에
+      # 두고, 로컬은 포트가 localhost 에만 열리므로 기본값으로 둔다.
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       # 익명 로그인을 켜지 않는다. 대시보드가 내부 경로별 지연을 보여준다.

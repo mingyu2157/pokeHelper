@@ -7,10 +7,10 @@ pokeHelper 의 테스트 설계를 표준 QA 용어로 정리한 문서다.
 미구현·미측정 항목은 숨기지 않고 그렇게 표시했다.
 
 - 측정 시점: **2026-11-18**
-- 테스트 함수: **619개** (`pytest.mark.parametrize` 전개 전 기준)
-  - 단위 433 / 통합 152 / 복구 리허설 33 / 시스템 1
+- 테스트 함수: **647개** (`pytest.mark.parametrize` 전개 전 기준)
+  - 단위 447 / 통합 166 / 복구 리허설 33 / 시스템 1
 - 마지막으로 기록된 실행 (파라미터화 전개 후, 2026-11-18)
-  - 기본 실행: **698 passed** (리허설 33 deselected)
+  - 기본 실행: **732 passed** (리허설 33 deselected)
   - 복구 리허설: **33 passed** — `pytest -m rehearsal`. 전용 컨테이너가 필요해
     기본 실행에서 제외돼 있다 ([ADR-014](adr/014-restore-rehearsal.md))
 
@@ -22,8 +22,8 @@ pokeHelper 의 테스트 설계를 표준 QA 용어로 정리한 문서다.
 
 | 레벨 | 위치 | 수 | 격리 범위 | 외부 의존 |
 |---|---|---|---|---|
-| **단위** | `tests/unit/` | 433 | 순수 함수 1개 ~ 모듈 1개 | 도메인 없음 / 수집 테스트 더블 |
-| **통합** | `tests/integration/` | 152 | 라우터↔스키마↔도메인, 서비스↔실제 DB, **DB 계정 권한**, **지표 노출·경보 참조** | Postgres |
+| **단위** | `tests/unit/` | 447 | 순수 함수 1개 ~ 모듈 1개 | 도메인 없음 / 수집 테스트 더블 |
+| **통합** | `tests/integration/` | 166 | 라우터↔스키마↔도메인, 서비스↔실제 DB, **DB 계정 권한**, **지표 노출·경보 참조** | Postgres |
 | **복구 리허설** | `tests/rehearsal/` | 33 | 백업·복구·계정 스크립트 ↔ 전용 Postgres (DROP·복구 포함) | Postgres (전용 컨테이너) |
 | **시스템** | `tests/test_health.py` | 1 | 앱 기동 + HTTP 계약 | 없음 |
 | **E2E** | — | **0** | — | — |
@@ -730,7 +730,7 @@ A/B 는 경계에서 ±1 어긋난다. 그리고 그 1이 결론을 뒤집는다
 ```
 사용자 요청
    │
-   ├─▶ domain 계산 ──────────▶ 수치   [결정론적 · 619개 테스트의 사정권]
+   ├─▶ domain 계산 ──────────▶ 수치   [결정론적 · 647개 테스트의 사정권]
    │       (데미지·스피드·상성)
    │
    └─▶ 계산 결과를 "사실 블록" JSON 으로 직렬화
@@ -819,6 +819,6 @@ Phase 4 에서 스키마를 만들 때 구현한다.
 
 - 계산 명세: [`CLAUDE.md`](../CLAUDE.md) 5장
 - 설계 결정 기록: [`docs/adr/`](adr/) — 18건
-- 문제 해결 일지: [`docs/decisions/JOURNAL.md`](decisions/JOURNAL.md) — 43건
+- 문제 해결 일지: [`docs/decisions/JOURNAL.md`](decisions/JOURNAL.md) — 45건
 - 장애 1차 대응: [`docs/RUNBOOK.md`](RUNBOOK.md) — 7개 시나리오 (검증 4 / 부분 2 / 미검증 1)
 - CI 설정: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)

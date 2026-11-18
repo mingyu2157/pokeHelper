@@ -19,6 +19,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import RateLimit
 from app.db.session import get_session
 from app.schemas.meta import (
     DEFAULT_ENTRY_LIMIT,
@@ -30,7 +31,12 @@ from app.schemas.meta import (
 from app.services import meta
 from app.services.exceptions import NotAvailableError
 
-router = APIRouter(prefix="/api/v1/meta", tags=["meta"])
+router = APIRouter(
+    prefix="/api/v1/meta",
+    tags=["meta"],
+    # 읽기 엔드포인트 기본 한도 (ADR-019).
+    dependencies=[Depends(RateLimit("read"))],
+)
 
 # 의존성·쿼리 선언을 Annotated 로 둔다. 기본값 자리에 함수 호출을 두면
 # ruff(B008)가 막는다 — 그 규칙이 옳다. 기본값은 모듈 로드 시 한 번만

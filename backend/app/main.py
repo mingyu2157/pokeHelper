@@ -3,20 +3,26 @@
 라우터는 얇게 유지한다. 계산 로직은 app/domain/, 유스케이스 조합은 app/services/ 에 둔다.
 """
 
-from fastapi import FastAPI, Response
+from fastapi import Depends, FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_fastapi_instrumentator import metrics as instrumentator_metrics
 
+from app.api.deps import require_metrics_token
 from app.api.v1.calc import router as calc_router
 from app.api.v1.health import router as health_router
 from app.api.v1.meta import router as meta_router
-from app.core.config import get_settings
+from app.core.config import assert_production_ready, get_settings
 from app.core.exceptions import register_handlers
 from app.services import observability
 
 settings = get_settings()
+
+# ★ 운영으로 뜨려는데 열려 있으면 기동을 거부한다 (ADR-019) ★
+# 경고 로그로 끝내면 아무도 안 본다. 배포 파이프라인이 멈춰야 사람이 본다.
+# 열린 채로 서비스되는 것보다 안 뜨는 게 낫다.
+assert_production_ready(settings)
 
 app = FastAPI(
     title="pokeHelper API",
@@ -66,7 +72,11 @@ Instrumentator(excluded_handlers=["/metrics"]).add(
 ).instrument(app)
 
 
-@app.get("/metrics", include_in_schema=False)
+@app.get(
+    "/metrics",
+    include_in_schema=False,
+    dependencies=[Depends(require_metrics_token)],
+)
 async def metrics() -> Response:
     await observability.refresh_if_stale()
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
