@@ -68,10 +68,20 @@ ENV PATH="/app/.venv/bin:$PATH"
 COPY ./app ./app
 # 시드 데이터(타입 상성표, 기술 수치, 한영 매핑). 계산 엔진이 읽으므로 운영 이미지에 필수.
 COPY ./data ./data
-# Phase 2 에서 alembic 도입 시 아래 두 줄을 되살린다.
-# COPY ./alembic ./alembic
-# COPY alembic.ini .
-RUN adduser --disabled-password --no-create-home appuser && chown -R appuser /app
+# ★ 마이그레이션을 운영 이미지가 들고 있어야 한다 ★
+# 배포 환경에서 스키마를 올리는 주체가 이 이미지다 (ECS 의 일회성 태스크 등).
+# 빠뜨리면 "이미지는 뜨는데 스키마가 없다" 가 되고, 그건 첫 배포에서 터진다.
+# 실제로 "Phase 2 에서 되살린다" 는 주석만 남은 채 Phase 2 가 끝나 있었다.
+COPY ./alembic ./alembic
+COPY alembic.ini .
+# 시드 적재 스크립트. 빈 DB 에 마스터 데이터를 넣는 것도 배포 절차의 일부다.
+COPY ./scripts ./scripts
+# ★ 홈 디렉토리를 만든다 ★
+# `--no-create-home` 이면 gunicorn 23 의 control server 가 부팅마다
+#   [ERROR] Control server error: [Errno 13] Permission denied: '/home/appuser'
+# 를 남긴다. 서비스는 돌지만 **평소에 에러가 쌓이면 진짜 문제를 로그에서
+# 구분할 수 없다.** 익스포터 WAL 콜렉터 건과 같은 종류다 (JOURNAL 2026-11-17).
+RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /app /home/appuser
 USER appuser
 EXPOSE 8000
 CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", \

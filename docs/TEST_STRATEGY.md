@@ -809,6 +809,7 @@ Phase 4 에서 스키마를 만들 때 구현한다.
 | CI 의 계정 분리 단계 | **통과 확인 (2026-11-18)** — 러너 `psql` 전제가 맞았다. CI 도 `champs_app`/`champs_migrate` 로 돈다 | — (ADR-015 결과) |
 | 복구 리허설 CI 실행 | **없음** — 로컬에서 손으로 돌린다. 자동으로 회귀를 막지 못한다 | 러너에서 compose 프로필 기동 |
 | 깨끗한 DB 실행 | **로컬에 자동 장치가 없다.** 개발 DB 에 남은 데이터에 기대는 테스트를 로컬에서 잡지 못한다 (실제로 CI 를 깼다, JOURNAL 2026-11-18) | 임시 DB 로 돌리는 스크립트 |
+| 운영 이미지 | **CI 가 빌드·기동·로그까지 본다** (2026-11-18 추가). 다만 DB 를 붙인 상태의 기동은 아직 안 본다 — `/health` 는 liveness 라 DB 없이 통과한다 | 배포 시 readiness 추가 |
 | ROLE(계정) 백업 | **없음** — `pg_dump` 에 계정이 안 들어간다. 빈 서버 완전 복구 불가 | `pg_dumpall --roles-only` (계정 분리 작업) |
 | 운영 백업 전략 | 리허설이 증명하는 것은 **논리 백업의 왕복**뿐. 배포 대상 미결 | ADR-001 배포 결정 후 |
 
@@ -818,6 +819,6 @@ Phase 4 에서 스키마를 만들 때 구현한다.
 
 - 계산 명세: [`CLAUDE.md`](../CLAUDE.md) 5장
 - 설계 결정 기록: [`docs/adr/`](adr/) — 18건
-- 문제 해결 일지: [`docs/decisions/JOURNAL.md`](decisions/JOURNAL.md) — 42건
+- 문제 해결 일지: [`docs/decisions/JOURNAL.md`](decisions/JOURNAL.md) — 43건
 - 장애 1차 대응: [`docs/RUNBOOK.md`](RUNBOOK.md) — 7개 시나리오 (검증 4 / 부분 2 / 미검증 1)
 - CI 설정: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
