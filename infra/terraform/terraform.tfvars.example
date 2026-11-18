@@ -1,0 +1,15 @@
+# `cp terraform.tfvars.example terraform.tfvars` 후 채운다.
+# terraform.tfvars 는 커밋하지 않는다(.gitignore 의 *.tfvars).
+
+# 콘솔에서 등록한 도메인과 그때 생긴 퍼블릭 호스팅 존 ID.
+# ★ 도메인 등록은 Terraform 으로 하지 않는다 — 1년 약정이고 destroy 로
+#   되돌릴 수 없으며, 등록자 연락처(개인정보)를 넣어야 한다.
+domain_name    = "example.com"
+hosted_zone_id = "Z00000000000000000000"
+
+# 청구 알람 수신 주소. apply 후 구독 확인 메일이 한 번 온다.
+alarm_email = "you@example.com"
+
+# 기본값으로 충분하지만 바꾸려면:
+# region             = "ap-northeast-2"
+# monthly_budget_usd = 150
