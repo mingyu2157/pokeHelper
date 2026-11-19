@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
@@ -33,6 +34,32 @@ from app.core.config import get_settings
 pytestmark = pytest.mark.db
 
 PROBE_TABLE = "zz_privilege_probe"
+
+# ★ 컨테이너와 CI 의 경로가 다르다 ★
+#
+# compose 는 저장소를 `/app` 에 마운트하지만, CI 는 러너의 체크아웃 디렉토리에서
+# 돈다. `/app` 을 기본값으로 박아두면 **CI 에서만** 파일을 못 찾는다.
+#
+# `ROLES_SQL` 환경변수는 믿을 수 없다 — CI 는 그것을 "DB 계정 생성" 단계에만
+# 두고 pytest 단계에는 두지 않는다 (부트스트랩 자격증명을 모든 단계가 들고
+# 돌지 않게 하려는 의도다, ci.yml 참조). 그래서 **후보 경로로 찾는다.**
+# test_alert_rules.py·test_terraform_security_groups.py 와 같은 방식이다.
+_ROLES_SQL_CANDIDATES = (
+    Path("/app/sql/roles.sql"),
+    Path(__file__).resolve().parents[2] / "sql" / "roles.sql",
+)
+
+
+def roles_sql_path() -> Path:
+    override = os.environ.get("ROLES_SQL")
+    candidates = (Path(override), *_ROLES_SQL_CANDIDATES) if override else _ROLES_SQL_CANDIDATES
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    # 건너뛰지 않는다. 파일을 못 찾으면 검증이 통째로 사라지는데, 그건
+    # "통과"가 아니라 "검증하지 않음"이다.
+    pytest.fail(f"roles.sql 을 찾을 수 없다. 찾은 곳: {[str(c) for c in candidates]}")
+
 
 ACCOUNTS = ("champs_migrate", "champs_app", "champs_read")
 
@@ -406,7 +433,7 @@ class TestTheScriptRunsWithoutSuperuser:
             "-v",
             f"read_password={_password('champs_read')}",
             "-f",
-            os.environ.get("ROLES_SQL", "/app/sql/roles.sql"),
+            str(roles_sql_path()),
         ]
         result = subprocess.run(
             command,

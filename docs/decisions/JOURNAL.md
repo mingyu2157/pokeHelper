@@ -1240,3 +1240,44 @@
   같은 계정으로 돌려야 권한 때문에 운영에서만 깨지는 상황을 CI 가 잡는다."
   그 원칙이 **부트스트랩 계정에는 적용되지 않고 있었다.**
 - 소요: 약 70분
+
+## 2026-11-19 — 같은 경로 문제를 세 번째로 냈다
+
+- 증상: PR 에서 CI 만 빨갛다. 로컬 743개는 전부 통과한다.
+  ```
+  FAILED tests/integration/test_db_privileges.py::
+         TestTheScriptRunsWithoutSuperuser::test_roles_sql_succeeds_without_superuser
+  psql: error: /app/sql/roles.sql: No such file or directory
+  ```
+- 기대 동작: 테스트가 컨테이너에서도 CI 러너에서도 `roles.sql` 을 찾아야 한다.
+- 재현 절차:
+  ```bash
+  # 컨테이너 밖(= CI 와 같은 상황)에서 후보 경로를 확인한다
+  python -c "
+  from pathlib import Path
+  f = Path('backend/tests/integration/test_db_privileges.py').resolve()
+  for c in [Path('/app/sql/roles.sql'), f.parents[2]/'sql'/'roles.sql']:
+      print(('O' if c.is_file() else 'X'), c)"
+  ```
+- 원인: 기본값에 `/app/sql/roles.sql` 을 박았다. compose 는 저장소를 `/app` 에
+  마운트하지만 **CI 러너에는 `/app` 이 없다.** `ROLES_SQL` 환경변수를 쓰도록
+  했지만, CI 는 그것을 "DB 계정 생성" 단계에만 두고 pytest 단계에는 두지
+  않는다 — 부트스트랩 자격증명을 모든 단계가 들고 돌지 않게 하려는 **의도된**
+  설정이다 (ci.yml 주석).
+- 해결: 후보 경로 목록으로 찾는다. 못 찾으면 건너뛰지 않고 `pytest.fail` 한다.
+  ```python
+  _ROLES_SQL_CANDIDATES = (
+      Path("/app/sql/roles.sql"),                                  # 컨테이너
+      Path(__file__).resolve().parents[2] / "sql" / "roles.sql",   # CI
+  )
+  ```
+- 배운 것: ★ **같은 해법을 두 번 쓰고도 세 번째에 적용하지 않았다.**
+  `test_alert_rules.py` 가 `/opt/observability` 와 저장소 경로를 후보로 두고,
+  `test_terraform_security_groups.py` 가 `/opt/terraform` 으로 같은 일을 한다.
+  둘 다 내가 쓴 것인데 세 번째에서 기본값을 박았다. **패턴을 아는 것과 그
+  패턴을 쓰는 것은 다르다.**
+  그리고 **로컬 전체 통과는 CI 통과가 아니다** — 컨테이너에 있는 경로가
+  러너에는 없다. 경로를 문자열로 박는 순간 환경 의존이 생긴다.
+- 남은 것: 세 파일이 각자 후보 목록을 들고 있다. 공용 헬퍼로 모으면 네 번째를
+  막을 수 있다. 이번 PR 범위 밖이라 하지 않았다.
+- 소요: 약 10분
