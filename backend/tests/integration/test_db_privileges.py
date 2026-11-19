@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
@@ -33,6 +34,32 @@ from app.core.config import get_settings
 pytestmark = pytest.mark.db
 
 PROBE_TABLE = "zz_privilege_probe"
+
+# ★ 컨테이너와 CI 의 경로가 다르다 ★
+#
+# compose 는 저장소를 `/app` 에 마운트하지만, CI 는 러너의 체크아웃 디렉토리에서
+# 돈다. `/app` 을 기본값으로 박아두면 **CI 에서만** 파일을 못 찾는다.
+#
+# `ROLES_SQL` 환경변수는 믿을 수 없다 — CI 는 그것을 "DB 계정 생성" 단계에만
+# 두고 pytest 단계에는 두지 않는다 (부트스트랩 자격증명을 모든 단계가 들고
+# 돌지 않게 하려는 의도다, ci.yml 참조). 그래서 **후보 경로로 찾는다.**
+# test_alert_rules.py·test_terraform_security_groups.py 와 같은 방식이다.
+_ROLES_SQL_CANDIDATES = (
+    Path("/app/sql/roles.sql"),
+    Path(__file__).resolve().parents[2] / "sql" / "roles.sql",
+)
+
+
+def roles_sql_path() -> Path:
+    override = os.environ.get("ROLES_SQL")
+    candidates = (Path(override), *_ROLES_SQL_CANDIDATES) if override else _ROLES_SQL_CANDIDATES
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    # 건너뛰지 않는다. 파일을 못 찾으면 검증이 통째로 사라지는데, 그건
+    # "통과"가 아니라 "검증하지 않음"이다.
+    pytest.fail(f"roles.sql 을 찾을 수 없다. 찾은 곳: {[str(c) for c in candidates]}")
+
 
 ACCOUNTS = ("champs_migrate", "champs_app", "champs_read")
 
@@ -338,3 +365,99 @@ class TestRuntimeConfiguration:
             f"설정된 앱 계정 {user!r} 이 테이블을 만들 수 있다. "
             "DATABASE_URL 이 DDL 권한을 가진 계정을 가리킨다 (.env.example 참조)."
         )
+
+
+class TestTheScriptRunsWithoutSuperuser:
+    """★ RDS 마스터 사용자는 슈퍼유저가 아니다 (JOURNAL 2026-11-19).
+
+    `roles.sql` 은 오랫동안 슈퍼유저로만 실행돼 왔다 — 로컬 compose 의
+    부트스트랩 계정이 슈퍼유저이기 때문이다. 그래서 **슈퍼유저만 할 수 있는
+    구문이 섞여 들어가도 아무도 몰랐다.** 실제로 셋이 섞여 있었다:
+
+        ALTER ROLE ... NOSUPERUSER        → 슈퍼유저만 가능
+        GRANT pg_read_all_data            → ADMIN 옵션 필요
+        ALTER DEFAULT PRIVILEGES FOR ROLE → 그 역할의 USAGE 멤버십 필요
+
+    셋 다 **첫 배포에서 처음 드러났을** 것이고, 세 번째는 더 나쁘다 —
+    배포 당일에는 멀쩡하고 **다음 마이그레이션에서** 앱이 테이블을 못 읽는다.
+
+    그래서 로컬도 비슈퍼유저(`champs_master`)로 돌리도록 바꿨고, 이 클래스가
+    그 사실을 지킨다. `roles.sql` 이 멱등하기 때문에 다시 돌려도 안전하다.
+    """
+
+    MASTER = "champs_master"
+
+    def _master_password(self) -> str:
+        return os.environ.get("CHAMPS_MASTER_PASSWORD") or "devmaster"
+
+    def test_the_master_role_is_not_a_superuser(self):
+        """★ 전제 선행 단정 — 이게 깨지면 아래 테스트가 **아무것도 증명하지 않는다**.
+
+        `champs_master` 가 어쩌다 슈퍼유저가 되면 "비슈퍼유저로 돌려봤다"는
+        초록인 채로 거짓이 된다. 검사 대상의 성질을 먼저 못 박는다
+        (TEST_STRATEGY 3-9).
+        """
+        result = sql_as(
+            self.MASTER,
+            self._master_password(),
+            "SELECT rolsuper, rolcreaterole FROM pg_roles WHERE rolname = CURRENT_USER",
+        )
+        assert result.returncode == 0, f"{self.MASTER} 로 접속하지 못했다: {result.stderr}"
+        assert "f" in result.stdout, f"champs_master 가 슈퍼유저다: {result.stdout!r}"
+        assert "t" in result.stdout, f"champs_master 에 CREATEROLE 이 없다: {result.stdout!r}"
+
+    def test_roles_sql_succeeds_without_superuser(self):
+        """`roles.sql` 을 **비슈퍼유저로** 다시 실행한다. RDS 가 하는 일과 같다.
+
+        멱등하므로 같은 비밀번호를 그대로 넘기면 상태가 바뀌지 않는다.
+        비밀번호를 바꿔 넘기면 **뒤따르는 테스트가 전부 깨지므로** 반드시
+        `_password()` 가 주는 값을 쓴다.
+        """
+        host, port, dbname = _target()
+        command = [
+            "psql",
+            "--no-psqlrc",
+            "--set=ON_ERROR_STOP=1",
+            "-h",
+            host,
+            "-p",
+            port,
+            "-U",
+            self.MASTER,
+            "-d",
+            dbname,
+            "-v",
+            f"migrate_password={_password('champs_migrate')}",
+            "-v",
+            f"app_password={_password('champs_app')}",
+            "-v",
+            f"read_password={_password('champs_read')}",
+            "-f",
+            str(roles_sql_path()),
+        ]
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PGPASSWORD": self._master_password()},
+        )
+        assert result.returncode == 0, (
+            "roles.sql 이 비슈퍼유저로 실패했다 — RDS 에서도 실패한다는 뜻이다.\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+
+    def test_the_master_cannot_do_what_only_a_superuser_can(self):
+        """차등 단정 — 흉내가 아니라 **실제로 제약이 걸려 있는지** 본다.
+
+        `champs_master` 가 슈퍼유저 전용 연산을 할 수 있다면 위 테스트가
+        RDS 조건을 재현하지 못한 것이다.
+        """
+        result = sql_as(
+            self.MASTER,
+            self._master_password(),
+            "ALTER ROLE champs_app WITH NOSUPERUSER",
+        )
+        assert result.returncode != 0, (
+            "champs_master 가 SUPERUSER 속성을 바꿀 수 있다. RDS 조건이 재현되지 않았다"
+        )
+        assert "superuser" in result.stderr.lower(), result.stderr

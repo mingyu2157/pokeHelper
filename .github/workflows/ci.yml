@@ -84,6 +84,10 @@ jobs:
         run: bash scripts/init_roles.sh
         env:
           ROLES_SQL: sql/roles.sql
+          MASTER_ROLE_SQL: sql/master-role.sql
+          # champs_master 는 RDS 마스터에 대응하는 비슈퍼유저 역할이다.
+          # roles.sql 은 이 역할로 돈다 — CI 도 RDS 와 같은 조건을 탄다.
+          CHAMPS_MASTER_PASSWORD: devmaster
           # ★ 부트스트랩 자격증명은 이 단계에만 둔다 ★
           # 잡 레벨 env 에 두면 pytest 를 포함한 **모든 단계**가 슈퍼유저
           # 자격증명을 환경에 들고 돈다. 스크립트들이 PG* 를 기본값보다

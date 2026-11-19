@@ -48,11 +48,64 @@ ALTER ROLE champs_migrate WITH LOGIN PASSWORD :'migrate_password';
 ALTER ROLE champs_app     WITH LOGIN PASSWORD :'app_password';
 ALTER ROLE champs_read    WITH LOGIN PASSWORD :'read_password';
 
--- 세 역할 모두 클러스터 차원의 특권을 갖지 않는다. 기본값이지만 명시한다 —
--- 누가 수동으로 올려놨다면 이 스크립트가 되돌린다.
-ALTER ROLE champs_migrate WITH NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-ALTER ROLE champs_app     WITH NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-ALTER ROLE champs_read    WITH NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+-- 세 역할 모두 클러스터 차원의 특권을 갖지 않는다. 기본값이지만 명시한다.
+--
+-- ★ 슈퍼유저냐 아니냐로 동작이 갈린다 ★
+--
+-- `ALTER ROLE ... NOSUPERUSER` 는 **슈퍼유저만** 실행할 수 있다
+-- (`NOREPLICATION`·`NOBYPASSRLS` 도 같다). 그런데 RDS 의 마스터 사용자는
+-- 슈퍼유저가 아니다. 예전 버전은 이 세 줄 때문에 RDS 에서 통째로 실패했다
+-- (JOURNAL 2026-11-19).
+--
+-- 그래서 **강제할 수 있으면 강제하고, 없으면 검증한다.** 검증에서 걸리면
+-- 조용히 넘어가지 않고 실패한다 — "특권이 붙은 줄 모르고 서비스하는 것"이
+-- 이 블록이 막으려던 바로 그 상태이기 때문이다.
+DO $do$
+DECLARE
+    target   text;
+    offender text[] := '{}';
+    is_super boolean;
+BEGIN
+    SELECT rolsuper INTO is_super FROM pg_roles WHERE rolname = CURRENT_USER;
+
+    FOREACH target IN ARRAY ARRAY['champs_migrate', 'champs_app', 'champs_read'] LOOP
+        IF is_super THEN
+            EXECUTE format(
+                'ALTER ROLE %I WITH NOSUPERUSER NOCREATEDB NOCREATEROLE '
+                'NOREPLICATION NOBYPASSRLS', target);
+        ELSIF EXISTS (
+            SELECT 1 FROM pg_roles
+             WHERE rolname = target
+               AND (rolsuper OR rolcreatedb OR rolcreaterole
+                    OR rolreplication OR rolbypassrls)
+        ) THEN
+            offender := offender || target;
+        END IF;
+    END LOOP;
+
+    IF array_length(offender, 1) IS NOT NULL THEN
+        RAISE EXCEPTION
+            '[roles.sql] 클러스터 특권이 붙은 역할: %. 슈퍼유저로 접속해 되돌려야 한다 '
+            '(현재 사용자 % 는 슈퍼유저가 아니라 고칠 수 없다)', offender, CURRENT_USER;
+    END IF;
+END
+$do$;
+
+-- ★ 이 스크립트를 돌리는 역할이 champs_migrate 의 **멤버**여야 한다 ★
+--
+-- 아래 5장의 `ALTER DEFAULT PRIVILEGES FOR ROLE champs_migrate` 가 그 역할에
+-- 대한 USAGE 멤버십을 요구한다. 슈퍼유저는 모든 역할을 암묵적으로 가지므로
+-- 문제가 없지만, RDS 마스터처럼 CREATEROLE 만 있는 역할은 다르다 —
+-- PG16 은 CREATEROLE 역할이 만든 역할에 **ADMIN 은 주되 INHERIT 는 끈 채로**
+-- 멤버십을 준다. 그래서 "내가 만든 역할인데 기본 권한을 못 바꾸는" 상태가 된다.
+DO $do$
+BEGIN
+    IF NOT pg_has_role(CURRENT_USER, 'champs_migrate', 'USAGE') THEN
+        EXECUTE 'GRANT champs_migrate TO CURRENT_USER WITH INHERIT TRUE';
+        RAISE NOTICE '[roles.sql] % 에게 champs_migrate 멤버십(INHERIT) 부여', CURRENT_USER;
+    END IF;
+END
+$do$;
 
 -- ---------------------------------------------------------------------------
 -- 2. 데이터베이스·스키마 접근
@@ -110,7 +163,29 @@ GRANT USAGE, SELECT                  ON ALL SEQUENCES IN SCHEMA public TO champs
 -- 읽기 전용: pg_read_all_data (PG14+) 는 **미래 테이블까지** 자동으로 포함한다.
 -- `GRANT SELECT ON ALL TABLES` 는 실행 시점의 테이블만 잡아서, 다음 마이그레이션
 -- 뒤에 조용히 구멍이 생긴다.
-GRANT pg_read_all_data TO champs_read;
+--
+-- ★ 다만 미리 정의된 역할을 부여하려면 그 역할에 대한 ADMIN 옵션이 필요하다.
+--   슈퍼유저와 `rds_superuser` 멤버는 갖고 있지만, 평범한 CREATEROLE 역할은
+--   갖고 있지 않다. 못 받는 환경에서는 **기본 권한으로 대체**한다 —
+--   champs_migrate 가 만드는 테이블에 한해 같은 보장을 준다.
+--   (대체 경로는 **다른 역할이 만든 테이블을 놓친다.** 우리는 alembic 이
+--    champs_migrate 로만 DDL 을 돌리므로 성립하지만, 전제가 깨지면 구멍이 된다.)
+DO $do$
+BEGIN
+    EXECUTE 'GRANT pg_read_all_data TO champs_read';
+    RAISE NOTICE '[roles.sql] champs_read: pg_read_all_data (미래 테이블 자동 포함)';
+EXCEPTION WHEN insufficient_privilege THEN
+    RAISE WARNING
+        '[roles.sql] pg_read_all_data 를 줄 수 없다 (% 에게 ADMIN 옵션이 없다). '
+        '기본 권한으로 대체한다 — champs_migrate 가 만든 테이블만 포함된다.', CURRENT_USER;
+    EXECUTE 'GRANT SELECT ON ALL TABLES    IN SCHEMA public TO champs_read';
+    EXECUTE 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO champs_read';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE champs_migrate IN SCHEMA public '
+            'GRANT SELECT ON TABLES TO champs_read';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE champs_migrate IN SCHEMA public '
+            'GRANT SELECT ON SEQUENCES TO champs_read';
+END
+$do$;
 
 -- ---------------------------------------------------------------------------
 -- 5. ★ 미래에 만들어질 객체에 대한 권한

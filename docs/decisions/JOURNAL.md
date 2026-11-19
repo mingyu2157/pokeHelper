@@ -1184,3 +1184,100 @@
   검증했다고 믿으면서 아무것도 검증하지 않은 상태가 된다.
 - 남은 것: 네이티브 arm64 러너(`ubuntu-24.04-arm`)면 에뮬레이션이 사라진다.
   퍼블릭 저장소면 무료다. 러너 가용성을 확인하지 않아 지금은 QEMU 다.
+
+## 2026-11-19 — roles.sql 이 RDS 에서는 통째로 실패했을 것이다
+
+- 증상: 배포를 앞두고 `backend/sql/roles.sql` 을 **슈퍼유저가 아닌 계정**으로
+  돌려봤더니 세 군데에서 거부당했다. 로컬에서는 한 번도 본 적 없는 오류다.
+  ```
+  ERROR:  permission denied to alter role
+  DETAIL:  Only roles with the SUPERUSER attribute may change the SUPERUSER attribute.
+  ERROR:  permission denied to grant role "pg_read_all_data"
+  ERROR:  permission denied to change default privileges
+  ```
+- 기대 동작: ADR-015 의 계정 분리가 **RDS 에서도** 그대로 서야 한다.
+  RDS 마스터 사용자는 슈퍼유저가 아니므로, roles.sql 은 슈퍼유저 없이 돌아야 한다.
+- 재현 절차:
+  ```bash
+  docker rm -f rdsim 2>/dev/null
+  docker run -d --name rdsim -e POSTGRES_PASSWORD=boot postgres:16-alpine
+  docker exec -i rdsim psql -U postgres <<'SQL'
+  CREATE ROLE rdsmaster LOGIN PASSWORD 'm' CREATEROLE CREATEDB NOSUPERUSER;
+  CREATE DATABASE champsrds OWNER rdsmaster;
+  SQL
+  docker cp backend/sql/roles.sql rdsim:/tmp/roles.sql
+  docker exec -e PGPASSWORD=m rdsim psql -U rdsmaster -h 127.0.0.1 -d champsrds \
+    -v migrate_password=m1 -v app_password=a1 -v read_password=r1 -f /tmp/roles.sql
+  ```
+- 원인: 세 가지가 각각 슈퍼유저 전용이었다.
+  1. `ALTER ROLE ... NOSUPERUSER NOREPLICATION NOBYPASSRLS` — 이 세 속성은
+     **슈퍼유저만** 바꿀 수 있다. 값이 이미 꺼져 있어도 마찬가지다.
+  2. `GRANT pg_read_all_data TO champs_read` — 미리 정의된 역할을 부여하려면
+     그 역할에 대한 **ADMIN 옵션**이 필요하다.
+  3. ★ `ALTER DEFAULT PRIVILEGES FOR ROLE champs_migrate` — 그 역할에 대한
+     **USAGE 멤버십**이 필요하다. PG16 은 CREATEROLE 역할이 만든 역할에 대해
+     **ADMIN 은 주되 INHERIT 는 끈 채로** 멤버십을 준다. 그래서 "내가 만든
+     역할인데 그 역할의 기본 권한을 못 바꾸는" 상태가 된다.
+- 해결:
+  - 1번은 **강제할 수 있으면 강제하고, 없으면 검증**한다. 검증에서 특권이
+    발견되면 조용히 넘어가지 않고 `RAISE EXCEPTION` 으로 멈춘다.
+  - 3번은 앞에 `GRANT champs_migrate TO CURRENT_USER WITH INHERIT TRUE` 를
+    조건부로 넣는다.
+  - 2번은 **대체 경로**를 둔다. 못 받으면 `GRANT SELECT ON ALL ...` +
+    `ALTER DEFAULT PRIVILEGES ... TO champs_read` 로 같은 보장을 만든다.
+    대체 경로는 champs_migrate 가 만든 테이블만 덮으므로 WARNING 을 남긴다.
+  - ★ 그리고 **로컬도 비슈퍼유저로 통일**했다. `master-role.sql` 이
+    `champs_master`(NOSUPERUSER CREATEROLE CREATEDB)를 만들고, roles.sql 은
+    그 역할로 돈다. 로컬·CI·RDS 가 같은 경로를 탄다.
+- ★ 3번이 가장 위험했다. **배포 당일에는 멀쩡히 돌고**, 기존 테이블에는 권한이
+  있으니 아무 증상이 없다. **다음 마이그레이션이 만든 테이블부터** 앱이 못
+  읽는다. 시차 때문에 원인을 마이그레이션에서 찾게 된다 — 정작 원인은 몇 주 전
+  배포다. 그 블록의 주석이 "이 파일에서 가장 틀리기 쉬운 부분"이라고 적어두고
+  있었는데, 정말 그랬다.
+- 배운 것: ★ **"로컬에서 된다"는 로컬의 권한으로 된다는 뜻이다.** 로컬
+  부트스트랩 계정이 슈퍼유저라서, 슈퍼유저 전용 구문이 섞여도 아무도 몰랐다.
+  ci.yml 이 DB 계정에 대해 같은 원칙을 이미 적어두고 있었다 — "CI 도 로컬과
+  같은 계정으로 돌려야 권한 때문에 운영에서만 깨지는 상황을 CI 가 잡는다."
+  그 원칙이 **부트스트랩 계정에는 적용되지 않고 있었다.**
+- 소요: 약 70분
+
+## 2026-11-19 — 같은 경로 문제를 세 번째로 냈다
+
+- 증상: PR 에서 CI 만 빨갛다. 로컬 743개는 전부 통과한다.
+  ```
+  FAILED tests/integration/test_db_privileges.py::
+         TestTheScriptRunsWithoutSuperuser::test_roles_sql_succeeds_without_superuser
+  psql: error: /app/sql/roles.sql: No such file or directory
+  ```
+- 기대 동작: 테스트가 컨테이너에서도 CI 러너에서도 `roles.sql` 을 찾아야 한다.
+- 재현 절차:
+  ```bash
+  # 컨테이너 밖(= CI 와 같은 상황)에서 후보 경로를 확인한다
+  python -c "
+  from pathlib import Path
+  f = Path('backend/tests/integration/test_db_privileges.py').resolve()
+  for c in [Path('/app/sql/roles.sql'), f.parents[2]/'sql'/'roles.sql']:
+      print(('O' if c.is_file() else 'X'), c)"
+  ```
+- 원인: 기본값에 `/app/sql/roles.sql` 을 박았다. compose 는 저장소를 `/app` 에
+  마운트하지만 **CI 러너에는 `/app` 이 없다.** `ROLES_SQL` 환경변수를 쓰도록
+  했지만, CI 는 그것을 "DB 계정 생성" 단계에만 두고 pytest 단계에는 두지
+  않는다 — 부트스트랩 자격증명을 모든 단계가 들고 돌지 않게 하려는 **의도된**
+  설정이다 (ci.yml 주석).
+- 해결: 후보 경로 목록으로 찾는다. 못 찾으면 건너뛰지 않고 `pytest.fail` 한다.
+  ```python
+  _ROLES_SQL_CANDIDATES = (
+      Path("/app/sql/roles.sql"),                                  # 컨테이너
+      Path(__file__).resolve().parents[2] / "sql" / "roles.sql",   # CI
+  )
+  ```
+- 배운 것: ★ **같은 해법을 두 번 쓰고도 세 번째에 적용하지 않았다.**
+  `test_alert_rules.py` 가 `/opt/observability` 와 저장소 경로를 후보로 두고,
+  `test_terraform_security_groups.py` 가 `/opt/terraform` 으로 같은 일을 한다.
+  둘 다 내가 쓴 것인데 세 번째에서 기본값을 박았다. **패턴을 아는 것과 그
+  패턴을 쓰는 것은 다르다.**
+  그리고 **로컬 전체 통과는 CI 통과가 아니다** — 컨테이너에 있는 경로가
+  러너에는 없다. 경로를 문자열로 박는 순간 환경 의존이 생긴다.
+- 남은 것: 세 파일이 각자 후보 목록을 들고 있다. 공용 헬퍼로 모으면 네 번째를
+  막을 수 있다. 이번 PR 범위 밖이라 하지 않았다.
+- 소요: 약 10분

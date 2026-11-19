@@ -222,3 +222,54 @@ DATABASE_URL=postgresql+asyncpg://champs:devpassword@db:5432/champs
 **분리가 실제 사고를 막았는지는 모른다.** 사고가 없었기 때문이다.
 막은 것으로 확인된 건 위의 익스포터 건 하나이고, 그건 사고가 아니라
 **권한을 넓히려는 압력**이었다. 운영 트래픽을 받기 전까지 이 항목은 비어 있다.
+
+### ★ 원칙이 부트스트랩 계정에는 적용되지 않고 있었다 (2026-11-19)
+
+배포를 앞두고 `roles.sql` 을 **슈퍼유저가 아닌 계정**으로 돌려봤더니 세 군데가
+거부당했다. 즉 **이 ADR 의 계정 분리는 RDS 에서 통째로 실패했을 것이다.**
+
+| 구문 | 왜 막히나 |
+|---|---|
+| `ALTER ROLE ... NOSUPERUSER NOREPLICATION NOBYPASSRLS` | 세 속성은 슈퍼유저만 바꾼다 |
+| `GRANT pg_read_all_data TO champs_read` | 미리 정의된 역할에 ADMIN 옵션 필요 |
+| ★ `ALTER DEFAULT PRIVILEGES FOR ROLE champs_migrate` | 그 역할의 **USAGE 멤버십** 필요 |
+
+세 번째가 가장 위험하다. **배포 당일에는 증상이 없다** — 기존 테이블에는 권한이
+있다. **다음 마이그레이션이 만든 테이블부터** 앱이 못 읽는다. 시차 때문에 원인을
+마이그레이션에서 찾게 되는데, 정작 원인은 몇 주 전 배포다. 위 선택지 비교에서
+"미래 객체"를 따로 다룬 이유가 바로 그 시차였고, **그 블록이 RDS 에서 통째로
+안 걸리는 상태였다.**
+
+원인은 PG16 의 동작이다 — CREATEROLE 역할이 만든 역할에 대해 **ADMIN 은 주되
+`INHERIT` 는 끈 채로** 멤버십을 준다. 그래서 "내가 만든 역할인데 그 역할의 기본
+권한을 못 바꾸는" 상태가 된다.
+
+**무엇을 바꿨나**
+
+- `roles.sql` 이 슈퍼유저 없이 돈다. 속성 리셋은 **강제할 수 있으면 강제하고
+  없으면 검증**하며, 검증에서 특권이 발견되면 `RAISE EXCEPTION` 으로 멈춘다.
+  `pg_read_all_data` 는 못 받으면 기본 권한으로 **대체**하고 WARNING 을 남긴다.
+- `master-role.sql` 이 `champs_master`(NOSUPERUSER CREATEROLE CREATEDB)를 만들고,
+  **로컬·CI 도 그 역할로 `roles.sql` 을 돌린다.** 부트스트랩이 슈퍼유저인 한
+  슈퍼유저 전용 구문이 섞여도 아무도 모르기 때문이다.
+- `TestTheScriptRunsWithoutSuperuser` 가 이 사실을 지킨다. ★ 첫 테스트가
+  **`champs_master` 가 슈퍼유저가 아님을 먼저 단정**한다 — 그게 깨지면 나머지
+  두 테스트는 초록인 채로 아무것도 증명하지 않는다.
+
+**검증한 것** (깨끗한 컨테이너 + 기존 개발 DB 양쪽)
+
+- `champs_migrate` 가 새 테이블을 만든 뒤 `champs_app` 이 읽고 쓴다 — 기본
+  권한이 **미래 테이블에** 걸린다.
+- `champs_read` 가 그 테이블을 읽는다 — **`pg_read_all_data` 없이 대체 경로로**
+  같은 보장이 선다.
+- `champs_read` 의 INSERT 와 `champs_app` 의 CREATE 는 거부된다.
+- `champs_master` 를 일부러 슈퍼유저로 올리니 테스트 2개가 깨진다(공허 가드).
+
+**남은 것**: 실제 RDS 에서 `pg_read_all_data` 를 받을 수 있는지는 **아직
+모른다.** 시뮬레이션의 `champs_master` 는 평범한 CREATEROLE 역할이고, RDS
+마스터는 `rds_superuser` 멤버라 ADMIN 옵션이 있을 수 있다. 받으면 WARNING 이
+안 뜨고, 못 받으면 대체 경로로 간다 — **어느 쪽이든 동작하지만 보장 범위가
+다르다.** 첫 배포 때 로그에서 확인하고 여기에 적는다.
+
+**이 ADR 의 되돌리는 조건에 추가**: 테이블을 `champs_migrate` 가 아닌 역할이
+만들게 되면, 대체 경로를 탄 환경에서 `champs_read` 가 그 테이블을 놓친다.
