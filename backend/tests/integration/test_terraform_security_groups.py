@@ -267,3 +267,72 @@ class TestSubnetsDoNotHandOutPublicIpsByDefault:
         assert public.get("map_public_ip_on_launch") is False, (
             "서브넷 기본값으로 공인 IP 를 주면 안 된다. ECS 서비스에서 켠다"
         )
+
+
+class TestDescriptionsAreAscii:
+    """★ AWS 로 넘어가는 설명 문자열은 ASCII 여야 한다 (JOURNAL 2026-11-21).
+
+    EC2 의 `GroupDescription` 과 보안그룹 규칙의 `Description` 은 **ASCII 전용**
+    이다. 한글을 넣으면
+
+        InvalidParameterValue: Value (...) for parameter GroupDescription is
+        invalid. Character sets beyond ASCII are not supported.
+
+    로 거부된다. ★ 고약한 점은 **`plan` 과 `validate` 는 통과한다**는 것이다.
+    문법도 타입도 맞고, 길이 제한도 안 넘는다. AWS 에 실제로 요청을 보내는
+    `apply` 순간에만 터지고, 그러면 **절반만 만들어진 인프라**가 남는다.
+    실제로 VPC·서브넷·ECR 까지 만들어진 뒤 보안그룹 4개에서 멈췄다.
+
+    주석은 한글로 쓴다 — 읽는 사람을 위한 것이고 AWS 로 가지 않는다.
+    **AWS 로 가는 값만** 영문으로 둔다. 그 경계를 이 테스트가 지킨다.
+    """
+
+    # AWS 가 허용하는 문자: 영문·숫자·공백과 아래 기호들.
+    ALLOWED_SYMBOLS = "._-:/()#,@[]+=&;{}!$*"
+
+    AWS_FACING = (
+        "aws_security_group",
+        "aws_vpc_security_group_ingress_rule",
+        "aws_vpc_security_group_egress_rule",
+    )
+
+    def descriptions(self, documents: list[dict[str, Any]]) -> dict[str, str]:
+        found: dict[str, str] = {}
+        for kind in self.AWS_FACING:
+            for name, body in resources(documents, kind).items():
+                value = body.get("description")
+                if isinstance(value, str):
+                    found[f"{kind}.{name}"] = value
+        return found
+
+    def test_every_description_is_ascii(self, documents: list[dict[str, Any]]) -> None:
+        offenders = {
+            where: [c for c in text if ord(c) > 127]
+            for where, text in self.descriptions(documents).items()
+            if not text.isascii()
+        }
+        assert not offenders, (
+            f"ASCII 가 아닌 문자가 들어 있다: {offenders}. "
+            f"apply 때 InvalidParameterValue 로 터진다 (plan 은 통과한다)"
+        )
+
+    def test_every_description_uses_only_allowed_characters(
+        self, documents: list[dict[str, Any]]
+    ) -> None:
+        """ASCII 라고 다 되는 것은 아니다.
+
+        `>` `<` `"` `'` `%` 같은 문자는 ASCII 지만 AWS 가 받지 않는다.
+        화살표를 `->` 로 쓰고 싶어지는 자리라 특히 걸리기 쉽다.
+        """
+        allowed = " " + self.ALLOWED_SYMBOLS
+        offenders: dict[str, set[str]] = {}
+        for where, text in self.descriptions(documents).items():
+            bad = {c for c in text if not (c.isalnum() and c.isascii()) and c not in allowed}
+            if bad:
+                offenders[where] = bad
+        assert not offenders, f"AWS 가 허용하지 않는 문자다: {offenders}"
+
+    def test_the_check_is_not_vacuous(self, documents: list[dict[str, Any]]) -> None:
+        """전제 선행 단정 — 검사한 설명이 실제로 있었다."""
+        found = self.descriptions(documents)
+        assert len(found) >= 10, f"설명이 너무 적다 — 파싱이 잘못됐을 수 있다: {sorted(found)}"

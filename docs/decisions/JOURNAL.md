@@ -1316,3 +1316,43 @@
   바꾼 건 셸이다. 그리고 **빈 디렉터리에서 재현**한 것이 결정적이었다 —
   AWS 를 건드리지 않고 인자 파싱만 분리해 확인할 수 있었다.
 - 소요: 약 10분
+
+## 2026-11-21 — plan 은 통과하고 apply 가 400 으로 터졌다 (한글 설명)
+
+- 증상: `terraform apply` 가 자원을 만들다가 보안그룹 4개에서 멈췄다.
+  ```
+  Error: creating Security Group (pokehelper-prod-alb): api error InvalidParameterValue:
+  Value (ALB. 인터넷에서 직접 받는 유일한 보안그룹) for parameter GroupDescription
+  is invalid. Character sets beyond ASCII are not supported.
+  ```
+- 기대 동작: `validate` 와 `plan` 이 통과했으면 `apply` 도 끝까지 가야 한다.
+- 재현 절차:
+  ```bash
+  # .tf 의 security group description 에 한글을 넣고
+  terraform validate   # 통과한다
+  terraform plan       # 통과한다
+  terraform apply      # 여기서 400
+  ```
+- 원인: EC2 의 `GroupDescription` 과 보안그룹 규칙 `Description` 은 **ASCII
+  전용**이다. 문법도 타입도 길이도 맞아서 로컬 검증은 전부 통과하고,
+  **AWS 에 실제 요청을 보내는 순간에만** 거부된다.
+- 해결: 설명 13개를 영문으로 바꿨다. **주석은 한글 그대로** 뒀다 — 읽는
+  사람을 위한 것이고 AWS 로 가지 않는다. 그 경계를
+  `TestDescriptionsAreAscii` 가 집행한다.
+- ★ **검사를 둘로 나눴다.** ASCII 여부와 **허용 문자 집합**은 다른 검사다.
+  AWS 가 받는 기호는 `._-:/()#,@[]+=&;{}!$*` 뿐이라 `>` `<` `"` `%` 는
+  ASCII 여도 거부된다. 화살표를 `->` 로 쓰고 싶어지는 자리라 특히 걸린다.
+  변이로 확인했다 — 한글은 둘 다 실패, `->` 는 **허용문자 검사만** 실패.
+- ★ **절반만 만들어진 인프라가 남았다.** VPC·서브넷·IGW·라우팅·ECR 15개는
+  생성되고 보안그룹부터 멈췄다. 과금 자원이 없어 피해는 없었지만, **RDS 나
+  ALB 단계에서 같은 일이 나면 돈이 걸린 채로 중단된다.**
+  ADR-021 이 "처음부터 권한을 좁히면 apply 가 중간에 죽어 절반만 만들어진
+  인프라가 남는다"고 적어둔 것과 **같은 사고가 권한이 아니라 문자셋으로** 났다.
+- 배운 것: ★ **`plan` 이 통과했다는 것은 "Terraform 이 이해했다"일 뿐이다.**
+  AWS 가 받아줄지는 별개 사실이다. 로컬에서 끝나는 검증(`validate`·`plan`)과
+  원격이 판정하는 검증은 다른 층이고, 그 사이에 끼는 제약(문자셋·이름 규칙·
+  리전별 지원 여부)은 **테스트로 당겨와야** `apply` 중단을 막을 수 있다.
+- 부수 피해: Docker 가 꺼져 있어 `ruff` 를 못 돌린 채 테스트를 커밋해서
+  **CI 가 E501 로 한 번 더 빨개졌다.** "테스트를 실행하지 못했다"고 적었지만
+  **lint 도 같이 못 돌았다는 것을 짚지 않았다.** 못 돌린 검사는 전부 나열한다.
+- 소요: 약 25분

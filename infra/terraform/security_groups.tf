@@ -12,6 +12,14 @@
 #   2. `0.0.0.0/0` 인바운드는 ALB 보안그룹에만 허용하고,
 #      `tests/integration/test_terraform_security_groups.py` 가 그것을 단정한다.
 #
+# ★ `description` 은 영문이다 — AWS 가 ASCII 만 받는다 ★
+#
+# EC2 의 `GroupDescription` 과 규칙 `Description` 은 ASCII 전용이다. 한글을
+# 넣으면 **plan 은 통과하고 apply 가 400 으로 터진다** — 그래서 절반만 만들어진
+# 인프라가 남는다 (JOURNAL 2026-11-21). 주석은 한글로 쓰되 **AWS 로 넘어가는
+# 문자열만** 영문으로 둔다. `tests/integration/test_terraform_security_groups.py`
+# 의 `TestDescriptionsAreAscii` 가 집행한다.
+#
 # ★ 인라인 `ingress {}` 블록을 쓰지 않는다. 별도 리소스
 #   (`aws_vpc_security_group_ingress_rule`)로만 쓴다. 인라인 블록을 섞으면
 #   테스트가 보지 못하는 경로가 생기고, 두 방식을 한 보안그룹에 섞으면
@@ -24,7 +32,7 @@
 
 resource "aws_security_group" "alb" {
   name        = "${local.name}-alb"
-  description = "ALB. 인터넷에서 직접 받는 유일한 보안그룹"
+  description = "ALB. The only group that accepts traffic from the internet."
   vpc_id      = aws_vpc.main.id
 
   tags = { Name = "${local.name}-alb", Exposure = "internet" }
@@ -32,7 +40,7 @@ resource "aws_security_group" "alb" {
 
 resource "aws_vpc_security_group_ingress_rule" "alb_https" {
   security_group_id = aws_security_group.alb.id
-  description       = "인터넷 → ALB (HTTPS)"
+  description       = "Internet to ALB (HTTPS)"
   cidr_ipv4         = "0.0.0.0/0"
   from_port         = 443
   to_port           = 443
@@ -41,7 +49,7 @@ resource "aws_vpc_security_group_ingress_rule" "alb_https" {
 
 resource "aws_vpc_security_group_ingress_rule" "alb_http_redirect" {
   security_group_id = aws_security_group.alb.id
-  description       = "인터넷 → ALB (HTTP). 리스너가 443 으로 영구 리다이렉트한다"
+  description       = "Internet to ALB (HTTP). Listener redirects permanently to 443."
   cidr_ipv4         = "0.0.0.0/0"
   from_port         = 80
   to_port           = 80
@@ -51,7 +59,7 @@ resource "aws_vpc_security_group_ingress_rule" "alb_http_redirect" {
 # ALB 는 타깃(태스크)에만 나간다. 인터넷으로 나갈 일이 없다.
 resource "aws_vpc_security_group_egress_rule" "alb_to_tasks" {
   security_group_id            = aws_security_group.alb.id
-  description                  = "ALB → 태스크"
+  description                  = "ALB to tasks"
   referenced_security_group_id = aws_security_group.tasks.id
   from_port                    = 3000
   to_port                      = 8000
@@ -64,7 +72,7 @@ resource "aws_vpc_security_group_egress_rule" "alb_to_tasks" {
 
 resource "aws_security_group" "tasks" {
   name        = "${local.name}-tasks"
-  description = "ECS 태스크. 공인 IP 가 붙지만 인바운드는 ALB 에서만 받는다"
+  description = "ECS tasks. Public IP attached, but inbound only from the ALB."
   vpc_id      = aws_vpc.main.id
 
   tags = { Name = "${local.name}-tasks", Exposure = "alb-only" }
@@ -72,7 +80,7 @@ resource "aws_security_group" "tasks" {
 
 resource "aws_vpc_security_group_ingress_rule" "tasks_from_alb_backend" {
   security_group_id            = aws_security_group.tasks.id
-  description                  = "ALB → 백엔드 (FastAPI)"
+  description                  = "ALB to backend (FastAPI)"
   referenced_security_group_id = aws_security_group.alb.id
   from_port                    = 8000
   to_port                      = 8000
@@ -81,7 +89,7 @@ resource "aws_vpc_security_group_ingress_rule" "tasks_from_alb_backend" {
 
 resource "aws_vpc_security_group_ingress_rule" "tasks_from_alb_frontend" {
   security_group_id            = aws_security_group.tasks.id
-  description                  = "ALB → 프론트엔드 (Next.js)"
+  description                  = "ALB to frontend (Next.js)"
   referenced_security_group_id = aws_security_group.alb.id
   from_port                    = 3000
   to_port                      = 3000
@@ -90,7 +98,7 @@ resource "aws_vpc_security_group_ingress_rule" "tasks_from_alb_frontend" {
 
 resource "aws_vpc_security_group_ingress_rule" "tasks_from_alb_grafana" {
   security_group_id            = aws_security_group.tasks.id
-  description                  = "ALB → Grafana 사이드카"
+  description                  = "ALB to Grafana sidecar"
   referenced_security_group_id = aws_security_group.alb.id
   from_port                    = 3001
   to_port                      = 3001
@@ -114,7 +122,7 @@ resource "aws_vpc_security_group_ingress_rule" "tasks_from_alb_grafana" {
 #   좁히는 것은 실제로 나가는 곳을 VPC 플로우 로그로 측정한 뒤에 한다.
 resource "aws_vpc_security_group_egress_rule" "tasks_all" {
   security_group_id = aws_security_group.tasks.id
-  description       = "태스크 → 전체 (ECR·SSM·로그·외부 API·DNS)"
+  description       = "Tasks to anywhere (ECR, SSM, logs, external API, DNS)"
   cidr_ipv4         = "0.0.0.0/0"
   ip_protocol       = "-1"
 }
@@ -125,7 +133,7 @@ resource "aws_vpc_security_group_egress_rule" "tasks_all" {
 
 resource "aws_security_group" "rds" {
   name        = "${local.name}-rds"
-  description = "RDS PostgreSQL. 백엔드 태스크에서만 받는다"
+  description = "RDS PostgreSQL. Inbound only from the backend tasks."
   vpc_id      = aws_vpc.main.id
 
   tags = { Name = "${local.name}-rds", Exposure = "vpc-internal" }
@@ -133,7 +141,7 @@ resource "aws_security_group" "rds" {
 
 resource "aws_vpc_security_group_ingress_rule" "rds_from_tasks" {
   security_group_id            = aws_security_group.rds.id
-  description                  = "태스크 → PostgreSQL"
+  description                  = "Tasks to PostgreSQL"
   referenced_security_group_id = aws_security_group.tasks.id
   from_port                    = 5432
   to_port                      = 5432
@@ -150,7 +158,7 @@ resource "aws_vpc_security_group_ingress_rule" "rds_from_tasks" {
 
 resource "aws_security_group" "cache" {
   name        = "${local.name}-cache"
-  description = "ElastiCache Redis. 백엔드 태스크에서만 받는다"
+  description = "ElastiCache Redis. Inbound only from the backend tasks."
   vpc_id      = aws_vpc.main.id
 
   tags = { Name = "${local.name}-cache", Exposure = "vpc-internal" }
@@ -158,7 +166,7 @@ resource "aws_security_group" "cache" {
 
 resource "aws_vpc_security_group_ingress_rule" "cache_from_tasks" {
   security_group_id            = aws_security_group.cache.id
-  description                  = "태스크 → Redis"
+  description                  = "Tasks to Redis"
   referenced_security_group_id = aws_security_group.tasks.id
   from_port                    = 6379
   to_port                      = 6379
