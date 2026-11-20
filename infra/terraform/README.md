@@ -77,11 +77,28 @@ terraform output backend_config      # 아래에서 쓴다
 ```bash
 cd ..
 cp backend.hcl.example backend.hcl         # 2단계 output 을 붙여넣는다
-cp terraform.tfvars.example terraform.tfvars
 
-terraform init -backend-config=backend.hcl
+terraform init "-backend-config=backend.hcl"
 terraform plan
 ```
+
+> `terraform.tfvars` 는 **지금은 없어도 된다.** `domain_name`·`alarm_email` 을
+> 쓰는 자원(`dns.tf`·`alb.tf`·`observability.tf`)이 아직 없다. 그것들을 추가할
+> 때 `terraform.tfvars.example` 을 복사해 채운다.
+
+★ **따옴표가 중요하다 — Windows PowerShell 5.1 한정 함정이다.**
+
+```powershell
+terraform init -backend-config=backend.hcl       # ❌ No positional arguments are expected
+terraform init "-backend-config=backend.hcl"     # ✅
+terraform init -backend-config backend.hcl       # ✅ (공백으로 분리해도 된다)
+```
+
+PowerShell 5.1 은 **`-` 로 시작하면서 `=` 가 들어간 인자**를 외부 프로그램에
+넘길 때 쪼갠다. 그러면 terraform 이 `backend.hcl` 을 위치 인자로 받고 거부한다.
+**terraform 의 문제가 아니라 셸의 문제**라, Git Bash·cmd·PowerShell 7 에서는
+따옴표 없이도 된다. (`-var name=value` 처럼 **값 쪽에만 `=` 가 있으면** 괜찮다
+— 그래서 bootstrap 의 `apply -var state_bucket_name=...` 는 그냥 됐다.)
 
 `backend` 블록이 비어 있는 것은 의도다. 버킷 이름에 계정 ID 가 들어가 커밋할
 수 없고, `backend` 블록은 변수를 못 쓰기 때문이다.
