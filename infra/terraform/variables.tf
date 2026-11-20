@@ -35,13 +35,25 @@ variable "domain_name" {
     ★ 도메인 **등록 자체는 Terraform 으로 하지 않는다.** 등록은 1년 약정이고
     `terraform destroy` 로 되돌릴 수 없으며, 등록자 연락처(개인정보)를 넣어야
     한다. 콘솔에서 등록한 뒤 호스팅 존 ID 를 여기에 넘긴다.
+
+    ★ 지금은 비어 있어도 된다 — 이 값을 쓰는 `dns.tf`·`alb.tf` 가 아직 없다.
+    그것들을 추가할 때 아래 validation 이 빈 값을 막는다. **쓰지도 않는 값을
+    필수로 두면, 네트워크만 올리려는 사람이 도메인부터 사야 한다.**
   EOT
   type        = string
+  default     = ""
 }
 
 variable "hosted_zone_id" {
-  description = "도메인 등록 시 Route53 이 만든 퍼블릭 호스팅 존 ID."
+  description = "도메인 등록 시 Route53 이 만든 퍼블릭 호스팅 존 ID. 지금은 비어 있어도 된다."
   type        = string
+  default     = ""
+
+  validation {
+    # 둘 중 하나만 채우면 dns.tf 가 반쯤 설정된 상태로 돌아간다. 같이 채운다.
+    condition     = (var.hosted_zone_id == "") == (var.domain_name == "")
+    error_message = "domain_name 과 hosted_zone_id 는 **둘 다** 채우거나 둘 다 비워야 한다."
+  }
 }
 
 ############################################################
@@ -97,6 +109,13 @@ variable "monthly_budget_usd" {
 }
 
 variable "alarm_email" {
-  description = "청구 알람을 받을 주소. SNS 구독 확인 메일이 한 번 온다."
+  description = <<-EOT
+    청구 알람을 받을 주소. apply 후 SNS 구독 확인 메일이 한 번 온다.
+
+    ★ 지금은 비어 있어도 된다 — 이 값을 쓰는 `observability.tf` 가 아직 없다.
+    다만 **청구 알람 없이 운영 자원을 올리지 않는다** (ADR-020 세부사항 8).
+    비용 절감 장치가 아니라 사고 방지 장치다.
+  EOT
   type        = string
+  default     = ""
 }
