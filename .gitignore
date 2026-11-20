@@ -48,6 +48,10 @@ out/
 .DS_Store
 Thumbs.db
 
+# AWS 접근 절차서 — 포털 URL·계정 ID 같은 본인 환경 값이 들어간다.
+# 결정과 그 이유는 docs/adr/021 에 있고, 여기는 손으로 하는 절차만 담는다.
+infra/terraform/ACCESS.md
+
 # Terraform plan 산출물
 *.tfplan
 plan.json

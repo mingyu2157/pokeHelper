@@ -24,12 +24,30 @@ pokeHelper 운영 인프라. 구성과 그렇게 고른 이유는
 
 ## 1. 자격증명 준비 (손으로)
 
-**[ACCESS.md](ACCESS.md) 를 먼저 끝낸다.** Terraform 이 AWS API 를 호출하려면
-자격증명이 있어야 하는데, 그 자격증명은 Terraform 으로 만들 수 없다.
+Terraform 이 AWS API 를 호출하려면 자격증명이 있어야 하는데, **그 자격증명은
+Terraform 으로 만들 수 없다.** 그래서 이 단계만 콘솔에서 손으로 한다.
+선택과 그 이유는 [ADR-021](../../docs/adr/021-aws-access-and-least-privilege.md).
 
-요약: 루트에 MFA → IAM Identity Center 켜기 → 권한 세트 → `aws configure sso`
-→ `export AWS_PROFILE=pokehelper`. 권한을 좁히는 절차도 거기 있다
-([ADR-021](../../docs/adr/021-aws-access-and-least-privilege.md)).
+| # | 누가 | 무엇을 |
+|---|---|---|
+| 1 | 루트 | MFA 등록, 루트 액세스 키 삭제 |
+| 2 | 루트 | Billing 콘솔의 `Activate IAM access` — 안 하면 비용을 못 본다 |
+| 3 | 루트 | IAM Identity Center 활성화 — **조직 인스턴스 / 단일 리전 / `ap-northeast-2`** |
+| 4 | 루트 | 권한 세트 `PokehelperAdmin` 생성 → 사용자 만들고 **계정에 할당** |
+| 5 | SSO 사용자 | MFA 등록 → `aws configure sso` |
+
+★ **되돌릴 수 없는 것이 둘 있다.** ① Identity Center 를 켜면 AWS Organizations 가
+생성되고, **프리 티어 크레딧 계정이면 크레딧이 즉시 소멸한다.** ② 인스턴스의
+**주 리전은 생성 후 변경할 수 없다**(삭제 후 재생성뿐이고, 그때 권한 세트·할당·
+사용자가 전부 사라진다). 둘 다 활성화 **직전에** 확인한다.
+
+★ **계정 인스턴스(account instance)를 고르면 안 된다.** 단일 계정이라 자연스러워
+보이지만, 계정 인스턴스는 **AWS 계정 접근 권한(permission set 할당)을 지원하지
+않는다** — 콘솔·CLI 접근을 SSO 로 관리할 수 없게 된다.
+
+> 단계별 화면과 입력값을 적은 `ACCESS.md` 는 포털 URL·계정 ID 같은 본인 환경
+> 값이 들어가 **저장소에 커밋하지 않는다**(`.gitignore`). 위 표가 저장소에
+> 남기는 전부다.
 
 ```bash
 aws sso login --profile pokehelper
