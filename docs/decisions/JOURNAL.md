@@ -1281,3 +1281,38 @@
 - 남은 것: 세 파일이 각자 후보 목록을 들고 있다. 공용 헬퍼로 모으면 네 번째를
   막을 수 있다. 이번 PR 범위 밖이라 하지 않았다.
 - 소요: 약 10분
+
+## 2026-11-21 — PowerShell 이 terraform 인자를 쪼갰다
+
+- 증상: 문서대로 쳤는데 terraform 이 **있지도 않은 위치 인자**를 받았다고 거부했다.
+  ```
+  PS> terraform init -backend-config=backend.hcl
+  Error: No positional arguments are expected
+  The init command does not expect any positional arguments. Did you mean to use -chdir?
+  ```
+- 기대 동작: `-backend-config=backend.hcl` 은 Terraform 공식 문서의 표준 표기다.
+  백엔드 설정을 읽고 S3 백엔드로 초기화해야 한다.
+- 재현 절차:
+  ```powershell
+  # 빈 디렉터리에서. AWS 를 건드리지 않는다.
+  mkdir argtest; cd argtest
+  terraform init -backend-config=backend.hcl       # 실패
+  terraform init "-backend-config=backend.hcl"     # 성공
+  terraform init -backend-config backend.hcl       # 성공
+  ```
+- 원인: **Windows PowerShell 5.1** 이 외부 프로그램에 인자를 넘길 때,
+  **`-` 로 시작하면서 `=` 가 들어간 인자**를 쪼갠다. terraform 은 그 결과
+  `backend.hcl` 을 위치 인자로 받고 거부한다. **terraform 의 문제가 아니라
+  셸의 문제**다 — Git Bash·cmd·PowerShell 7 에서는 그냥 된다.
+- 해결: 인자 전체를 따옴표로 묶는다 — `terraform init "-backend-config=backend.hcl"`.
+  공백으로 분리해도 된다.
+- ★ **왜 bootstrap 에서는 안 터졌나**: 거기서는
+  `terraform apply -var state_bucket_name=...` 를 썼다. `=` 가 **`-` 로 시작하지
+  않는 뒤쪽 토큰**에 있어서 쪼갤 대상이 아니었다. 같은 세션, 같은 셸에서
+  하나는 되고 하나는 안 되니 셸을 의심하기까지 시간이 걸렸다.
+- 배운 것: ★ **명령이 "문서대로"인데 실패하면 명령이 아니라 셸을 의심한다.**
+  에러 메시지가 terraform 에서 나왔다고 원인이 terraform 인 것은 아니다.
+  terraform 은 **자기가 받은 인자**를 정직하게 보고했을 뿐이고, 그 인자를
+  바꾼 건 셸이다. 그리고 **빈 디렉터리에서 재현**한 것이 결정적이었다 —
+  AWS 를 건드리지 않고 인자 파싱만 분리해 확인할 수 있었다.
+- 소요: 약 10분
