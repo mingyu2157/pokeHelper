@@ -10,12 +10,8 @@ ADR-020 은 비용을 이유로 ECS 태스크를 **퍼블릭 서브넷**에 두�
 못 잡는다. ADR-013(출처 표기)·ADR-015(DB 권한)·ADR-019(선결 조건)와 같은 모양
 이다 — **열려 있어도 아무것도 깨지지 않는 종류의 결함**이다.
 
-범위와 한계
------------
-이 테스트는 **`.tf` 소스를 읽는다. 실제 AWS 계정을 보지 않는다.**
-`terraform plan` 은 자격증명이 필요해 CI 에서 돌릴 수 없기 때문이다. 따라서
-**콘솔에서 손으로 고친 규칙은 다음 `apply` 전까지 잡히지 않는다.** 이 한계는
-ADR-020 의 `## 포기한 것` 에 적혀 있다.
+범위와 한계는 `tests/terraform_support.py` 머리말 참조 — **`.tf` 소스를 읽고
+실제 AWS 계정은 보지 않는다.**
 
 인바운드만 본다. 아웃바운드 `0.0.0.0/0` 은 외부에서 들어올 길을 늘리지 않고,
 태스크는 ECR·SSM·CloudWatch·외부 API·DNS 로 나가야 한다. 아웃바운드를 좁히는
@@ -25,19 +21,11 @@ ADR-020 의 `## 포기한 것` 에 적혀 있다.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Any
 
-import hcl2
 import pytest
 
-# 컨테이너에서는 /opt/terraform 에 마운트되고(compose), CI 는 저장소에서 직접
-# 돈다. `/app` 아래에 마운트하지 않는다 — 바인드 마운트는 기존 경로를 가린다
-# (JOURNAL 2026-11-17).
-_CANDIDATES = (
-    Path("/opt/terraform"),
-    Path(__file__).resolve().parents[3] / "infra" / "terraform",
-)
+from tests.terraform_support import load_documents, resources, unwrap
 
 # ★ 인터넷에서 직접 받아도 되는 보안그룹. **여기 적힌 것만** 허용한다.
 #
@@ -52,75 +40,9 @@ ANY_IPV6 = "::/0"
 SG_REFERENCE = re.compile(r"aws_security_group\.([A-Za-z0-9_-]+)\.id")
 
 
-def terraform_dir() -> Path:
-    for candidate in _CANDIDATES:
-        if candidate.is_dir():
-            return candidate
-    # 건너뛰지 않는다. 디렉터리를 못 찾으면 검사가 통째로 사라지는데, 그건
-    # "통과"가 아니라 "검증하지 않음"이다 (test_alert_rules.py 와 같은 원칙).
-    pytest.fail(f"Terraform 디렉터리를 찾을 수 없다. 찾은 곳: {[str(c) for c in _CANDIDATES]}")
-
-
-def unwrap(value: Any) -> Any:
-    """python-hcl2 가 블록을 리스트로 감싸는 것을 벗긴다."""
-    if isinstance(value, list) and len(value) == 1:
-        return value[0]
-    return value
-
-
-def unquote(value: Any) -> Any:
-    """★ python-hcl2 7.x 는 블록 라벨과 문자열 값에 따옴표를 **남긴다**.
-
-    `aws_subnet` 이 아니라 `"aws_subnet"` 으로, `0.0.0.0/0` 이 아니라
-    `"0.0.0.0/0"` 으로 나온다. 버전에 따라 다르므로, 따옴표가 없어도 그대로
-    통과하도록(멱등) 만든다. 여기서 정규화하지 않으면 **모든 비교가 조용히
-    빗나가고** 검사가 통째로 공회전한다 — 실제로 그렇게 됐고,
-    `test_the_check_is_not_vacuous` 가 잡았다.
-    """
-    if isinstance(value, str) and len(value) >= 2 and value[0] == '"' and value[-1] == '"':
-        return value[1:-1]
-    return value
-
-
-def clean(body: Any) -> Any:
-    """파서가 끼워 넣은 메타 키(`__is_block__`·`__comments__`)를 걷어내고
-    문자열 값의 따옴표를 벗긴다."""
-    body = unwrap(body)
-    if isinstance(body, dict):
-        return {k: clean(v) for k, v in body.items() if not k.startswith("__")}
-    if isinstance(body, list):
-        return [clean(v) for v in body]
-    return unquote(body)
-
-
 @pytest.fixture(scope="module")
 def documents() -> list[dict[str, Any]]:
-    """`bootstrap/` 을 뺀 모든 `.tf` 를 파싱한다.
-
-    bootstrap 은 state 저장소(S3·DynamoDB)만 만들고 VPC 를 건드리지 않는다.
-    """
-    root = terraform_dir()
-    files = sorted(p for p in root.glob("*.tf"))
-    assert files, f"{root} 에 .tf 파일이 없다"
-
-    parsed = []
-    for path in files:
-        with path.open(encoding="utf-8") as handle:
-            parsed.append(hcl2.load(handle))
-    return parsed
-
-
-def resources(documents: list[dict[str, Any]], kind: str) -> dict[str, dict[str, Any]]:
-    """`kind` 타입 리소스를 {이름: 속성} 으로 모은다."""
-    found: dict[str, dict[str, Any]] = {}
-    for document in documents:
-        for block in document.get("resource", []):
-            for resource_type, bodies in block.items():
-                if unquote(resource_type) != kind:
-                    continue
-                for name, body in bodies.items():
-                    found[unquote(name)] = clean(body)
-    return found
+    return load_documents()
 
 
 def target_group_name(rule: dict[str, Any]) -> str | None:
