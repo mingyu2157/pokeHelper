@@ -97,6 +97,88 @@ variable "cache_node_type" {
   default     = "cache.t4g.micro"
 }
 
+variable "db_engine_version" {
+  description = <<-EOT
+    PostgreSQL 버전. **패치 버전을 적지 않는다** — `"16"` 으로 주면 AWS 가 그
+    시점의 최신 마이너를 고른다.
+
+    ★ 패치 버전을 박으면 그 버전이 내려간 시점·리전에서 **apply 가 죽는다.**
+    그리고 확인하지 않은 버전 문자열을 추측해 넣는 것은 CLAUDE.md 가 금지한다.
+  EOT
+  type        = string
+  default     = "16"
+}
+
+variable "db_name" {
+  description = "초기 데이터베이스 이름. 로컬 compose 의 POSTGRES_DB 와 같게 둔다."
+  type        = string
+  default     = "champs"
+}
+
+variable "db_master_username" {
+  description = <<-EOT
+    RDS 마스터 사용자명.
+
+    ★ 로컬의 `champs_master` 와 **같은 이름**이다. 로컬 initdb 는 슈퍼유저로
+    champs_master 를 만든 뒤 그 계정으로 roles.sql 을 돌리는데, RDS 에서는
+    마스터 사용자가 그 자리를 그대로 맡는다. 이름을 맞춰두면 **같은 roles.sql
+    이 양쪽에서 동작한다** (ADR-015).
+  EOT
+  type        = string
+  default     = "champs_master"
+
+  validation {
+    # RDS 가 거부하는 이름을 apply 전에 막는다. 예약어는 더 많지만 흔한 것만.
+    condition     = !contains(["admin", "rdsadmin", "postgres", "root"], lower(var.db_master_username))
+    error_message = "RDS 가 예약한 이름이다. 다른 이름을 쓴다."
+  }
+}
+
+variable "db_allocated_storage" {
+  description = "RDS 초기 스토리지(GB). gp3 최소가 20 이다."
+  type        = number
+  default     = 20
+
+  validation {
+    condition     = var.db_allocated_storage >= 20
+    error_message = "gp3 는 최소 20GB 다."
+  }
+}
+
+variable "db_max_allocated_storage" {
+  description = <<-EOT
+    스토리지 자동 확장 상한(GB).
+
+    ★ 디스크가 꽉 차면 DB 가 멈추는데, 그건 알림이 아니라 **장애로** 알게 된다.
+    상한을 둬서 멈추는 대신 늘어나게 한다. 늘어난 만큼만 과금되므로 평소 비용은
+    그대로다. 초기값보다 커야 자동 확장이 켜진다.
+  EOT
+  type        = number
+  default     = 100
+}
+
+variable "db_backup_retention_days" {
+  description = <<-EOT
+    자동 백업 보존 일수.
+
+    ★ 0 이면 자동 백업이 **꺼지고, 그러면 PITR 도 불가능하다.** ADR-020 의
+    RPO 5분은 자동 백업이 켜져 있다는 전제에 기대고 있다. 1 이상이어야 한다.
+  EOT
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = var.db_backup_retention_days >= 1
+    error_message = "1 이상이어야 한다. 0 은 자동 백업을 끄고 PITR 을 불가능하게 만든다 (ADR-020 결정 3)."
+  }
+}
+
+variable "cache_engine_version" {
+  description = "Redis 버전. parameter_group_name 의 default.redis7 과 맞춰야 한다."
+  type        = string
+  default     = "7.1"
+}
+
 variable "monthly_budget_usd" {
   description = <<-EOT
     청구 알람 임계치(USD). ADR-020 의 예상 월 $98 의 1.5배를 기본값으로 둔다.
