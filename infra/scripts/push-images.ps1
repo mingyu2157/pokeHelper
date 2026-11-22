@@ -136,23 +136,104 @@ Write-Note "태그     : $sha"
 Write-Note "레지스트리: $registry"
 
 ############################################################
-# 3. ECR 로그인 — 토큰은 12시간짜리다
+# 3. 자격증명 헬퍼 확인 — docker login 을 쓰지 않는다
 ############################################################
 
-Write-Step "ECR 로그인"
+Write-Step "ECR 자격증명 헬퍼 확인"
 
-if ($DryRun) {
-    Write-Note "(건너뜀) aws ecr get-login-password | docker login $registry"
-}
-else {
-    $password = aws ecr get-login-password --region $Region --profile $AwsProfile
-    if ($LASTEXITCODE -ne 0) { Die "ECR 토큰을 받지 못했다." }
+# ★★ `docker login` 을 버린 이유 — Windows 에서 두 벽에 연달아 막혔다 ★★
+#    (JOURNAL 2026-11-23)
+#
+#   ① 코드 페이지 65001 에서 PS 5.1 은 외부 프로그램 stdin 에 UTF-8 BOM 을
+#      먼저 쓴다. `docker login --password-stdin` 은 뒤쪽 개행만 떼고 앞쪽
+#      BOM 은 떼지 않아서, ECR 이 401(권한)이 아니라 **400(요청이 깨짐)** 을 낸다.
+#      ★ BOM 의 출처는 $OutputEncoding 이 아니라 [Console]::InputEncoding 이다.
+#
+#   ② ①을 우회해도 다음 벽이 있다. **Windows 자격증명 관리자는 비밀 하나를
+#      약 2.5KB 까지만 저장한다.** ECR 토큰은 3000자대라 넘쳐서 `desktop`·
+#      `wincred` 헬퍼가 `The stub received bad data` 로 깨진다.
+#      docker/docker-credential-helpers#346 · aws/aws-cdk#32925
+#
+# 자격증명 헬퍼는 **토큰을 저장하지 않는다.** push 때마다 AWS 자격증명으로 새로
+# 받아 넘기므로 ①②가 둘 다 사라지고, 12시간 만료도 신경 쓸 필요가 없다.
+# docker-credential-ecr-login 은 Docker Desktop 이 함께 설치한다.
+#
+# ★ 설정을 이 스크립트가 고치지 않는다. 사용자의 **전역** ~/.docker/config.json
+#   이고, 되돌리는 책임까지 배포 스크립트가 질 수 없다. 없으면 무엇을 넣어야
+#   하는지 알려주고 멈춘다 (fail-closed).
 
-    # ★ PowerShell 의 파이프는 인코딩을 섞을 수 있다. 변수에 받아 넘긴다.
-    $password | docker login --username AWS --password-stdin $registry
-    if ($LASTEXITCODE -ne 0) { Die "docker login 실패." }
-    Write-Note "로그인 성공 (토큰 유효 12시간)"
+# 헬퍼는 환경변수로 프로필을 읽는다. 호출한 셸이 AWS_PROFILE 을 안 썼더라도
+# 이 프로세스 안에서는 -AwsProfile 이 기준이 되게 맞춘다.
+$env:AWS_PROFILE = $AwsProfile
+$env:AWS_REGION = $Region
+
+if (-not (Get-Command docker-credential-ecr-login -ErrorAction SilentlyContinue)) {
+    Die "docker-credential-ecr-login 을 PATH 에서 찾지 못했다. Docker Desktop 과 함께 설치된다."
 }
+
+$dockerConfigPath = Join-Path $env:USERPROFILE ".docker\config.json"
+$helperConfigured = $false
+if (Test-Path $dockerConfigPath) {
+    try {
+        $dockerConfig = Get-Content $dockerConfigPath -Raw | ConvertFrom-Json
+        $helpers = $dockerConfig.credHelpers
+
+        if ($null -eq $helpers) {
+            $helperConfigured = $false
+        }
+        elseif ($DryRun) {
+            # ★ -DryRun 은 계정 ID 를 모른다(AWS 를 부르지 않는다). 그래서
+            #   $registry 가 `<계정ID>...` 플레이스홀더다. 그대로 조회하면
+            #   **올바르게 설정해도 실패**한다. 리전이 맞는 ECR 항목이 하나라도
+            #   있으면 통과로 본다 — 완전한 검사는 아니지만, 플레이스홀더로
+            #   조회해 거짓 실패를 내는 것보다 낫다.
+            $pattern = "*.dkr.ecr.$Region.amazonaws.com"
+            $helperConfigured = [bool](
+                $helpers.PSObject.Properties |
+                    Where-Object { $_.Name -like $pattern -and $_.Value -eq "ecr-login" }
+            )
+            if ($helperConfigured) {
+                Write-Note "(DryRun) 리전이 맞는 ecr-login 항목을 찾았다. 레지스트리 일치는 실제 실행에서 확인된다"
+            }
+        }
+        else {
+            $helperConfigured = ($helpers.$registry -eq "ecr-login")
+        }
+    }
+    catch {
+        Write-Note "config.json 을 읽지 못했다: $($_.Exception.Message)"
+    }
+}
+
+if (-not $helperConfigured) {
+    # ★ 레지스트리 문자열을 이 안내문에 박지 않는다. -DryRun 에서는 계정 ID 가
+    #   `<계정ID>` 플레이스홀더라, 그걸 박으면 **가린 값이 복사용 블록에 들어간다.**
+    #   앞서 S3 버킷 이름으로 똑같은 실수를 했다 (JOURNAL 2026-11-21).
+    #   그래서 안내문은 계정 ID 를 명령으로 받아 조립하게 쓴다.
+    $setup = @"
+~/.docker/config.json 에 이 레지스트리의 자격증명 헬퍼가 설정돼 있지 않다.
+
+아래를 **한 번만** 실행하면 된다. 이후로는 다시 필요 없다.
+
+  `$acct = aws sts get-caller-identity --profile $AwsProfile --query Account --output text
+  `$reg  = "`$acct.dkr.ecr.$Region.amazonaws.com"
+  `$path = "`$env:USERPROFILE\.docker\config.json"
+
+  Copy-Item `$path "`$path.bak" -Force
+  `$c = Get-Content `$path -Raw | ConvertFrom-Json
+  if (-not `$c.credHelpers) { `$c | Add-Member credHelpers ([pscustomobject]@{}) }
+  `$c.credHelpers | Add-Member -Name `$reg -Value "ecr-login" -MemberType NoteProperty -Force
+  [IO.File]::WriteAllText(`$path, (`$c | ConvertTo-Json -Depth 20), (New-Object System.Text.UTF8Encoding `$false))
+
+★ `Set-Content -Encoding utf8` 을 쓰지 마라. PS 5.1 은 BOM 을 붙이고, docker 의
+  JSON 파서는 BOM 이 있으면 config.json 을 아예 읽지 못한다. 오늘 BOM 때문에
+  한 번 막혔다 — 같은 함정을 설정 파일에서 또 밟을 이유가 없다.
+"@
+    Die $setup
+}
+
+Write-Note "헬퍼 설정됨 (ecr-login) — 토큰을 저장하지 않는다"
+Write-Note "프로필 $AwsProfile / 리전 $Region"
 
 ############################################################
 # 4. 빌드 + 푸시

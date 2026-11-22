@@ -1424,3 +1424,95 @@
   **어디서 불러도 빌드 자체는 올바르다.** 즉 이건 코드 결함이 아니라 **문서 결함**
   이었고, 그래서 테스트가 잡을 수 없었다. 문서에만 있는 절차는 문서로만 지켜진다.
 - 소요: 5분
+
+## 2026-11-23 — ECR docker login 이 400 으로 떨어졌다 (stdin 의 BOM)
+
+- 증상: `push-images.ps1` 의 ECR 로그인 단계에서
+  `Error response from daemon: login attempt to https://<계정ID>.dkr.ecr.ap-northeast-2.amazonaws.com/v2/
+  failed with status: 400 Bad Request`. 토큰 발급은 성공했다(`$LASTEXITCODE` 0).
+- 기대 동작: `Login Succeeded` 가 떠서 빌드·푸시로 넘어가야 한다.
+- 재현 절차:
+  ```powershell
+  # 원인 확인만 한다. AWS 를 건드리지 않는다.
+  chcp                                              # 65001 이면 재현된다
+  "$([Console]::InputEncoding.GetType().Name) / BOM $([Console]::InputEncoding.GetPreamble().Length) 바이트"
+  # -> UTF8Encoding / BOM 3 바이트
+
+  # 실제 재현 (AWS 호출 2건: 토큰 발급 + 로그인)
+  $acct = aws sts get-caller-identity --profile pokehelper --query Account --output text
+  $reg  = "$acct.dkr.ecr.ap-northeast-2.amazonaws.com"
+  $tok  = aws ecr get-login-password --region ap-northeast-2 --profile pokehelper
+  $tok | docker login --username AWS --password-stdin $reg      # 400
+  [Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false
+  $tok | docker login --username AWS --password-stdin $reg      # Login Succeeded
+  ```
+- 원인: 코드 페이지가 **65001(UTF-8)** 이면 PS 5.1 이 외부 프로그램 stdin 에
+  UTF-8 BOM `EF BB BF` 를 먼저 쓴다. `docker login --password-stdin` 은
+  **뒤쪽 개행만 떼고 앞쪽 BOM 은 떼지 않는다.** 그래서 비밀번호가 BOM 으로
+  시작한 채 ECR 에 가고, 401(권한 없음)이 아니라 **400(요청이 잘못됐다)** 이
+  돌아온다. 이 400/401 차이가 "권한이 아니라 바이트 문제"라는 유일한 단서였다.
+- 해결: 로그인 직전에 `[Console]::InputEncoding` 을 BOM 없는 UTF-8 로 바꾸고
+  `finally` 에서 되돌린다. 콘솔이 없는 호스트에서 setter 가 던지면 `cmd` 파이프로
+  내려간다 — cmd 의 파이프는 BOM 을 붙이지 않는다.
+- ★ **배운 것 1 — 나는 엉뚱한 변수를 재고 "아니다"라고 결론 냈다.**
+  BOM 을 의심한 건 맞았는데 `$OutputEncoding` 을 쟀다. `ASCIIEncoding / BOM 0 바이트`
+  가 나오자 가설을 기각했다. 하지만 BOM 은 `[Console]::InputEncoding` 에서 온다.
+  실측 표가 그걸 분리해 보여준다 — 65001 에서 `$OutputEncoding` 만 고쳐도
+  **여전히 400** 이고, `InputEncoding` 을 고쳐야 통과한다.
+  **"측정했는데 음성"은 "원인이 아니다"가 아니다. 측정 대상이 틀렸을 수 있다.**
+  전제 선행 단정(TEST_STRATEGY 3-9)을 테스트에만 적용하고 디버깅에는 적용하지
+  않았다 — 음성 결과를 받았을 때 "이 측정이 양성을 낼 수는 있었나"를 묻지 않았다.
+- ★ **배운 것 2 — 원래 주석이 반쪽짜리였다.** 그 자리에 "PowerShell 의 파이프는
+  인코딩을 섞을 수 있다. 변수에 받아 넘긴다"고 적어뒀었다. 위험은 맞게 봤는데
+  대책이 틀렸다. **변수에 받아도 파이프를 나갈 때 인코딩이 다시 걸린다.**
+  맞는 걱정에 틀린 대책을 달아두면, 다음 사람(나)이 그 지점을 이미 막힌 곳으로
+  읽고 지나친다. 실제로 그렇게 지나쳤다.
+- ★ **배운 것 3 — 테스트로 막을 수 없는 종류다.** 셸의 콘솔 인코딩과 외부
+  프로세스 stdin 의 상호작용이라, `.tf` 테스트처럼 소스를 읽어 잡을 수 없고
+  실제 레지스트리가 필요하다. 대신 **스크립트 안에 원인과 우회를 주석으로
+  박고**, 실패 메시지가 직접 재현 명령을 출력하게 했다.
+- 덤으로 확인된 것: aws-cli 2.32.2~2.32.5 에 같은 400 을 내는 회귀가 있었고
+  (aws/aws-cli#9864) **2.32.6 에서 고쳐졌다.** 로컬은 2.41.2 라 해당 없음.
+  버전 회귀를 먼저 의심했다면 엉뚱한 데서 시간을 썼을 것이다.
+- 출처: https://dev.classmethod.jp/en/articles/powershell-ecr-docker-login-400-bom/
+- 소요: 약 25분
+
+## 2026-11-23 — BOM 을 넘기니 자격증명 저장이 터졌다 (docker login 을 버렸다)
+
+- 증상: BOM 수정 후 다시 로그인하자 400 은 사라지고 다음 오류가 났다.
+  `Error saving credentials: error storing credentials - err: exit status 1,
+   out: 'The stub received bad data.'`
+- 기대 동작: `Login Succeeded` 가 떠서 `docker push` 가 그 자격증명을 쓸 수 있어야 한다.
+- 재현 절차:
+  ```powershell
+  # 전제: credsStore 가 desktop(또는 wincred)이고 ECR 토큰이 2.5KB 를 넘는다
+  Get-Content "$env:USERPROFILE\.docker\config.json" -Raw   # credsStore 확인
+  $tok.Length                                               # 3072 자
+
+  [Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false
+  $tok | docker login --username AWS --password-stdin $reg   # 인증은 통과, 저장에서 실패
+  ```
+- 원인: **Windows 자격증명 관리자는 비밀 하나를 약 2.5KB 까지만 저장한다.**
+  ECR 토큰은 3000자대라 넘치고, `docker-credential-desktop`/`wincred` 가
+  RPC 스텁 오류(`The stub received bad data`)를 낸다. ECR 이 토큰 길이를 늘린
+  뒤로 Windows 에서 흔해졌다.
+  docker/docker-credential-helpers#346 · 같은 저장소 PR #482 · aws/aws-cdk#32925
+- 해결: **`docker login` 자체를 버렸다.** `~/.docker/config.json` 의
+  `credHelpers` 에 레지스트리 → `ecr-login` 을 등록하면, `docker push` 가 매번
+  헬퍼를 호출해 AWS 자격증명으로 토큰을 받아 넘긴다. **토큰을 저장하지 않으므로**
+  2.5KB 한계도, stdin BOM 도, 12시간 만료도 전부 사라진다.
+  `docker-credential-ecr-login` 은 Docker Desktop 이 함께 설치한다(0.8.0, SSO 지원).
+- ★ **배운 것 1 — 오류 메시지가 바뀐 것은 진전이다.** 400 → 저장 실패로 바뀐 건
+  "인증은 통과했다"는 뜻이었다. 같은 작업이 또 실패한 것처럼 보이지만 **실패
+  지점이 뒤로 밀렸다.** 증상이 바뀌었는지 먼저 보는 게 수정이 들었는지 판단하는
+  가장 빠른 길이었다.
+- ★ **배운 것 2 — 두 번 우회한 경로는 버릴 때가 됐다는 신호였다.** ①BOM ②2.5KB
+  한계를 각각 우회할 수도 있었지만, 둘 다 `docker login` 이 **토큰을 받아 저장
+  한다**는 구조에서 나왔다. 저장하지 않는 경로로 바꾸니 둘이 같이 사라졌다.
+  우회를 쌓는 대신 **우회가 모이는 지점을 의심**해야 했다.
+- ★ **배운 것 3 — 내가 만든 안내문이 또 가린 값을 복사용 블록에 넣었다.**
+  헬퍼 미설정 시 출력하는 안내문에 `$registry` 를 박았더니, `-DryRun` 에서는
+  그게 `<계정ID>...` 플레이스홀더로 찍혔다. **S3 버킷 이름으로 이미 한 번 한
+  실수다**(JOURNAL 2026-11-21). 안내문이 계정 ID 를 명령으로 받아 조립하게
+  고쳤다. 가린 값은 산문에만 쓰고, 복사용 블록에는 **절대** 넣지 않는다.
+- 소요: 약 20분
