@@ -129,11 +129,19 @@ terraform apply -target=aws_vpc.main -target=aws_subnet.public ...
 
 ## 5-B. 이미지 빌드·푸시
 
+★ **이 문서의 다른 절과 달리 저장소 루트에서 실행한다.** 2~3절이 이 디렉터리
+기준이라, 거기서 이어서 치면 `CommandNotFoundException` 이 난다.
+
 ```powershell
+cd ..\..                                     # ← 저장소 루트. 빼먹으면 스크립트를 못 찾는다
 aws sso login --profile pokehelper
 .\infra\scripts\push-images.ps1 -DryRun     # 무엇을 할지만 본다
 .\infra\scripts\push-images.ps1             # 실제로 빌드·푸시
 ```
+
+경로를 틀려도 **빌드가 잘못되지는 않는다** — 스크립트가 `$PSScriptRoot` 로 저장소
+루트를 직접 찾아 `Set-Location` 한다. 깨지는 건 "스크립트를 찾는 것"뿐이다.
+그 `Set-Location` 은 세션 전체에 걸리므로, **끝나면 저장소 루트에 서 있다.**
 
 스크립트가 대신 지켜주는 것 셋:
 
