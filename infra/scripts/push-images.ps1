@@ -176,8 +176,29 @@ $helperConfigured = $false
 if (Test-Path $dockerConfigPath) {
     try {
         $dockerConfig = Get-Content $dockerConfigPath -Raw | ConvertFrom-Json
-        $helperConfigured = ($null -ne $dockerConfig.credHelpers) -and
-                            ($dockerConfig.credHelpers.$registry -eq "ecr-login")
+        $helpers = $dockerConfig.credHelpers
+
+        if ($null -eq $helpers) {
+            $helperConfigured = $false
+        }
+        elseif ($DryRun) {
+            # ★ -DryRun 은 계정 ID 를 모른다(AWS 를 부르지 않는다). 그래서
+            #   $registry 가 `<계정ID>...` 플레이스홀더다. 그대로 조회하면
+            #   **올바르게 설정해도 실패**한다. 리전이 맞는 ECR 항목이 하나라도
+            #   있으면 통과로 본다 — 완전한 검사는 아니지만, 플레이스홀더로
+            #   조회해 거짓 실패를 내는 것보다 낫다.
+            $pattern = "*.dkr.ecr.$Region.amazonaws.com"
+            $helperConfigured = [bool](
+                $helpers.PSObject.Properties |
+                    Where-Object { $_.Name -like $pattern -and $_.Value -eq "ecr-login" }
+            )
+            if ($helperConfigured) {
+                Write-Note "(DryRun) 리전이 맞는 ecr-login 항목을 찾았다. 레지스트리 일치는 실제 실행에서 확인된다"
+            }
+        }
+        else {
+            $helperConfigured = ($helpers.$registry -eq "ecr-login")
+        }
     }
     catch {
         Write-Note "config.json 을 읽지 못했다: $($_.Exception.Message)"
