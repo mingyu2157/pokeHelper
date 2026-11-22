@@ -1356,3 +1356,45 @@
   **CI 가 E501 로 한 번 더 빨개졌다.** "테스트를 실행하지 못했다"고 적었지만
   **lint 도 같이 못 돌았다는 것을 짚지 않았다.** 못 돌린 검사는 전부 나열한다.
 - 소요: 약 25분
+
+## 2026-11-22 — PowerShell 스크립트가 세 가지로 연달아 깨졌다
+
+- 증상: ECR 푸시 스크립트를 쓰고 `-DryRun` 으로 돌리는데 **원인이 다른 실패가
+  세 번 연달아** 났다.
+  ```
+  1) 줄 105: Missing closing ')' in expression.
+  2) 줄 187: Unexpected token '?몄떆' in expression or statement.
+  3) docker : WARNING: daemon is not using the default seccomp profile
+     + CategoryInfo : NotSpecified: (...) [], RemoteException
+  ```
+- 기대 동작: `-DryRun` 은 아무것도 실행하지 않고 할 일만 출력해야 한다.
+- 재현 절차:
+  ```powershell
+  # 구문만 확인 (실행하지 않는다)
+  $e = $null
+  [System.Management.Automation.PSParser]::Tokenize(
+      (Get-Content .\infra\scripts\push-images.ps1 -Raw), [ref]$e) > $null
+  $e | ForEach-Object { "$($_.Token.StartLine): $($_.Message)" }
+  ```
+- 원인: 셋 다 **PowerShell 5.1 고유의 것**이고 서로 무관했다.
+  1. **`Die @"` — 함수 인자 자리의 here-string.** `@` 를 splat 으로 읽는다.
+     변수에 먼저 받아 넘기면 된다.
+  2. ★ **BOM 없는 `.ps1` 은 ANSI(cp949)로 읽힌다.** 한글이 깨지고 here-string
+     종료자까지 어긋나 엉뚱한 구문 오류가 난다. **UTF-8 BOM 으로 저장**해야 한다.
+     이건 토큰 검사에서만 나는 문제가 아니라 **실제 실행에서도 깨진다.**
+  3. ★ **네이티브 명령의 stderr 를 리다이렉트하면 ErrorRecord 가 된다.**
+     `docker info *> $null` 에서 docker 가 경고 한 줄을 내자
+     `$ErrorActionPreference = "Stop"` 과 맞물려 스크립트가 그 자리에서 죽었다.
+     출력을 받아야 하는 네이티브 호출만 `Invoke-Native` 로 감쌌다 — 그 안에서만
+     `Continue` 로 내리고 `$LASTEXITCODE` 를 직접 본다.
+- 덤으로: 파라미터 이름을 `$Profile` 로 지었는데 **PowerShell 자동 변수**다.
+  동작은 하지만 가리는 것이라 `$AwsProfile` 로 바꿨다.
+- ★ **처음 만든 `-DryRun` 이 dry run 이 아니었다.** 전제 확인 단계에서
+  `aws sts get-caller-identity` 를 부르고 있었다. "아무것도 안 한다"고 해놓고
+  계정에 요청을 보내는 것이라, 사용자가 걸어둔 규칙(AWS 호출은 먼저 묻는다)에도
+  걸렸다. 도구 권한 검사가 그걸 막아줬다 — **내가 못 지킨 규칙을 도구가 잡았다.**
+- 배운 것: 셸 스크립트는 **"쓴 것"과 "그 셸이 읽는 것"이 다를 수 있다.**
+  인코딩·인자 파싱·스트림 처리가 전부 셸에 달려 있고, 그 셋이 각각 다른 모양으로
+  깨진다. `-DryRun` 같은 **실행하지 않는 경로를 먼저 만들어** 돌려본 것이
+  빌드 10분을 쓰기 전에 전부 잡아낸 이유다.
+- 소요: 약 30분

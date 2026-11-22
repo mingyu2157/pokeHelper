@@ -112,7 +112,7 @@ PowerShell 5.1 은 **`-` 로 시작하면서 `=` 가 들어간 인자**를 외�
 | 단계 | 대상 | 확인할 것 |
 |---|---|---|
 | 1 | `network.tf`, `security_groups.tf` | 서브넷 4개, 보안그룹 4개 |
-| 2 | `ecr.tf` + ARM 이미지 push | 태그가 **git SHA** 인가 (`:latest` 를 쓰지 않는다) |
+| 2 | `ecr.tf` + ARM 이미지 push | `infra/scripts/push-images.ps1` (아래 5-B) |
 | 3 | `data.tf` (RDS·ElastiCache) | 태스크에서 접속되는가 |
 | 4 | `iam.tf`, `secrets.tf` | SSM 값을 손으로 넣었는가 |
 | 5 | `dns.tf`, `alb.tf`, `ecs.tf` | `/health` 가 200 인가 |
@@ -124,6 +124,27 @@ terraform apply -target=aws_vpc.main -target=aws_subnet.public ...
 
 > `-target` 은 평소에 쓰면 안 되는 옵션이다. **최초 구축 때만** 쓰고, 그 뒤엔
 > 항상 전체 `apply` 로 돌린다. 계속 쓰면 state 와 실제가 조용히 어긋난다.
+
+---
+
+## 5-B. 이미지 빌드·푸시
+
+```powershell
+aws sso login --profile pokehelper
+.\infra\scripts\push-images.ps1 -DryRun     # 무엇을 할지만 본다
+.\infra\scripts\push-images.ps1             # 실제로 빌드·푸시
+```
+
+스크립트가 대신 지켜주는 것 셋:
+
+| | 왜 |
+|---|---|
+| 태그 = **git 커밋 SHA** | ECR 이 `IMMUTABLE` 이라 `:latest` 를 두 번 못 민다. 그리고 latest 를 덮어쓰면 **무엇이 떠 있는지 모르고 롤백 대상도 사라진다** |
+| 플랫폼 = **linux/arm64** | 빼먹으면 x86 이 올라가고 **ECS 가 태스크를 못 띄울 때까지 모른다**. 빌드 후 `Architecture` 를 단정한다 |
+| 작업 트리가 더러우면 **거부** | SHA 가 이미지를 설명하지 않게 된다. `-AllowDirty` 로만 통과 |
+
+빌드는 QEMU 에뮬레이션이라 **백엔드 약 3분, 프론트 약 8분**이다.
+자격증명 확인을 **빌드 전에** 한다 — 끝난 뒤 push 에서 만료되면 그 시간이 날아간다.
 
 ---
 
