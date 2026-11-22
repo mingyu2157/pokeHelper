@@ -1476,3 +1476,43 @@
   버전 회귀를 먼저 의심했다면 엉뚱한 데서 시간을 썼을 것이다.
 - 출처: https://dev.classmethod.jp/en/articles/powershell-ecr-docker-login-400-bom/
 - 소요: 약 25분
+
+## 2026-11-23 — BOM 을 넘기니 자격증명 저장이 터졌다 (docker login 을 버렸다)
+
+- 증상: BOM 수정 후 다시 로그인하자 400 은 사라지고 다음 오류가 났다.
+  `Error saving credentials: error storing credentials - err: exit status 1,
+   out: 'The stub received bad data.'`
+- 기대 동작: `Login Succeeded` 가 떠서 `docker push` 가 그 자격증명을 쓸 수 있어야 한다.
+- 재현 절차:
+  ```powershell
+  # 전제: credsStore 가 desktop(또는 wincred)이고 ECR 토큰이 2.5KB 를 넘는다
+  Get-Content "$env:USERPROFILE\.docker\config.json" -Raw   # credsStore 확인
+  $tok.Length                                               # 3072 자
+
+  [Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false
+  $tok | docker login --username AWS --password-stdin $reg   # 인증은 통과, 저장에서 실패
+  ```
+- 원인: **Windows 자격증명 관리자는 비밀 하나를 약 2.5KB 까지만 저장한다.**
+  ECR 토큰은 3000자대라 넘치고, `docker-credential-desktop`/`wincred` 가
+  RPC 스텁 오류(`The stub received bad data`)를 낸다. ECR 이 토큰 길이를 늘린
+  뒤로 Windows 에서 흔해졌다.
+  docker/docker-credential-helpers#346 · 같은 저장소 PR #482 · aws/aws-cdk#32925
+- 해결: **`docker login` 자체를 버렸다.** `~/.docker/config.json` 의
+  `credHelpers` 에 레지스트리 → `ecr-login` 을 등록하면, `docker push` 가 매번
+  헬퍼를 호출해 AWS 자격증명으로 토큰을 받아 넘긴다. **토큰을 저장하지 않으므로**
+  2.5KB 한계도, stdin BOM 도, 12시간 만료도 전부 사라진다.
+  `docker-credential-ecr-login` 은 Docker Desktop 이 함께 설치한다(0.8.0, SSO 지원).
+- ★ **배운 것 1 — 오류 메시지가 바뀐 것은 진전이다.** 400 → 저장 실패로 바뀐 건
+  "인증은 통과했다"는 뜻이었다. 같은 작업이 또 실패한 것처럼 보이지만 **실패
+  지점이 뒤로 밀렸다.** 증상이 바뀌었는지 먼저 보는 게 수정이 들었는지 판단하는
+  가장 빠른 길이었다.
+- ★ **배운 것 2 — 두 번 우회한 경로는 버릴 때가 됐다는 신호였다.** ①BOM ②2.5KB
+  한계를 각각 우회할 수도 있었지만, 둘 다 `docker login` 이 **토큰을 받아 저장
+  한다**는 구조에서 나왔다. 저장하지 않는 경로로 바꾸니 둘이 같이 사라졌다.
+  우회를 쌓는 대신 **우회가 모이는 지점을 의심**해야 했다.
+- ★ **배운 것 3 — 내가 만든 안내문이 또 가린 값을 복사용 블록에 넣었다.**
+  헬퍼 미설정 시 출력하는 안내문에 `$registry` 를 박았더니, `-DryRun` 에서는
+  그게 `<계정ID>...` 플레이스홀더로 찍혔다. **S3 버킷 이름으로 이미 한 번 한
+  실수다**(JOURNAL 2026-11-21). 안내문이 계정 ID 를 명령으로 받아 조립하게
+  고쳤다. 가린 값은 산문에만 쓰고, 복사용 블록에는 **절대** 넣지 않는다.
+- 소요: 약 20분

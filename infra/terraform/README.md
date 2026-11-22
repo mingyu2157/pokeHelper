@@ -154,18 +154,41 @@ aws sso login --profile pokehelper
 빌드는 QEMU 에뮬레이션이라 **백엔드 약 3분, 프론트 약 8분**이다.
 자격증명 확인을 **빌드 전에** 한다 — 끝난 뒤 push 에서 만료되면 그 시간이 날아간다.
 
-★ **`docker login` 이 400 Bad Request 로 떨어지면** stdin 의 BOM 문제다.
-코드 페이지 65001 에서 PS 5.1 이 외부 프로그램 stdin 에 UTF-8 BOM 을 먼저 쓰고,
-`docker login --password-stdin` 은 뒤쪽 개행만 떼고 앞쪽 BOM 은 떼지 않는다.
-스크립트가 `[Console]::InputEncoding` 을 바꿔 우회하지만, 손으로 칠 때는 직접
-해야 한다. 401 이 아니라 **400** 인 것이 "권한이 아니라 바이트" 라는 단서다.
+### 최초 1회: ECR 자격증명 헬퍼 설정
+
+이 스크립트는 **`docker login` 을 쓰지 않는다.** 대신 `~/.docker/config.json` 에
+레지스트리별 헬퍼를 등록해 둔다. 한 번만 하면 된다.
 
 ```powershell
-[Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false
+$acct = aws sts get-caller-identity --profile pokehelper --query Account --output text
+$reg  = "$acct.dkr.ecr.ap-northeast-2.amazonaws.com"
+$path = "$env:USERPROFILE\.docker\config.json"
+
+Copy-Item $path "$path.bak" -Force
+$c = Get-Content $path -Raw | ConvertFrom-Json
+if (-not $c.credHelpers) { $c | Add-Member credHelpers ([pscustomobject]@{}) }
+$c.credHelpers | Add-Member -Name $reg -Value "ecr-login" -MemberType NoteProperty -Force
+[IO.File]::WriteAllText($path, ($c | ConvertTo-Json -Depth 20), (New-Object System.Text.UTF8Encoding $false))
 ```
 
-`$OutputEncoding` 을 고치는 건 **듣지 않는다** — BOM 의 출처가 아니다.
-자세한 경위는 JOURNAL 2026-11-23.
+`docker-credential-ecr-login` 은 **Docker Desktop 이 함께 설치한다.** 따로 받을
+필요 없다. 설정이 없으면 스크립트가 무엇을 넣어야 하는지 출력하고 멈춘다.
+
+★ **`Set-Content -Encoding utf8` 을 쓰지 마라.** PS 5.1 은 BOM 을 붙이고, docker 의
+JSON 파서는 BOM 이 있으면 config.json 을 아예 읽지 못한다.
+
+### ★ 왜 `docker login` 을 쓰지 않는가
+
+Windows 에서 **두 벽에 연달아 막혔다** (JOURNAL 2026-11-23). 둘 다 `docker login`
+경로에만 있는 문제다.
+
+| 증상 | 원인 |
+|---|---|
+| `400 Bad Request` | 코드 페이지 65001 에서 PS 5.1 이 외부 프로그램 stdin 에 UTF-8 BOM 을 먼저 쓴다. `--password-stdin` 은 **뒤쪽 개행만** 떼고 앞쪽 BOM 은 떼지 않아 비밀번호가 깨진 채 간다. 401 이 아니라 **400** 인 것이 "권한이 아니라 바이트"라는 단서였다. BOM 의 출처는 `$OutputEncoding` 이 **아니라** `[Console]::InputEncoding` 이다 |
+| `The stub received bad data` | ①을 우회해도 다음 벽. **Windows 자격증명 관리자는 비밀 하나를 약 2.5KB 까지만** 저장한다. ECR 토큰은 3000자대라 넘쳐서 `desktop`·`wincred` 헬퍼가 깨진다 |
+
+헬퍼는 **토큰을 저장하지 않는다.** push 때마다 AWS 자격증명으로 새로 받으므로
+두 문제가 같이 사라지고, 12시간 만료도 신경 쓸 필요가 없다.
 
 ---
 
