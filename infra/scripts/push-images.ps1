@@ -148,9 +148,62 @@ else {
     $password = aws ecr get-login-password --region $Region --profile $AwsProfile
     if ($LASTEXITCODE -ne 0) { Die "ECR 토큰을 받지 못했다." }
 
-    # ★ PowerShell 의 파이프는 인코딩을 섞을 수 있다. 변수에 받아 넘긴다.
-    $password | docker login --username AWS --password-stdin $registry
-    if ($LASTEXITCODE -ne 0) { Die "docker login 실패." }
+    # ★★ 여기서 400 으로 터졌다 (JOURNAL 2026-11-23) ★★
+    #
+    # 코드 페이지가 65001(UTF-8)이면 PS 5.1 은 외부 프로그램 stdin 에 UTF-8 BOM
+    # `EF BB BF` 를 먼저 쓴다. docker login --password-stdin 은 **뒤쪽 개행만**
+    # 떼고 앞쪽 BOM 은 떼지 않는다. 그래서 비밀번호가 BOM 으로 시작한 채 ECR 에
+    # 가고, 401(권한 없음)이 아니라 **400(요청이 잘못됐다)** 이 돌아온다.
+    #
+    # ★ BOM 의 출처는 $OutputEncoding 이 **아니라** [Console]::InputEncoding 이다.
+    #   실측: 65001 에서 $OutputEncoding 만 BOM 없는 UTF-8 로 바꿔도 여전히 400
+    #   이고, InputEncoding 을 바꿔야 통과한다. 그래서 원래 주석("파이프는 인코딩을
+    #   섞을 수 있으니 변수에 받는다")은 반쪽짜리였다 — 변수에 받아도 파이프를
+    #   나갈 때 인코딩이 다시 걸린다.
+    #   https://dev.classmethod.jp/en/articles/powershell-ecr-docker-login-400-bom/
+    #
+    # 세션 설정을 건드리므로 반드시 되돌린다. 콘솔이 없는 호스트(비대화형)에서는
+    # setter 가 던질 수 있어 cmd 파이프로 내려간다 — cmd 의 파이프는 BOM 을 붙이지
+    # 않는다. 어느 경로든 토큰은 argv 나 파일에 남지 않는다.
+    $previousInput = $null
+    $viaConsole = $false
+    try {
+        $previousInput = [Console]::InputEncoding
+        [Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false
+        $viaConsole = $true
+    }
+    catch {
+        Write-Note "[Console]::InputEncoding 을 못 바꿨다. cmd 파이프로 우회한다."
+    }
+
+    try {
+        if ($viaConsole) {
+            $password | docker login --username AWS --password-stdin $registry
+        }
+        else {
+            cmd /c "aws ecr get-login-password --region $Region --profile $AwsProfile | docker login --username AWS --password-stdin $registry"
+        }
+    }
+    finally {
+        if ($viaConsole) { [Console]::InputEncoding = $previousInput }
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        # here-string 은 함수 인자 자리에 바로 못 쓴다. @" 를 splat 으로 읽는다
+        # (JOURNAL 2026-11-22). 변수에 먼저 받는다.
+        $hint = @"
+docker login 실패.
+
+400 Bad Request 였다면 stdin 의 BOM 문제다. 같은 셸에서 아래를 직접 해보고
+결과를 알려달라 — 되면 이 스크립트의 우회가 동작하지 않은 것이다.
+
+  chcp
+  [Console]::InputEncoding = New-Object System.Text.UTF8Encoding `$false
+  aws ecr get-login-password --region $Region --profile $AwsProfile |
+      docker login --username AWS --password-stdin $registry
+"@
+        Die $hint
+    }
     Write-Note "로그인 성공 (토큰 유효 12시간)"
 }
 

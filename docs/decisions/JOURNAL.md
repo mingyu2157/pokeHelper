@@ -1424,3 +1424,55 @@
   **어디서 불러도 빌드 자체는 올바르다.** 즉 이건 코드 결함이 아니라 **문서 결함**
   이었고, 그래서 테스트가 잡을 수 없었다. 문서에만 있는 절차는 문서로만 지켜진다.
 - 소요: 5분
+
+## 2026-11-23 — ECR docker login 이 400 으로 떨어졌다 (stdin 의 BOM)
+
+- 증상: `push-images.ps1` 의 ECR 로그인 단계에서
+  `Error response from daemon: login attempt to https://<계정ID>.dkr.ecr.ap-northeast-2.amazonaws.com/v2/
+  failed with status: 400 Bad Request`. 토큰 발급은 성공했다(`$LASTEXITCODE` 0).
+- 기대 동작: `Login Succeeded` 가 떠서 빌드·푸시로 넘어가야 한다.
+- 재현 절차:
+  ```powershell
+  # 원인 확인만 한다. AWS 를 건드리지 않는다.
+  chcp                                              # 65001 이면 재현된다
+  "$([Console]::InputEncoding.GetType().Name) / BOM $([Console]::InputEncoding.GetPreamble().Length) 바이트"
+  # -> UTF8Encoding / BOM 3 바이트
+
+  # 실제 재현 (AWS 호출 2건: 토큰 발급 + 로그인)
+  $acct = aws sts get-caller-identity --profile pokehelper --query Account --output text
+  $reg  = "$acct.dkr.ecr.ap-northeast-2.amazonaws.com"
+  $tok  = aws ecr get-login-password --region ap-northeast-2 --profile pokehelper
+  $tok | docker login --username AWS --password-stdin $reg      # 400
+  [Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false
+  $tok | docker login --username AWS --password-stdin $reg      # Login Succeeded
+  ```
+- 원인: 코드 페이지가 **65001(UTF-8)** 이면 PS 5.1 이 외부 프로그램 stdin 에
+  UTF-8 BOM `EF BB BF` 를 먼저 쓴다. `docker login --password-stdin` 은
+  **뒤쪽 개행만 떼고 앞쪽 BOM 은 떼지 않는다.** 그래서 비밀번호가 BOM 으로
+  시작한 채 ECR 에 가고, 401(권한 없음)이 아니라 **400(요청이 잘못됐다)** 이
+  돌아온다. 이 400/401 차이가 "권한이 아니라 바이트 문제"라는 유일한 단서였다.
+- 해결: 로그인 직전에 `[Console]::InputEncoding` 을 BOM 없는 UTF-8 로 바꾸고
+  `finally` 에서 되돌린다. 콘솔이 없는 호스트에서 setter 가 던지면 `cmd` 파이프로
+  내려간다 — cmd 의 파이프는 BOM 을 붙이지 않는다.
+- ★ **배운 것 1 — 나는 엉뚱한 변수를 재고 "아니다"라고 결론 냈다.**
+  BOM 을 의심한 건 맞았는데 `$OutputEncoding` 을 쟀다. `ASCIIEncoding / BOM 0 바이트`
+  가 나오자 가설을 기각했다. 하지만 BOM 은 `[Console]::InputEncoding` 에서 온다.
+  실측 표가 그걸 분리해 보여준다 — 65001 에서 `$OutputEncoding` 만 고쳐도
+  **여전히 400** 이고, `InputEncoding` 을 고쳐야 통과한다.
+  **"측정했는데 음성"은 "원인이 아니다"가 아니다. 측정 대상이 틀렸을 수 있다.**
+  전제 선행 단정(TEST_STRATEGY 3-9)을 테스트에만 적용하고 디버깅에는 적용하지
+  않았다 — 음성 결과를 받았을 때 "이 측정이 양성을 낼 수는 있었나"를 묻지 않았다.
+- ★ **배운 것 2 — 원래 주석이 반쪽짜리였다.** 그 자리에 "PowerShell 의 파이프는
+  인코딩을 섞을 수 있다. 변수에 받아 넘긴다"고 적어뒀었다. 위험은 맞게 봤는데
+  대책이 틀렸다. **변수에 받아도 파이프를 나갈 때 인코딩이 다시 걸린다.**
+  맞는 걱정에 틀린 대책을 달아두면, 다음 사람(나)이 그 지점을 이미 막힌 곳으로
+  읽고 지나친다. 실제로 그렇게 지나쳤다.
+- ★ **배운 것 3 — 테스트로 막을 수 없는 종류다.** 셸의 콘솔 인코딩과 외부
+  프로세스 stdin 의 상호작용이라, `.tf` 테스트처럼 소스를 읽어 잡을 수 없고
+  실제 레지스트리가 필요하다. 대신 **스크립트 안에 원인과 우회를 주석으로
+  박고**, 실패 메시지가 직접 재현 명령을 출력하게 했다.
+- 덤으로 확인된 것: aws-cli 2.32.2~2.32.5 에 같은 400 을 내는 회귀가 있었고
+  (aws/aws-cli#9864) **2.32.6 에서 고쳐졌다.** 로컬은 2.41.2 라 해당 없음.
+  버전 회귀를 먼저 의심했다면 엉뚱한 데서 시간을 썼을 것이다.
+- 출처: https://dev.classmethod.jp/en/articles/powershell-ecr-docker-login-400-bom/
+- 소요: 약 25분

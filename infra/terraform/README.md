@@ -154,6 +154,19 @@ aws sso login --profile pokehelper
 빌드는 QEMU 에뮬레이션이라 **백엔드 약 3분, 프론트 약 8분**이다.
 자격증명 확인을 **빌드 전에** 한다 — 끝난 뒤 push 에서 만료되면 그 시간이 날아간다.
 
+★ **`docker login` 이 400 Bad Request 로 떨어지면** stdin 의 BOM 문제다.
+코드 페이지 65001 에서 PS 5.1 이 외부 프로그램 stdin 에 UTF-8 BOM 을 먼저 쓰고,
+`docker login --password-stdin` 은 뒤쪽 개행만 떼고 앞쪽 BOM 은 떼지 않는다.
+스크립트가 `[Console]::InputEncoding` 을 바꿔 우회하지만, 손으로 칠 때는 직접
+해야 한다. 401 이 아니라 **400** 인 것이 "권한이 아니라 바이트" 라는 단서다.
+
+```powershell
+[Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false
+```
+
+`$OutputEncoding` 을 고치는 건 **듣지 않는다** — BOM 의 출처가 아니다.
+자세한 경위는 JOURNAL 2026-11-23.
+
 ---
 
 ## 5. 검사
