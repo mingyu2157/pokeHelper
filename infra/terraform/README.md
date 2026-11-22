@@ -113,7 +113,7 @@ PowerShell 5.1 은 **`-` 로 시작하면서 `=` 가 들어간 인자**를 외�
 |---|---|---|
 | 1 | `network.tf`, `security_groups.tf` | 서브넷 4개, 보안그룹 4개 |
 | 2 | `ecr.tf` + ARM 이미지 push | `infra/scripts/push-images.ps1` (아래 5-B) |
-| 3 | `data.tf` (RDS·ElastiCache) | 태스크에서 접속되는가 |
+| 3 | `data.tf` (RDS·ElastiCache) | ★ **코드는 있고 apply 는 5단계와 함께** (아래) |
 | 4 | `iam.tf`, `secrets.tf` | SSM 값을 손으로 넣었는가 |
 | 5 | `dns.tf`, `alb.tf`, `ecs.tf` | `/health` 가 200 인가 |
 | 6 | `scheduler.tf`, `observability.tf` | 다음 날 수집이 돌았는가 |
@@ -124,6 +124,16 @@ terraform apply -target=aws_vpc.main -target=aws_subnet.public ...
 
 > `-target` 은 평소에 쓰면 안 되는 옵션이다. **최초 구축 때만** 쓰고, 그 뒤엔
 > 항상 전체 `apply` 로 돌린다. 계속 쓰면 state 와 실제가 조용히 어긋난다.
+
+★ **3단계(`data.tf`)의 apply 를 5단계까지 미룬다.** RDS·ElastiCache 는 만든
+순간부터 시간당 과금인데(월 ~$36) 접속할 태스크가 아직 없다. 빈 DB 를 켜두고
+하루 $1.2 를 내는 것은 아무것도 사지 않는 지출이다. 그래서 코드·테스트·`plan`
+까지만 먼저 하고, 실제 생성은 ALB·ECS 와 같이 한다.
+
+반대 의견도 있었다 — RDS 는 생성에 10분 이상 걸리고 서브넷 그룹·파라미터
+그룹에서 처음 깨지기 쉬우니, 미루면 **ECS 작업 중에 두 가지가 동시에 깨진다.**
+그건 "그날 안에 ECS 까지 간다"는 전제가 있을 때만 성립해서 미루는 쪽을 골랐다.
+(2026-11-23)
 
 ---
 
@@ -210,9 +220,21 @@ docker compose exec backend uv run pytest tests/integration/test_terraform_secur
 
 ## 6. 내릴 때
 
+★ **`destroy` 한 번으로는 안 내려간다.** RDS 에 `deletion_protection = true` 가
+걸려 있어 거부된다. 번거로운 것이 목적이다 — 운영 DB 가 실수로 사라지면 안 된다.
+
 ```bash
+# 1단계: data.tf 에서 그 줄을 직접 고치고 apply 한다
+#   resource "aws_db_instance" "main" { ... deletion_protection = false ... }
+terraform apply
+
+# 2단계
 terraform destroy
 ```
+
+★ **변수로 빼지 않은 것이 의도다.** `-var` 한 줄로 끌 수 있으면 보호의 의미가
+줄어든다. 코드를 고쳐야 하므로 **diff 에 남고, 리뷰에 걸리고, 되돌리기 쉽다.**
+(그래서 `test_terraform_data.py` 는 이 값이 변수가 아니라 `true` 인지를 본다.)
 
 지워지지 **않는** 것:
 
@@ -233,6 +255,10 @@ terraform destroy
 
 ADR-020 기준 **월 약 $98** (프리 티어 없음 가정, 730시간).
 가장 큰 항목은 ALB($22) · RDS($18) · ElastiCache($18) · 태스크($28) 다.
+
+여기에 **Secrets Manager 시크릿 1개 월 $0.40** 이 더해진다. RDS 마스터
+비밀번호를 Terraform 이 들고 있지 않게 하려고(`manage_master_user_password`)
+낸 비용이다 — 직접 만들면 **값이 state 에 평문으로 들어간다.**
 
 청구 알람이 `observability.tf` 에 들어 있다. 임계치는
 `monthly_budget_usd`(기본 150)다. **비용 절감 장치가 아니라 사고 방지
