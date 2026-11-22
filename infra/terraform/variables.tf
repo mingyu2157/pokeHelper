@@ -112,10 +112,19 @@ variable "alarm_email" {
   description = <<-EOT
     청구 알람을 받을 주소. apply 후 SNS 구독 확인 메일이 한 번 온다.
 
-    ★ 지금은 비어 있어도 된다 — 이 값을 쓰는 `observability.tf` 가 아직 없다.
-    다만 **청구 알람 없이 운영 자원을 올리지 않는다** (ADR-020 세부사항 8).
-    비용 절감 장치가 아니라 사고 방지 장치다.
+    ★ **필수값이다.** `observability.tf` 가 이 주소로 예산 알림을 보낸다.
+    기본값을 주면 **주소를 안 넣은 채로 예산이 만들어지고, 아무에게도 알림이
+    가지 않는 상태**가 된다 — 그건 알림이 없는 것보다 나쁘다. "알림을 달아뒀다"고
+    믿게 되기 때문이다.
+
+    (dns.tf 가 없던 시절의 domain_name 처럼 한동안 선택값이었다. 쓰는 자원이
+     생겼으므로 되돌린다.)
   EOT
   type        = string
-  default     = ""
+
+  validation {
+    # 점은 [.] 로 쓴다 — HCL 큰따옴표 문자열에서 `\.` 는 유효한 이스케이프가 아니다.
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$", var.alarm_email))
+    error_message = "alarm_email 은 이메일 주소여야 한다. 오타가 나면 알림이 조용히 사라진다."
+  }
 }
