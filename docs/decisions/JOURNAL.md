@@ -1398,3 +1398,29 @@
   깨진다. `-DryRun` 같은 **실행하지 않는 경로를 먼저 만들어** 돌려본 것이
   빌드 10분을 쓰기 전에 전부 잡아낸 이유다.
 - 소요: 약 30분
+
+## 2026-11-22 — 실행 안내에서 작업 디렉터리를 빼먹었다 (두 번째)
+
+- 증상: `.\infra\scripts\push-images.ps1 -DryRun` 이
+  `CommandNotFoundException` 으로 떨어졌다.
+- 기대 동작: 스크립트가 실행돼 빌드·푸시 계획을 출력해야 한다.
+- 재현 절차:
+  ```powershell
+  cd C:\project\pokehelper\infra\terraform
+  .\infra\scripts\push-images.ps1 -DryRun     # ❌ CommandNotFoundException
+  cd C:\project\pokehelper
+  .\infra\scripts\push-images.ps1 -DryRun     # ✅
+  ```
+- 원인: 스크립트가 아니라 **안내가 틀렸다.** 내가 준 경로는 저장소 루트 기준인데,
+  `infra/terraform/README.md` 의 2~3절이 `cd bootstrap` / `cd ..` 로 그 디렉터리에
+  서 있게 만든다. 거기서 이어 치면 경로가 한 단계 어긋난다.
+- 해결: README 5-B 블록 첫 줄에 `cd ..\..` 를 넣고, 다른 절과 기준 디렉터리가
+  다르다는 것을 명시했다.
+- ★ **같은 종류의 두 번째다.** 앞서 `terraform plan` 안내에서도 `cd` 를 빼먹어
+  `Error: No configuration files` 가 났다. 한 번은 실수지만 두 번은 패턴이다 —
+  **명령 블록은 "무엇을 치는가"만 적고 "어디서 치는가"를 빠뜨리기 쉽다.**
+  앞으로 실행 안내는 디렉터리를 포함한 채로 준다.
+- 배운 것: 스크립트는 내부에서 `$PSScriptRoot` 로 루트를 찾아 `Set-Location` 하므로
+  **어디서 불러도 빌드 자체는 올바르다.** 즉 이건 코드 결함이 아니라 **문서 결함**
+  이었고, 그래서 테스트가 잡을 수 없었다. 문서에만 있는 절차는 문서로만 지켜진다.
+- 소요: 5분
