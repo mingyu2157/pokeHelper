@@ -114,7 +114,7 @@ PowerShell 5.1 은 **`-` 로 시작하면서 `=` 가 들어간 인자**를 외�
 | 1 | `network.tf`, `security_groups.tf` | 서브넷 4개, 보안그룹 4개 |
 | 2 | `ecr.tf` + ARM 이미지 push | `infra/scripts/push-images.ps1` (아래 5-B) |
 | 3 | `data.tf` (RDS·ElastiCache) | ★ **코드는 있고 apply 는 5단계와 함께** (아래) |
-| 4 | `iam.tf`, `secrets.tf` | SSM 값을 손으로 넣었는가 |
+| 4 | `iam.tf`, `secrets.tf` | 역할 3개 · SSM 값을 손으로 넣었는가 |
 | 5 | `dns.tf`, `alb.tf`, `ecs.tf` | `/health` 가 200 인가 |
 | 6 | `scheduler.tf`, `observability.tf` | 다음 날 수집이 돌았는가 |
 
@@ -133,6 +133,26 @@ terraform apply -target=aws_vpc.main -target=aws_subnet.public ...
 반대 의견도 있었다 — RDS 는 생성에 10분 이상 걸리고 서브넷 그룹·파라미터
 그룹에서 처음 깨지기 쉬우니, 미루면 **ECS 작업 중에 두 가지가 동시에 깨진다.**
 그건 "그날 안에 ECS 까지 간다"는 전제가 있을 때만 성립해서 미루는 쪽을 골랐다.
+(2026-11-23)
+
+★ **반대로 4단계(`iam.tf`)는 미루지 않는다.** IAM 역할은 **무료**고, 태스크
+정의가 역할 ARN 을 참조하므로 **ECS 보다 먼저 있어야 한다.** `iam.tf` 는 아직
+없는 `ecs.tf` 의 자원을 참조하지 않고 이름 규칙으로 ARN 을 만들기 때문에 단독
+apply 가 된다 — 대신 **`ecs.tf` 의 클러스터 이름이 `local.name` 이어야 한다.**
+어긋나면 스케줄러 정책의 `ecs:cluster` 조건이 안 맞아 **RunTask 만 조용히
+막힌다.**
+
+### 실행 역할과 태스크 역할 (ADR-021 세부사항 6)
+
+ECS 에서 가장 자주 틀리는 구분이라 여기에도 적어둔다.
+
+| | 누가 쓰나 | 언제 | 무엇을 |
+|---|---|---|---|
+| **실행** 역할 | ECS 에이전트 (컨테이너 **밖**) | 태스크가 **뜨기 전** | ECR pull · 로그 스트림 생성 · SSM 값을 환경변수로 주입 |
+| **태스크** 역할 | 컨테이너 **안**의 앱 코드 | 도는 동안 | 앱이 호출하는 AWS API (우리는 ECS Exec 만) |
+
+★ "SSM 파라미터를 못 읽는다"는 거의 항상 **실행 역할** 문제다. 이름만 보고
+태스크 역할을 고치면 같은 실패가 반복된다.
 (2026-11-23)
 
 ---
@@ -210,6 +230,13 @@ terraform validate
 
 # ★ 보안그룹 규칙 — 퍼블릭 서브넷을 골랐으므로 이게 유일한 방어선이다
 docker compose exec backend uv run pytest tests/integration/test_terraform_security_groups.py
+
+# ★ IAM — 넓어지는 방향을 막는다. 특히 iam:PassRole
+docker compose exec backend uv run pytest tests/integration/test_terraform_iam.py
+
+# 데이터 저장소의 위험한 기본값 · 예산
+docker compose exec backend uv run pytest tests/integration/test_terraform_data.py \
+                                          tests/integration/test_terraform_budget.py
 ```
 
 보안그룹 테스트는 **`.tf` 소스를 읽는다. 실제 AWS 계정을 보지 않는다.**

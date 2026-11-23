@@ -102,6 +102,27 @@ def resources(documents: list[dict[str, Any]], kind: str) -> dict[str, dict[str,
     return found
 
 
+def data_sources(documents: list[dict[str, Any]], kind: str) -> dict[str, dict[str, Any]]:
+    """`kind` 타입 data 소스를 {이름: 속성} 으로 모은다.
+
+    ★ 왜 필요한가: IAM 정책을 `jsonencode({...})` 로 쓰면 hcl2 가 그 전체를
+    **문자열 하나**로 돌려준다. 액션·자원·조건을 따로 볼 수 없어서 "PassRole 의
+    Resource 가 `*` 인가" 같은 것을 단정할 수 없다. `aws_iam_policy_document`
+    data 소스로 쓰면 `statement` 블록이 HCL 그대로 파싱된다.
+    그래서 `iam.tf` 는 정책을 data 소스로 쓴다 — **테스트가 읽을 수 있는 형태로
+    쓰는 것**이 조건이었다.
+    """
+    found: dict[str, dict[str, Any]] = {}
+    for document in documents:
+        for block in document.get("data", []):
+            for data_type, bodies in block.items():
+                if unquote(data_type) != kind:
+                    continue
+                for name, body in bodies.items():
+                    found[unquote(name)] = clean(body)
+    return found
+
+
 def blocks(body: dict[str, Any], name: str) -> list[dict[str, Any]]:
     """리소스 안의 반복 블록(`notification` 등)을 항상 리스트로 돌려준다.
 
