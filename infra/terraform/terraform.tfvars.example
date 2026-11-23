@@ -20,6 +20,15 @@ hosted_zone_id = "Z00000000000000000000"
 # apply 후 구독 확인 메일이 한 번 온다. 확인해야 알람이 온다.
 alarm_email = "you@example.com"
 
+# ── 이미지 태그 (2026-11-24 추가, ecs.tf 가 쓴다) ────────────
+# ★ 기본값이 없다. 없으면 plan 이 멈춰 서서 값을 묻는다.
+#   `latest` 같은 기본값을 받아주면 **무엇이 떠 있는지 git 에서 되짚을 수 없다.**
+#
+#   값 얻는 법:  git rev-parse --short=12 HEAD
+#   그 SHA 의 이미지가 ECR 에 올라가 있어야 한다 (README 5-B).
+#   `-dirty` 가 붙은 태그는 validation 이 거부한다 — 어떤 커밋도 설명하지 못한다.
+image_tag = "000000000000"
+
 # ── 기본값으로 충분하지만 바꾸려면 ───────────────────────────
 # region             = "ap-northeast-2"
 # monthly_budget_usd = 150

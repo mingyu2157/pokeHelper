@@ -122,6 +122,19 @@ PowerShell 5.1 은 **`-` 로 시작하면서 `=` 가 들어간 인자**를 외�
 | 5 | `dns.tf`, `alb.tf`, `ecs.tf` | 시크릿 값 주입(5-C) → DB 계정 생성 → `/health` 가 200 |
 | 6 | `scheduler.tf`, `observability.tf` | 다음 날 수집이 돌았는가 |
 
+★ **`image_tag` 가 없으면 `plan` 이 멈춰 서서 값을 묻는다** (2026-11-24 추가).
+`ecs.tf` 가 생기면서 **기본값 없는 필수 변수**가 하나 늘었다. 기본값을 두지 않은
+이유는 `variables.tf` 의 description 에 있다 — `latest` 같은 값을 받아주면
+**무엇이 떠 있는지 git 에서 되짚을 수 없다.**
+
+```bash
+git rev-parse --short=12 HEAD
+```
+
+이 값을 `terraform.tfvars` 의 `image_tag` 에 넣는다. 그리고 그 SHA 의 이미지가
+**ECR 에 실제로 올라가 있어야 한다** (5-B). 없으면 태스크가
+`CannotPullContainerError` 로 떨어진다.
+
 ```bash
 terraform apply -target=aws_vpc.main -target=aws_subnet.public ...
 ```
@@ -163,9 +176,24 @@ data.tf apply            # RDS 엔드포인트가 생긴다
 곳은 ECS 태스크 **안**뿐이고, 그래서 운영 이미지가 `psql` 과 `sql/` 을 들고
 있어야 한다 (`backend/Dockerfile` 의 `dbclient` 스테이지 주석).
 
-★ **그 사이 태스크는 뜨지만 헬스체크가 실패한다.** `champs_app` 이 아직 없으니
-당연하다. 이 구간을 "배포 실패"로 오인하지 않는다 — 구체적인 명령은 `ecs.tf` 와
-같이 쓴다(아직 없다).
+★ **정정 (2026-11-24).** 이 자리에는 "그 사이 태스크는 뜨지만 헬스체크가
+실패한다 — `champs_app` 이 아직 없으니 당연하다"라고 적혀 있었다. **틀렸다.**
+
+`/health` 는 **DB 를 건드리지 않는다.** `app/api/v1/health.py` 가 상태 문자열
+셋(`status`·`service`·`version`)만 돌려주는 순수 liveness 체크다(독스트링에
+"Phase 0 시점에서는 프로세스 생존 여부만 본다"고 적혀 있다). 따라서 **빈 DB 로도
+타깃그룹이 정상 판정을 내리고 `/health` 는 200 이 나온다.**
+
+이 정정이 중요한 이유는 둘이다.
+
+1. **DB 계정을 만들 창이 열린다.** 태스크가 헬스체크 실패로 계속 교체되면 ECS
+   Exec 로 들어가 `roles.sql` 을 돌릴 틈이 없다. 실제로는 태스크가 안정돼 있다.
+2. **`/health` 200 은 "DB 가 붙었다"를 뜻하지 않는다.** 수락 기준으로 쓸 때 그
+   차이를 알고 써야 한다. DB 연결까지 보는 readiness 체크는 아직 없다.
+
+구체적인 ECS Exec 명령은 **실제로 돌려본 뒤에** 5-D 에 쓴다. 검증하지 않은
+절차를 먼저 적는 것이 바로 JOURNAL 2026-11-23("README 가 지킬 수 없는 약속을
+먼저 적어두고 있었다")에 기록된 실수다.
 
 ★ **반대로 4단계(`iam.tf`)는 미루지 않는다.** IAM 역할은 **무료**고, 태스크
 정의가 역할 ARN 을 참조하므로 **ECS 보다 먼저 있어야 한다.** `iam.tf` 는 아직
@@ -337,6 +365,10 @@ docker compose exec backend uv run pytest tests/integration/test_terraform_dns.p
 # ★ ALB — 평문 서비스와 라우팅 어긋남을 막는다. 80 포트가 forward 가 되는 것이 핵심
 docker compose exec backend uv run pytest tests/integration/test_terraform_alb.py
 
+# ★ ECS — 시크릿이 평문 환경변수로 새는 것, 클러스터 이름이 iam.tf 와 어긋나는 것,
+#   컨테이너 포트가 타깃그룹과 달라져 영구 503 이 되는 것을 막는다
+docker compose exec backend uv run pytest tests/integration/test_terraform_ecs.py
+
 # 데이터 저장소의 위험한 기본값 · 예산
 docker compose exec backend uv run pytest tests/integration/test_terraform_data.py \
                                           tests/integration/test_terraform_budget.py
@@ -391,6 +423,7 @@ ADR-020 기준 **월 약 $98** (프리 티어 없음 가정, 730시간).
 | 항목 | 금액 | 언제 시작되나 |
 |---|---|---|
 | Secrets Manager 시크릿 2개 | **월 $0.80** | `secrets.tf` apply (RDS 쪽은 `data.tf`) |
+| ★ CloudWatch 로그 그룹 3개 | 수집 $0.76/GB · 저장 $0.0314/GB·월 | `ecs.tf` apply. **보존 14일**이라 누적이 멈춘다 |
 | ★ 퍼블릭 호스팅 존 1개 | **월 $0.50** | **도메인 등록 시점.** 일수 비례 계산이 없다 |
 | 도메인 등록 | 연 $3~16 (TLD 에 따라) | 등록 시 즉시 결제, **환불 없음** |
 | ACM 인증서 | **$0** | ALB 에 붙이는 공인 인증서는 무료다 |
