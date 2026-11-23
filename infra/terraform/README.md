@@ -85,9 +85,10 @@ terraform init "-backend-config=backend.hcl"
 terraform plan
 ```
 
-> `terraform.tfvars` 는 **지금은 없어도 된다.** `domain_name`·`alarm_email` 을
-> 쓰는 자원(`dns.tf`·`alb.tf`·`observability.tf`)이 아직 없다. 그것들을 추가할
-> 때 `terraform.tfvars.example` 을 복사해 채운다.
+> ★ `terraform.tfvars` 는 **이제 필수다** (2026-11-23). `dns.tf`·`alb.tf` 가
+> `domain_name`·`hosted_zone_id` 를, `observability.tf` 가 `alarm_email` 을
+> 참조한다. `terraform.tfvars.example` 을 복사해 셋을 채운다. 도메인 두 개는
+> 콘솔 등록이 먼저다 — 3장.
 
 ★ **따옴표가 중요하다 — Windows PowerShell 5.1 한정 함정이다.**
 
@@ -117,8 +118,8 @@ PowerShell 5.1 은 **`-` 로 시작하면서 `=` 가 들어간 인자**를 외�
 | 1 | `network.tf`, `security_groups.tf` | 서브넷 4개, 보안그룹 4개 |
 | 2 | `ecr.tf` + ARM 이미지 push | `infra/scripts/push-images.ps1` (아래 5-B) |
 | 3 | `data.tf` (RDS·ElastiCache) | ★ **코드는 있고 apply 는 5단계와 함께** (아래) |
-| 4 | `iam.tf`, `secrets.tf` | 역할 3개 · 시크릿 값을 손으로 넣었는가 (5-C) |
-| 5 | `dns.tf`, `alb.tf`, `ecs.tf` | `/health` 가 200 인가 |
+| 4 | `iam.tf`, `secrets.tf` | 역할 3개 · ★ **시크릿은 껍데기까지만** (값은 5단계) |
+| 5 | `dns.tf`, `alb.tf`, `ecs.tf` | 시크릿 값 주입(5-C) → DB 계정 생성 → `/health` 가 200 |
 | 6 | `scheduler.tf`, `observability.tf` | 다음 날 수집이 돌았는가 |
 
 ```bash
@@ -137,6 +138,34 @@ terraform apply -target=aws_vpc.main -target=aws_subnet.public ...
 그룹에서 처음 깨지기 쉬우니, 미루면 **ECS 작업 중에 두 가지가 동시에 깨진다.**
 그건 "그날 안에 ECS 까지 간다"는 전제가 있을 때만 성립해서 미루는 쪽을 골랐다.
 (2026-11-23)
+
+### ★ 5단계 안에서 순서가 고정돼 있다 (2026-11-23 수정)
+
+이 표의 4단계에는 원래 "시크릿 값을 손으로 넣었는가"가 적혀 있었다. **그 자리가
+틀렸다.** 6개 키 중 세 개(`DATABASE_URL`·`MIGRATION_DATABASE_URL`·
+`DATA_SOURCE_NAME`)가 **RDS 엔드포인트 호스트명**을 품는데, 그 호스트명에는 AWS 가
+정하는 임의 문자열이 들어가서 **RDS 를 만들기 전에는 알 수 없다.**
+
+5단계 안쪽 순서는 아래로 고정된다. 각 화살표가 "앞의 것이 없으면 뒤의 것이
+불가능하다"는 뜻이다.
+
+```
+data.tf apply            # RDS 엔드포인트가 생긴다
+  → 5-C 시크릿 값 6키     # DSN 세 개에 그 엔드포인트를 넣는다
+  → ecs.tf apply          # 실행 역할이 시크릿을 읽어 태스크를 띄운다
+  → DB 계정 3개 생성       # ★ 태스크 안에서만 할 수 있다 (아래)
+  → /health 200
+```
+
+★ **DB 계정 생성이 태스크 안에서만 가능한 이유.** RDS 는 프라이빗 서브넷 +
+`publicly_accessible = false` 이고, 보안그룹이 **태스크 SG 에서만** 인바운드를
+받는다. NAT 도 배스천도 없다. 그래서 `backend/sql/roles.sql` 을 돌릴 수 있는
+곳은 ECS 태스크 **안**뿐이고, 그래서 운영 이미지가 `psql` 과 `sql/` 을 들고
+있어야 한다 (`backend/Dockerfile` 의 `dbclient` 스테이지 주석).
+
+★ **그 사이 태스크는 뜨지만 헬스체크가 실패한다.** `champs_app` 이 아직 없으니
+당연하다. 이 구간을 "배포 실패"로 오인하지 않는다 — 구체적인 명령은 `ecs.tf` 와
+같이 쓴다(아직 없다).
 
 ★ **반대로 4단계(`iam.tf`)는 미루지 않는다.** IAM 역할은 **무료**고, 태스크
 정의가 역할 ARN 을 참조하므로 **ECS 보다 먼저 있어야 한다.** `iam.tf` 는 아직
@@ -225,11 +254,15 @@ Windows 에서 **두 벽에 연달아 막혔다** (JOURNAL 2026-11-23). 둘 다 
 
 ---
 
-## 5-C. 시크릿 값 넣기 (4단계 직후, 최초 1회)
+## 5-C. 시크릿 값 넣기 (★ `data.tf` apply 직후, 최초 1회)
 
 `secrets.tf` 가 만드는 것은 **빈 시크릿 하나**다. 값은 Terraform 이 모른다
 ([ADR-022](../../docs/adr/022-secret-storage.md)). 아래는 **이 디렉터리에서**
 실행한다.
+
+★ **RDS 를 만든 뒤에 한다.** DSN 세 개가 엔드포인트 호스트명을 품고, 그 이름은
+RDS 가 생기기 전에는 알 수 없다 (4장의 순서 설명 참조). 엔드포인트는
+`terraform output db_endpoint` 로 얻는다.
 
 ```powershell
 # 1. 키만 있고 값이 빈 템플릿을 저장소 **밖**(임시 폴더)에 받는다
@@ -298,6 +331,12 @@ docker compose exec backend uv run pytest tests/integration/test_terraform_iam.p
 # ★ 시크릿 — 값이 코드·plan·state 에 들어오는 경로를 막는다
 docker compose exec backend uv run pytest tests/integration/test_terraform_secrets.py
 
+# ★ DNS·인증서 — 자동 갱신이 끊기거나 존이 둘이 되는 방향을 막는다
+docker compose exec backend uv run pytest tests/integration/test_terraform_dns.py
+
+# ★ ALB — 평문 서비스와 라우팅 어긋남을 막는다. 80 포트가 forward 가 되는 것이 핵심
+docker compose exec backend uv run pytest tests/integration/test_terraform_alb.py
+
 # 데이터 저장소의 위험한 기본값 · 예산
 docker compose exec backend uv run pytest tests/integration/test_terraform_data.py \
                                           tests/integration/test_terraform_budget.py
@@ -347,8 +386,21 @@ terraform destroy
 ADR-020 기준 **월 약 $98** (프리 티어 없음 가정, 730시간).
 가장 큰 항목은 ALB($22) · RDS($18) · ElastiCache($18) · 태스크($28) 다.
 
-여기에 **Secrets Manager 시크릿 2개 월 $0.80** 이 더해진다. 둘 다 같은 이유로
-낸 비용이다 — 직접 만들면 **값이 state 에 평문으로 들어간다.**
+여기에 아래가 더해진다.
+
+| 항목 | 금액 | 언제 시작되나 |
+|---|---|---|
+| Secrets Manager 시크릿 2개 | **월 $0.80** | `secrets.tf` apply (RDS 쪽은 `data.tf`) |
+| ★ 퍼블릭 호스팅 존 1개 | **월 $0.50** | **도메인 등록 시점.** 일수 비례 계산이 없다 |
+| 도메인 등록 | 연 $3~16 (TLD 에 따라) | 등록 시 즉시 결제, **환불 없음** |
+| ACM 인증서 | **$0** | ALB 에 붙이는 공인 인증서는 무료다 |
+| DNS 쿼리 | 100만건당 $0.40 ≈ $0 | alias 조회는 **과금되지 않는다** |
+
+★ 호스팅 존 $0.50 은 ADR-020 의 월 $98 에 **없는 항목**이다. ALB·ECS 보다
+먼저 시작되는 유일한 과금이다.
+
+시크릿 두 개는 같은 이유로 낸 비용이다 — 직접 만들면 **값이 state 에 평문으로
+들어간다.**
 
 | 시크릿 | 무엇 | 누가 만드나 |
 |---|---|---|

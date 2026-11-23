@@ -34,25 +34,50 @@ variable "domain_name" {
 
     ★ 도메인 **등록 자체는 Terraform 으로 하지 않는다.** 등록은 1년 약정이고
     `terraform destroy` 로 되돌릴 수 없으며, 등록자 연락처(개인정보)를 넣어야
-    한다. 콘솔에서 등록한 뒤 호스팅 존 ID 를 여기에 넘긴다.
+    한다. 콘솔에서 등록한 뒤 호스팅 존 ID 를 여기에 넘긴다 (README 3장).
 
-    ★ 지금은 비어 있어도 된다 — 이 값을 쓰는 `dns.tf`·`alb.tf` 가 아직 없다.
-    그것들을 추가할 때 아래 validation 이 빈 값을 막는다. **쓰지도 않는 값을
-    필수로 두면, 네트워크만 올리려는 사람이 도메인부터 사야 한다.**
+    ★ **필수값이 됐다 (2026-11-23).** 한동안 선택값이었다 — 이 값을 쓰는 자원이
+    없었고, "쓰지도 않는 값을 필수로 두면 네트워크만 올리려는 사람이 도메인부터
+    사야 한다"는 이유였다. `dns.tf`·`alb.tf` 가 생겼으므로 되돌린다.
+    (`alarm_email` 이 `observability.tf` 가 생길 때 밟은 길과 같다.)
   EOT
   type        = string
-  default     = ""
+
+  validation {
+    # 빈 값이면 ACM 이 `ValidationException` 을 내는데, 그 메시지는 무엇이
+    # 비었는지 말해주지 않는다. apply 전에 여기서 막는다.
+    condition     = length(trimspace(var.domain_name)) > 0
+    error_message = "domain_name 이 필요하다. 콘솔에서 도메인을 등록한 뒤 terraform.tfvars 에 넣는다 (README 3장)."
+  }
+
+  validation {
+    # ★ 스킴·경로·끝 점을 걸러낸다. `https://x.com` 이나 `x.com/` 을 그대로
+    #   넘기면 ACM 이 받아주지 않거나 **엉뚱한 이름으로 발급**된다.
+    condition     = can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?([.][a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", var.domain_name))
+    error_message = "domain_name 은 호스트명만 적는다. 스킴(https://)·경로·끝 점 없이 소문자로."
+  }
 }
 
 variable "hosted_zone_id" {
-  description = "도메인 등록 시 Route53 이 만든 퍼블릭 호스팅 존 ID. 지금은 비어 있어도 된다."
+  description = <<-EOT
+    도메인 등록 시 Route 53 이 **자동으로 만든** 퍼블릭 호스팅 존 ID.
+
+    ★ 존을 Terraform 으로 새로 만들지 않는다. 같은 이름의 존이 둘이 되면
+    레지스트리가 가리키는 NS 는 먼저 생긴 쪽이라, 나중에 만든 존에 넣은
+    레코드는 **아무도 보지 못한다** (`dns.tf` 머리말).
+  EOT
   type        = string
-  default     = ""
 
   validation {
-    # 둘 중 하나만 채우면 dns.tf 가 반쯤 설정된 상태로 돌아간다. 같이 채운다.
-    condition     = (var.hosted_zone_id == "") == (var.domain_name == "")
-    error_message = "domain_name 과 hosted_zone_id 는 **둘 다** 채우거나 둘 다 비워야 한다."
+    condition     = length(trimspace(var.hosted_zone_id)) > 0
+    error_message = "hosted_zone_id 가 필요하다. Route 53 → Hosted zones 에서 복사한다 (README 3장)."
+  }
+
+  validation {
+    # 존 ID 는 대문자·숫자 문자열이다 (`Z` 로 시작). 도메인 이름을 잘못 넣는
+    # 실수가 흔한데, 그러면 `NoSuchHostedZone` 이 뜨고 원인이 안 보인다.
+    condition     = can(regex("^Z[A-Z0-9]+$", var.hosted_zone_id))
+    error_message = "hosted_zone_id 는 Z 로 시작하는 존 ID 다. 도메인 이름이 아니다."
   }
 }
 
