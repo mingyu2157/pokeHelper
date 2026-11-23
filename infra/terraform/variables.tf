@@ -110,6 +110,56 @@ variable "frontend_memory" {
   default     = 512
 }
 
+variable "image_tag" {
+  description = <<-EOT
+    태스크 정의가 가리킬 이미지 태그. **git 커밋 SHA 12자**다
+    (`infra/scripts/push-images.ps1` 이 `git rev-parse --short=12 HEAD` 로 붙인다).
+
+    ★ **기본값을 주지 않는다.** `latest` 같은 기본값을 두면 ECR 이
+    `IMMUTABLE` 이라 애초에 그런 태그가 없어서 apply 가 "이미지를 못 찾는다"로
+    죽거나, 더 나쁘게는 **어떤 커밋이 떠 있는지 알 수 없는 상태**가 된다.
+    무엇이 돌고 있는지를 git 에서 되짚을 수 있어야 한다.
+
+    값 얻는 법:
+      git rev-parse --short=12 HEAD
+  EOT
+  type        = string
+
+  validation {
+    # ★ `-dirty` 접미사를 일부러 거부한다. push-images.ps1 은 작업 트리가
+    #   더러우면 태그에 `-dirty` 를 붙이는데, 그 이미지는 **어떤 커밋도
+    #   설명하지 못한다.** 로컬 확인용으로는 쓸 수 있지만 운영에 올리면
+    #   "이 커밋의 이미지"라는 전제가 깨진다.
+    condition     = can(regex("^[0-9a-f]{12}$", var.image_tag))
+    error_message = "image_tag 는 소문자 16진수 12자여야 한다 (git rev-parse --short=12 HEAD). -dirty 는 운영에 올리지 않는다."
+  }
+}
+
+variable "log_retention_days" {
+  description = <<-EOT
+    ECS 로그 그룹 보존 기간(일).
+
+    ★ **보존 기간을 반드시 명시한다.** 지정하지 않으면 CloudWatch 로그 그룹이
+    "만료 없음"으로 생기고 로그가 영원히 쌓인다 — 저장 비용이 **조용히** 올라가고
+    월말 청구서로 알게 된다 (ADR-020 세부사항 8과 같은 종류의 함정).
+
+    `iam.tf` 가 실행 역할에서 `logs:CreateLogGroup` 을 뺀 이유가 이것이다.
+    에이전트가 그룹을 직접 만들면 보존 기간 없이 생긴다. 그룹은 Terraform 이
+    만들고, 그래서 이 값이 강제된다.
+  EOT
+  type        = number
+  default     = 14
+
+  validation {
+    # CloudWatch 가 받는 값은 열거형이다. 아무 숫자나 주면 apply 가 거부한다.
+    condition = contains(
+      [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653],
+      var.log_retention_days
+    )
+    error_message = "log_retention_days 는 CloudWatch 가 허용하는 값이어야 한다 (1·3·5·7·14·30·60·90·120·150·180·365·400·545·731·…)."
+  }
+}
+
 variable "db_instance_class" {
   description = "RDS 인스턴스 클래스. ADR-020 은 db.t4g.micro Single-AZ 를 전제한다."
   type        = string
