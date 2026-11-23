@@ -93,11 +93,11 @@ data "aws_iam_policy_document" "scheduler_trust" {
 #
 # | | 누가 | 언제 | 무엇을 |
 # |---|---|---|---|
-# | **실행** 역할 | ECS 에이전트 | 태스크가 **뜨기 전** | ECR pull · 로그 스트림 생성 · SSM 값을 환경변수로 주입 |
+# | **실행** 역할 | ECS 에이전트 | 태스크가 **뜨기 전** | ECR pull · 로그 스트림 생성 · 시크릿을 환경변수로 주입 |
 # | **태스크** 역할 | 컨테이너 안의 앱 | 도는 동안 | 앱 코드가 호출하는 AWS API |
 #
-# "SSM 파라미터를 못 읽는다"는 거의 항상 **실행 역할** 문제인데, 이름만 보고
-# 태스크 역할을 고치게 된다. 컨테이너가 뜨기도 전에 필요한 권한은 전부 이쪽이다.
+# "시크릿을 못 읽는다"는 거의 항상 **실행 역할** 문제인데, 이름만 보고 태스크
+# 역할을 고치게 된다. 컨테이너가 뜨기도 전에 필요한 권한은 전부 이쪽이다.
 #
 # ★ AWS 관리형 `AmazonECSTaskExecutionRolePolicy` 를 붙이지 않고 직접 쓴다.
 #   관리형 정책은 ECR 과 로그를 `Resource: "*"` 로 연다 — 계정의 **모든**
@@ -108,7 +108,7 @@ data "aws_iam_policy_document" "scheduler_trust" {
 
 resource "aws_iam_role" "ecs_execution" {
   name               = "${local.name}-ecs-execution"
-  description        = "ECS agent role: ECR pull, log streams, SSM injection (ADR-021)"
+  description        = "ECS agent role: ECR pull, log streams, secret injection (ADR-021)"
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_trust.json
 
   tags = { Name = "${local.name}-ecs-execution" }
@@ -163,42 +163,29 @@ data "aws_iam_policy_document" "ecs_execution" {
     ]
   }
 
-  # ── SSM 파라미터 ───────────────────────────────────────
+  # ── 시크릿 (ADR-022) ───────────────────────────────────
   statement {
-    sid = "ReadOurParametersOnly"
+    sid = "ReadOurAppSecretOnly"
 
-    actions = [
-      "ssm:GetParameter",
-      "ssm:GetParameters",
-    ]
+    actions = ["secretsmanager:GetSecretValue"]
 
-    # `/pokehelper/prod/*` 만. 계정에 다른 파라미터가 생겨도 닿지 않는다.
-    resources = [
-      "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/${var.environment}/*",
-    ]
+    # ★ 시크릿 **하나만.** 특히 `data.tf` 가 만드는 **RDS 마스터 비밀번호
+    #   시크릿은 여기에 없다** — 앱은 `champs_app` 으로 붙으므로(ADR-015)
+    #   마스터를 읽을 이유가 없다. 넣으면 "앱 컨테이너가 DB 마스터 비밀번호를
+    #   읽을 수 있는 상태"가 되는데, 그건 아무 증상도 내지 않는다.
+    resources = [aws_secretsmanager_secret.app.arn]
   }
 
-  statement {
-    sid = "DecryptParametersViaSSMOnly"
-
-    # ★ SecureString 을 읽으려면 복호화 권한이 **따로** 필요하다.
-    #
-    # 빼먹으면 `ssm:GetParameters` 가 있는데도 태스크가 기동에 실패하고,
-    # 메시지는 SSM 이 아니라 KMS 를 가리켜서 한참 헤맨다.
-    actions = ["kms:Decrypt"]
-
-    # AWS 관리형 키 `alias/aws/ssm` 의 키 ID 는 계정마다 다르고, 그 별칭은
-    # **첫 SecureString 을 만들기 전까지 존재하지 않는다.** data 소스로
-    # 조회하면 plan 이 깨지므로 자원은 열어두고 **조건으로 좁힌다** — 아래
-    # 조건이 있으면 이 권한은 SSM 을 거친 호출에만 쓸 수 있다.
-    resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "kms:ViaService"
-      values   = ["ssm.${var.region}.amazonaws.com"]
-    }
-  }
+  # ★ `kms:Decrypt` 를 **주지 않는다.**
+  #
+  # ECS 문서: "Required only if your secret uses a customer managed key and
+  # not the default key." 우리는 AWS 관리형 `aws/secretsmanager` 를 쓰고
+  # (secrets.tf 가 `kms_key_id` 를 비워둔다), 그 키 정책이 `kms:ViaService` +
+  # `kms:CallerAccount` 로 계정 내 호출을 이미 허용한다. 그래서 IAM 쪽에
+  # 추가로 적을 것이 없다 — 적으면 **들어갈 곳이 없는 권한**이 하나 는다.
+  #
+  # ★ 고객 관리형 키로 바꾸면 이 statement 를 되살려야 한다. 그때 증상은
+  #   "시크릿을 못 가져온다"로 나오고 메시지는 KMS 를 가리킨다.
 }
 
 resource "aws_iam_role_policy" "ecs_execution" {

@@ -14,9 +14,12 @@ pokeHelper 운영 인프라. 구성과 그렇게 고른 이유는
 - **도메인 등록은 Terraform 으로 하지 않는다.** 1년 약정이고 `destroy` 로
   되돌릴 수 없으며, 등록자 연락처(개인정보)를 넣어야 한다. 콘솔에서 등록한 뒤
   **호스팅 존 ID** 를 `terraform.tfvars` 에 넘긴다.
-- **시크릿 값은 Terraform 에 넣지 않는다.** SSM 파라미터는 Terraform 이
-  **만들기만** 하고, 값은 `aws ssm put-parameter` 로 따로 넣는다. 값을 코드에
-  적으면 state 파일과 plan 출력에 평문으로 남는다.
+- **시크릿 값은 Terraform 에 넣지 않는다.** Terraform 은 Secrets Manager
+  **껍데기만** 만들고, 값은 `aws secretsmanager put-secret-value` 로 한 번
+  넣는다 (아래 5-C). 값을 코드에 적으면 state 와 plan 출력에 평문으로 남는다.
+  ★ **SSM 파라미터 스토어로는 이걸 지킬 수 없었다** — `ignore_changes = [value]`
+  는 plan 시점만 바꾸고 `refresh` 가 state 를 실제 값으로 다시 쓴다
+  ([ADR-022](../../docs/adr/022-secret-storage.md)).
 - `terraform.tfvars`, `backend.hcl`, `*.tfstate`, `.terraform/` 은 커밋하지
   않는다. `.terraform.lock.hcl` 은 **커밋한다** — 프로바이더 버전을 고정한다.
 
@@ -114,7 +117,7 @@ PowerShell 5.1 은 **`-` 로 시작하면서 `=` 가 들어간 인자**를 외�
 | 1 | `network.tf`, `security_groups.tf` | 서브넷 4개, 보안그룹 4개 |
 | 2 | `ecr.tf` + ARM 이미지 push | `infra/scripts/push-images.ps1` (아래 5-B) |
 | 3 | `data.tf` (RDS·ElastiCache) | ★ **코드는 있고 apply 는 5단계와 함께** (아래) |
-| 4 | `iam.tf`, `secrets.tf` | 역할 3개 · SSM 값을 손으로 넣었는가 |
+| 4 | `iam.tf`, `secrets.tf` | 역할 3개 · 시크릿 값을 손으로 넣었는가 (5-C) |
 | 5 | `dns.tf`, `alb.tf`, `ecs.tf` | `/health` 가 200 인가 |
 | 6 | `scheduler.tf`, `observability.tf` | 다음 날 수집이 돌았는가 |
 
@@ -148,10 +151,10 @@ ECS 에서 가장 자주 틀리는 구분이라 여기에도 적어둔다.
 
 | | 누가 쓰나 | 언제 | 무엇을 |
 |---|---|---|---|
-| **실행** 역할 | ECS 에이전트 (컨테이너 **밖**) | 태스크가 **뜨기 전** | ECR pull · 로그 스트림 생성 · SSM 값을 환경변수로 주입 |
+| **실행** 역할 | ECS 에이전트 (컨테이너 **밖**) | 태스크가 **뜨기 전** | ECR pull · 로그 스트림 생성 · 시크릿을 환경변수로 주입 |
 | **태스크** 역할 | 컨테이너 **안**의 앱 코드 | 도는 동안 | 앱이 호출하는 AWS API (우리는 ECS Exec 만) |
 
-★ "SSM 파라미터를 못 읽는다"는 거의 항상 **실행 역할** 문제다. 이름만 보고
+★ "시크릿을 못 읽는다"는 거의 항상 **실행 역할** 문제다. 이름만 보고
 태스크 역할을 고치면 같은 실패가 반복된다.
 (2026-11-23)
 
@@ -222,6 +225,64 @@ Windows 에서 **두 벽에 연달아 막혔다** (JOURNAL 2026-11-23). 둘 다 
 
 ---
 
+## 5-C. 시크릿 값 넣기 (4단계 직후, 최초 1회)
+
+`secrets.tf` 가 만드는 것은 **빈 시크릿 하나**다. 값은 Terraform 이 모른다
+([ADR-022](../../docs/adr/022-secret-storage.md)). 아래는 **이 디렉터리에서**
+실행한다.
+
+```powershell
+# 1. 키만 있고 값이 빈 템플릿을 저장소 **밖**(임시 폴더)에 받는다
+$f = "$env:TEMP\pokehelper-secret.json"
+$json = terraform output -json app_secret_template | Out-String
+[IO.File]::WriteAllText($f, $json, (New-Object System.Text.UTF8Encoding $false))
+
+# 2. 각 키가 무엇인지 읽는다
+terraform output app_secret_keys_documented
+
+# 3. 값을 채운다
+notepad $f
+
+# 4. 넣는다
+aws secretsmanager put-secret-value `
+  --secret-id (terraform output -raw app_secret_name) `
+  --secret-string "file://$f" `
+  --profile pokehelper
+
+# 5. ★ 지운다. 평문 JSON 을 디스크에 남기지 않는다
+Remove-Item $f
+```
+
+★ **값을 명령에 직접 적지 않는다.** 템플릿을 `terraform output` 에서 받으므로
+키 이름을 손으로 칠 일이 없고, 오타로 키가 어긋나 **앱이 기본값으로 조용히
+뜨는 일**이 생기지 않는다.
+
+★ **`Out-File -Encoding utf8` 을 쓰지 마라.** PS 5.1 은 BOM 을 붙이고, BOM 이
+붙은 JSON 은 `file://` 로 읽힐 때 파싱이 깨진다 (ECR `config.json` 에서 같은
+함정을 밟았다 — JOURNAL 2026-11-23). `utf8NoBOM` 은 **PS 7 이상**에만 있어서
+5.1 에서는 쓸 수 없다. 그래서 `[IO.File]::WriteAllText` 를 쓴다.
+
+★ **`--secret-string (Get-Content $f -Raw)` 로 바꾸지 마라.** PS 5.1 은 네이티브
+프로그램에 인자를 넘길 때 문자열 안의 따옴표를 이스케이프하지 않아
+`{"A":"b"}` 가 `{A:b}` 로 도착한다. `file://` 로 넘기면 그 경로를 피한다.
+
+**값을 바꿀 때도 같은 절차다.** 한 키만 바꾸려면 현재 값을 받아 고쳐야 한다:
+
+```powershell
+$cur = aws secretsmanager get-secret-value --secret-id (terraform output -raw app_secret_name) `
+  --query SecretString --output text --profile pokehelper
+[IO.File]::WriteAllText($f, $cur, (New-Object System.Text.UTF8Encoding $false))
+```
+
+이게 "시크릿 하나에 JSON 으로 담는다"($0.40)의 대가다. 6개로 쪼개면
+키별로 독립 갱신되지만 월 $2.40 이 된다.
+
+★ **빠뜨리면 조용히 넘어가지 않는다.** 값이 없으면 ECS 가 컨테이너를 띄우기
+전에 시크릿을 못 가져와 `ResourceInitializationError` 로 실패한다. 플레이스홀더를
+심지 않았으므로 "가짜 값으로 떠 있는" 상태가 없다.
+
+---
+
 ## 5. 검사
 
 ```bash
@@ -233,6 +294,9 @@ docker compose exec backend uv run pytest tests/integration/test_terraform_secur
 
 # ★ IAM — 넓어지는 방향을 막는다. 특히 iam:PassRole
 docker compose exec backend uv run pytest tests/integration/test_terraform_iam.py
+
+# ★ 시크릿 — 값이 코드·plan·state 에 들어오는 경로를 막는다
+docker compose exec backend uv run pytest tests/integration/test_terraform_secrets.py
 
 # 데이터 저장소의 위험한 기본값 · 예산
 docker compose exec backend uv run pytest tests/integration/test_terraform_data.py \
@@ -283,9 +347,16 @@ terraform destroy
 ADR-020 기준 **월 약 $98** (프리 티어 없음 가정, 730시간).
 가장 큰 항목은 ALB($22) · RDS($18) · ElastiCache($18) · 태스크($28) 다.
 
-여기에 **Secrets Manager 시크릿 1개 월 $0.40** 이 더해진다. RDS 마스터
-비밀번호를 Terraform 이 들고 있지 않게 하려고(`manage_master_user_password`)
+여기에 **Secrets Manager 시크릿 2개 월 $0.80** 이 더해진다. 둘 다 같은 이유로
 낸 비용이다 — 직접 만들면 **값이 state 에 평문으로 들어간다.**
+
+| 시크릿 | 무엇 | 누가 만드나 |
+|---|---|---|
+| `…-prod-db` (RDS 관리) | DB 마스터 비밀번호 | RDS 가 생성 (`manage_master_user_password`) |
+| `pokehelper-prod/app` | 런타임 시크릿 6키 | Terraform 이 껍데기, 값은 손으로 (ADR-022) |
+
+★ 후자를 6개로 쪼개면 $2.40 이 된다. 한 시크릿에 JSON 으로 담아 $0.40 으로
+줄인 대가는 **한 키만 바꿀 때도 JSON 전체를 다시 넣어야 한다**는 것이다.
 
 청구 알람이 `observability.tf` 에 들어 있다. 임계치는
 `monthly_budget_usd`(기본 150)다. **비용 절감 장치가 아니라 사고 방지

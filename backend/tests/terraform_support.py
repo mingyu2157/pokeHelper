@@ -123,6 +123,20 @@ def data_sources(documents: list[dict[str, Any]], kind: str) -> dict[str, dict[s
     return found
 
 
+def local_values(documents: list[dict[str, Any]]) -> dict[str, Any]:
+    """모든 `locals` 블록을 하나의 딕셔너리로 합친다.
+
+    `locals` 는 파일마다 여러 개 둘 수 있고 hcl2 는 블록 리스트로 준다.
+    이름이 겹치면 Terraform 자체가 거부하므로 합쳐도 충돌하지 않는다.
+    """
+    merged: dict[str, Any] = {}
+    for document in documents:
+        for block in document.get("locals", []):
+            for name, value in block.items():
+                merged[unquote(name)] = clean(value)
+    return merged
+
+
 def blocks(body: dict[str, Any], name: str) -> list[dict[str, Any]]:
     """리소스 안의 반복 블록(`notification` 등)을 항상 리스트로 돌려준다.
 

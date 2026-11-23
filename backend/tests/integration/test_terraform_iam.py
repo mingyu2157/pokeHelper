@@ -49,8 +49,6 @@ TRUST_DOCUMENTS = ("ecs_tasks_trust", "scheduler_trust")
 ALLOWED_WILDCARDS = {
     # 레지스트리 전체에 대한 호출이라 자원 수준 권한이 없다.
     ("ecs_execution", "ECRAuthToken"),
-    # 관리형 키 ARN 을 plan 시점에 알 수 없다. 대신 kms:ViaService 로 묶는다.
-    ("ecs_execution", "DecryptParametersViaSSMOnly"),
     # ssmmessages 액션은 자원 수준 권한을 지원하지 않는다.
     ("ecs_task", "ECSExecSession"),
 }
@@ -124,15 +122,24 @@ class TestWildcardResources:
             "ALLOWED_WILDCARDS 에 적고 **왜 좁힐 수 없는지** 주석을 남긴다."
         )
 
-    def test_the_unavoidable_kms_wildcard_is_bound_by_a_condition(
-        self, policies: dict[str, dict[str, Any]]
-    ) -> None:
-        """자원을 못 좁히면 **조건으로** 좁힌다. 둘 다 없으면 그냥 넓은 권한이다."""
-        statement = self._by_sid(policies["ecs_execution"], "DecryptParametersViaSSMOnly")
-        conditions = blocks(statement, "condition")
+    def test_kms_decrypt_is_not_granted_at_all(self, policies: dict[str, dict[str, Any]]) -> None:
+        """★ 넓힐 자리를 아예 없앴다 — `kms:Decrypt` 가 한 곳도 없다.
 
-        assert [c["variable"] for c in conditions] == ["kms:ViaService"]
-        assert listed(conditions[0], "values") == ["ssm.${var.region}.amazonaws.com"]
+        AWS 관리형 `aws/secretsmanager` 키를 쓰면 ECS 문서 표현대로
+        "required only if your secret uses a customer managed key" 다. 키 정책이
+        계정 내 호출을 이미 허용하므로 IAM 에 적을 것이 없다. 적어두면 **들어갈
+        곳이 없는 권한**이 하나 늘고, 그건 좁힌 게 아니라 안 쓰이는 것뿐이다.
+
+        고객 관리형 키로 바꾸면 이 테스트가 그 사실을 알려준다 — 값을 고치기
+        전에 **왜 필요해졌는지**를 쓰게 된다.
+        """
+        offenders = [
+            (name, statement.get("sid"))
+            for name, statement in every_statement(policies, PERMISSION_DOCUMENTS)
+            for action in listed(statement, "actions")
+            if action.startswith("kms:")
+        ]
+        assert offenders == [], offenders
 
     def test_the_auth_token_wildcard_carries_only_that_one_action(
         self, policies: dict[str, dict[str, Any]]
@@ -283,8 +290,8 @@ class TestTrustPolicies:
 class TestExecutionAndTaskRolesAreDistinct:
     """차등 단정 — 둘을 혼동했다면 **이 테스트만** 깨진다.
 
-    ADR-021 세부사항 6 이 다루는 ECS 의 가장 흔한 함정이다. 증상은 "SSM 파라미터를
-    못 읽는다"로 나타나는데 그건 거의 항상 **실행 역할** 문제인데, 이름만 보고
+    ADR-021 세부사항 6 이 다루는 ECS 의 가장 흔한 함정이다. 증상은 "시크릿을 못
+    읽는다"로 나타나는데 그건 거의 항상 **실행 역할** 문제인데, 이름만 보고
     태스크 역할을 고치게 된다. 어느 쪽에 무엇이 있어야 하는지를 고정한다.
     """
 
@@ -293,16 +300,16 @@ class TestExecutionAndTaskRolesAreDistinct:
     ) -> None:
         actions = self._actions(policies["ecs_execution"])
 
-        assert "ssm:GetParameters" in actions
-        assert "kms:Decrypt" in actions
+        assert "secretsmanager:GetSecretValue" in actions
         assert "ecr:BatchGetImage" in actions
         assert "logs:PutLogEvents" in actions
 
     def test_the_task_role_has_none_of_them(self, policies: dict[str, dict[str, Any]]) -> None:
-        """★ 앱이 SSM·ECR·로그 권한을 **갖지 않는** 것이 의도다.
+        """★ 앱이 시크릿·ECR·로그 권한을 **갖지 않는** 것이 의도다.
 
-        컨테이너가 뜬 뒤에는 필요하지 않다. 여기에 있으면 "앱 코드가 계정의
-        파라미터를 읽을 수 있는 상태"가 되고, 그건 아무 증상도 내지 않는다.
+        컨테이너가 뜬 뒤에는 필요하지 않다 — 시크릿은 이미 환경변수로 주입돼
+        있다. 여기에 있으면 "앱 코드가 시크릿을 직접 읽을 수 있는 상태"가 되고,
+        그건 아무 증상도 내지 않는다.
         """
         actions = self._actions(policies["ecs_task"])
 
@@ -312,18 +319,25 @@ class TestExecutionAndTaskRolesAreDistinct:
             if action.startswith(("ssm:", "kms:", "ecr:", "logs:", "secretsmanager:"))
         ], actions
 
-    def test_the_master_db_secret_is_not_readable_by_the_workload(
-        self, policies: dict[str, dict[str, Any]]
-    ) -> None:
-        """★ `data.tf` 의 마스터 비밀번호는 Secrets Manager 에 있지만 **앱은 쓰지 않는다.**
+    def test_only_the_app_secret_is_readable(self, policies: dict[str, dict[str, Any]]) -> None:
+        """★ 계정에 시크릿이 **둘** 있고, 읽을 수 있는 건 하나뿐이어야 한다.
 
-        앱은 `champs_app` 으로 붙는다 (ADR-015). 실행 역할에 Secrets Manager
-        읽기를 주면 "앱 컨테이너가 DB 마스터 비밀번호를 읽을 수 있는 상태"가
-        되는데, 그 역시 아무것도 깨뜨리지 않는다.
+        `data.tf` 가 `manage_master_user_password` 로 만드는 **RDS 마스터
+        비밀번호**가 같은 Secrets Manager 에 있다. 앱은 `champs_app` 으로
+        붙으므로(ADR-015) 마스터를 읽을 이유가 없는데, `Resource` 를 `*` 로
+        두거나 마스터 시크릿을 같이 적으면 **앱 컨테이너가 DB 마스터 비밀번호를
+        읽을 수 있는 상태**가 된다. 그건 아무것도 깨뜨리지 않는다.
         """
-        for name in PERMISSION_DOCUMENTS:
-            actions = self._actions(policies[name])
-            assert not [a for a in actions if a.startswith("secretsmanager:")], (name, actions)
+        reads = [
+            (name, statement)
+            for name, statement in every_statement(policies, PERMISSION_DOCUMENTS)
+            if any(a.startswith("secretsmanager:") for a in listed(statement, "actions"))
+        ]
+        assert len(reads) == 1, reads
+
+        name, statement = reads[0]
+        assert name == "ecs_execution"
+        assert listed(statement, "resources") == ["${aws_secretsmanager_secret.app.arn}"]
 
     def test_creating_log_groups_is_not_granted(self, policies: dict[str, dict[str, Any]]) -> None:
         """★ 에이전트가 로그 그룹을 만들면 보존 기간이 "만료 없음"으로 생긴다.
