@@ -1,20 +1,24 @@
 # `cp terraform.tfvars.example terraform.tfvars` 후 채운다.
 # terraform.tfvars 는 커밋하지 않는다(.gitignore 의 *.tfvars).
 #
-# ★ 아래 셋은 **지금 비워도 된다.** 쓰는 자원(dns.tf·alb.tf·observability.tf)이
-#   아직 없기 때문이다. 네트워크·보안그룹·ECR 만 올릴 거면 이 파일 없이도 된다.
+# ★ 아래 셋은 **전부 필수다** (2026-11-23 부터). 쓰는 자원이 생겼다 —
+#   dns.tf·alb.tf 가 도메인을, observability.tf 가 알람 주소를 참조한다.
+#   한동안 선택값이었던 이력은 variables.tf 의 각 description 에 남겨뒀다.
 
 # ── 도메인 (ALB 의 ACM 인증서용) ─────────────────────────────
 # ★ 등록은 Terraform 으로 하지 않는다 — 1년 약정이고 destroy 로 못 되돌리며,
 #   등록자 연락처(개인정보)가 들어간다. 콘솔에서 등록한 뒤 여기에 적는다.
-# ★ 둘은 같이 채운다. 하나만 채우면 validation 이 막는다.
-# domain_name    = "example.com"
-# hosted_zone_id = "Z00000000000000000000"
+#   절차는 README 3장.
+#
+# domain_name: 호스트명만. 스킴(https://)·경로·끝 점을 붙이면 validation 이 막는다.
+# hosted_zone_id: 등록 시 Route 53 이 **자동 생성한** 존의 ID. 직접 만들지 않는다.
+#   Route 53 → Hosted zones → 해당 존 → Hosted zone ID
+domain_name    = "example.com"
+hosted_zone_id = "Z00000000000000000000"
 
 # ── 청구 알람 ────────────────────────────────────────────────
 # apply 후 구독 확인 메일이 한 번 온다. 확인해야 알람이 온다.
-# ★ 운영 자원(RDS·ALB 등)을 올리기 전에는 반드시 채운다 (ADR-020 세부사항 8).
-# alarm_email = "you@example.com"
+alarm_email = "you@example.com"
 
 # ── 기본값으로 충분하지만 바꾸려면 ───────────────────────────
 # region             = "ap-northeast-2"
