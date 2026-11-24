@@ -1935,3 +1935,149 @@
     들어오는 경로"를 막지만, **올라간 값이 맞는지는 검사 범위 밖이다** —
     실제 계정을 보지 않기 때문이다 (`terraform_support.py` 머리말의 한계).
 - 소요: 약 25분
+
+## 2026-11-24 — 비밀번호를 화면에 출력하는 절차를 만들었고, 그게 노출로 이어졌다
+
+- 증상: 운영 DB 비밀번호 4개(RDS 마스터 1 + 우리 계정 3)가 외부 대화에 평문으로
+  남았다. 터미널 출력을 그대로 붙여넣는 과정에서 같이 들어갔다.
+- 기대 동작: 비밀번호는 **사람 눈에도 띄우지 않고** 로컬에서 컨테이너로 건너가야
+  한다. 저장소에도, 화면에도, 명령 기록에도 남지 않아야 한다.
+- 재현 절차:
+  ```powershell
+  cd C:\project\pokehelper\infra\terraform
+  $sec = aws secretsmanager get-secret-value --secret-id (terraform output -raw app_secret_name) `
+    --query SecretString --output text --profile pokehelper | Out-String | ConvertFrom-Json
+  function Get-Pw($dsn) { [regex]::Match($dsn, '://[^:/]+:([^@]+)@').Groups[1].Value }
+  "app : $(Get-Pw $sec.DATABASE_URL)"      # ★ 여기서 평문이 화면에 찍힌다
+  ```
+- 원인: **절차 설계의 결함이고, 그 절차는 내가 만들었다.** 컨테이너 안쪽은
+  `read -s` 로 가렸는데 **로컬 출력은 가리지 않았다.** 가린 쪽만 보고 "비밀번호를
+  노출하지 않는 절차"라고 불렀다. 실제로는 **컨테이너에 붙여넣기 위해 사람이
+  읽어야 하는 구조**였고, 읽을 수 있으면 복사되고 복사되면 어딘가에 붙는다.
+- 해결: 두 단계로 처리했다.
+  1. **교체.** 앱 비밀번호 3개는 `roles.sql` 을 아직 돌리기 **전**이라 DB 에
+     존재하지 않았다 — 시크릿 값만 바꾸면 끝이었다(가장 싼 시점). 그 뒤에
+     `roles.sql` 이 새 값으로 계정을 만들었다. RDS 마스터는 이미 살아 있어서
+     `aws rds modify-db-instance --rotate-master-user-password --apply-immediately`
+     로 AWS 가 교체했다(새 비밀번호는 항상 28자).
+  2. **절차 교체.** 화면 출력 대신 **`Set-Clipboard`** 로 넘긴다. 사람은 값을
+     보지 않고 붙여넣기만 한다. `infra/terraform/README.md` 5-D 에 반영했다.
+- ★ **실제 침해 위험은 낮았다. 그래도 바꿨다.** RDS 는 프라이빗 서브넷 +
+  `publicly_accessible = false` 이고 보안그룹이 태스크 SG 에서 오는 5432 만 받는다.
+  인터넷에서는 비밀번호를 알아도 접속 경로가 없다. 바꾼 이유는 **이 프로젝트가
+  다층 방어를 전제로 설계됐기 때문**이다 — "네트워크가 막으니 비밀번호는 덜
+  중요하다"로 가면 ADR-015·ADR-022 가 한 일이 무의미해진다. 한 층이 무너진 걸
+  알면서 두는 것은 층을 하나 지운 것과 같다.
+- 배운 것 둘.
+  - ★ **"가렸다"는 가린 구간에 대해서만 참이다.** `read -s` 는 입력을 가리고
+    로컬 출력은 가리지 않는다. 비밀이 지나가는 **전 구간**을 보지 않으면
+    "안전한 절차"라는 말이 절반만 맞는다.
+  - **사람이 읽어야 하는 비밀은 이미 노출된 것으로 취급해야 한다.** 클립보드로
+    바꾼 것이 본질적 개선인 이유는 "사람이 읽을 필요를 없앤 것"이다.
+- ★ **남은 한계**: 클립보드 방식도 완전하지 않다. 클립보드 히스토리를 켜둔
+  환경에서는 값이 남는다. 5-D 끝에 `Set-Clipboard -Value " "` 를 넣었지만 그건
+  현재 값만 지운다. 근본 해법은 **사람을 경로에서 빼는 것** — 태스크 역할에
+  시크릿 읽기 권한을 주고 컨테이너가 직접 꺼내게 하거나, RDS IAM 인증으로
+  비밀번호 자체를 없애는 쪽이다. 지금은 그 권한을 **일부러 주지 않았으므로**
+  (앱 컨테이너가 DB 마스터를 읽을 수 있는 상태를 막으려고) 트레이드오프가 있다.
+- 소요: 약 30분 (교체 10분, 절차 수정·기록 20분)
+
+## 2026-11-24 — 시크릿을 바꿨는데 도는 태스크는 옛 값을 쓰고 있었다
+
+- 증상: `roles.sql` 로 DB 계정을 만들고 마이그레이션·시드까지 전부 성공했는데
+  API 만 **500** 이다. `/health` 는 200 이고 `/`·`/metrics`·`/grafana/` 도 전부
+  기대대로다. 백엔드 로그:
+  ```
+  asyncpg.exceptions.InvalidPasswordError: password authentication failed for user "champs_app"
+  ```
+- 기대 동작: `GET /api/v1/meta/usage` 가 DB 를 조회하고, 수집 데이터가 없으므로
+  `NotAvailableError` → **404** 를 돌려줘야 한다.
+- 재현 절차:
+  ```powershell
+  curl.exe -s -o NUL -w "%{http_code}`n" https://paoriprofessor.click/api/v1/meta/usage   # 500
+  aws logs tail /ecs/pokehelper-prod/backend --since 20m --profile pokehelper
+  ```
+  컨테이너 안에서 둘을 갈라보면 원인이 바로 좁혀진다:
+  ```sh
+  python -c "
+  import asyncio
+  from redis.asyncio import Redis
+  from app.core.config import get_settings
+  async def main():
+      r = Redis.from_url(get_settings().redis_url, decode_responses=True)
+      print('PING ->', await r.ping())
+  asyncio.run(main())
+  "
+  ```
+  Redis 는 `True`, DB 만 `InvalidPasswordError` 였다.
+- 원인: ★ **ECS 는 시크릿을 태스크가 뜰 때 한 번만 읽는다.** 순서가 이랬다.
+  1. `ecs.tf` apply → 백엔드 태스크가 **그때의** `DATABASE_URL` 을 받아 기동
+  2. 비밀번호 노출 대응으로 **시크릿 교체**
+  3. `roles.sql` 이 **새** 비밀번호로 DB 계정 생성
+  4. 태스크만 **옛** 값을 들고 있음
+
+  증거 세 개가 맞물렸다 — ① 컨테이너 안에서 시크릿의 현재 값으로는
+  `psql -U champs_app` 이 **성공**했고(시크릿 == DB), ② 교체 **이후에** 띄운
+  `migrate` 일회성 태스크는 정상이었고(run-task 는 띄울 때 읽는다),
+  ③ `pg_stat_ssl` 에 `champs_app` 연결이 **아예 없었다**(연결 시도가 전부 실패).
+- 해결:
+  ```powershell
+  aws ecs update-service --cluster pokehelper-prod --service pokehelper-prod-backend `
+    --force-new-deployment --profile pokehelper
+  ```
+  이미지는 그대로이고 태스크만 새로 떠서 시크릿을 다시 읽는다. 무중단이다
+  (`deployment_minimum_healthy_percent = 100`). 직후 `/api/v1/meta/usage` 가
+  **404 + `{"detail":"'Singles' 포맷의 활성 스냅샷이 없다"}`** 로 바뀌었다.
+- ★ **이건 내 안내의 공백이었다.** 교체를 지시할 때 `METRICS_TOKEN` 에 대해서는
+  "재배포해야 반영된다"고 적어놓고 **`DATABASE_URL` 에는 같은 규칙을 적용하지
+  않았다.** 한 번 쓴 사실을 옆 칸에 옮기지 않았다.
+- 배운 것: **"주입"은 한 번 일어나는 사건이지 연결이 아니다.** ECS 의
+  `secrets`/`valueFrom` 은 시크릿을 *구독*하는 것처럼 보이지만 기동 시 복사일
+  뿐이다. 그래서 **시크릿 교체 절차에는 "누가 그 값을 들고 있는가"가 반드시
+  포함돼야 한다** — 서비스는 재배포, 일회성 태스크는 해당 없음, 열려 있는 ECS
+  Exec 세션은 옛 태스크와 함께 조용히 끊긴다.
+- `README.md` 5-C 에 `--force-new-deployment` 절을 추가했고, ADR-022 의 `## 결과`
+  에 "본문이 값을 **바꿀** 때 무엇을 더 해야 하는지 적지 않았다"로 기록했다.
+- 소요: 약 25분 (진단 10분 — 로그 한 번으로 확정됐다)
+
+## 2026-11-24 — 배포 당일에 닫힌 미지 둘과, 예측이 빗나간 셋
+
+문제 해결이 아니라 **열어뒀던 질문의 종결 기록**이다.
+
+- ★ **asyncpg 가 TLS 를 쓰는가 — 쓴다.** 11-23 에 "SQLAlchemy 공식 문서가 asyncpg
+  의 SSL 파라미터를 전혀 설명하지 않는다. asyncpg 기본값이 `prefer` 이므로
+  `?sslmode=require` 를 붙이지 말자. 다만 SQLAlchemy 가 `ssl=None` 을 명시적으로
+  넘기는지는 확인 못 했다"로 남겨뒀다. 컨테이너 안에서 **앱과 같은 경로**로
+  물었다:
+  ```sh
+  python -c "
+  import asyncio
+  from sqlalchemy import text
+  from app.db.session import get_engine
+  async def main():
+      async with get_engine().connect() as c:
+          r = await c.execute(text('select current_user, ssl, version from pg_stat_ssl join pg_stat_activity using (pid) where pid = pg_backend_pid()'))
+          print('asyncpg ->', r.first())
+  asyncio.run(main())
+  "
+  ```
+  → `asyncpg -> ('champs_app', True, 'TLSv1.3')`. **코드 변경 없이 암호화된다.**
+  ★ `psql` 로 보는 것으로는 답이 안 됐다 — psql 은 자기 연결만 보여주고, 궁금한
+  것은 **앱이 쓰는 드라이버**였다. 측정 도구를 대상에 맞춘 것이 요점이다.
+  (`rds.force_ssl` 은 `SHOW` 가 `unrecognized configuration parameter` 로 떨어져
+  확인하지 못했다. 이유는 추측하지 않는다 — 그리고 알 필요가 없어졌다.)
+- ★ **arm64 이미지가 Graviton 에서 도는가 — 돈다.** ADR-020 의 11-23 결과가
+  *"진짜 Graviton CPU 위에서 도는지는 ECS 가 띄울 때 처음 드러난다"* 로 끝나
+  있었다. 두 서비스 모두 `running: 1` 로 떴고 `exec format error` 는 없었다.
+- 예측이 빗나간 셋 (전부 **덜 나쁜 쪽**으로):
+  | 내가 말한 것 | 실제 | 왜 틀렸나 |
+  |---|---|---|
+  | 인증서 검증에 "몇 분 멈춘다" | **0초** | NS 일치를 미리 확인해둬서 CNAME 이 올라간 32초 사이에 ACM 이 끝냈다 |
+  | `pg_read_all_data` 는 **대체 경로**를 탈 것 | 그냥 **성공** | RDS 마스터는 슈퍼유저가 아니지만 `rds_superuser` 멤버라 ADMIN 옵션이 있었다. `roles.sql` 주석이 두 경우를 다 적어둔 것이 맞았다 |
+  | `/api/v1/meta/usage` 는 **404** 일 것 | **500** | 위 항목의 시크릿 건. 예측 자체는 설계상 맞았고 **상태가 틀렸다** |
+- ★ 그리고 **`plan` 과 `apply` 숫자가 어긋난 것을 한 번 그냥 넘겼다.**
+  `Plan: 8 to add` → `7 added` 를 "태스크 정의가 즉시 완료돼서"라고 설명했는데
+  틀렸다. 실제로는 `migrate` 로그 그룹이 `-target` 그래프 밖이라 만들어지지
+  않았다. 다음 apply 가 `2 to add` 로 나와서야 드러났다.
+  **숫자가 다르면 설명이 떠오르더라도 세어 봐야 한다.**
+- 소요: — (배포 전체에 걸쳐)
