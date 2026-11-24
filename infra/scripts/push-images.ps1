@@ -307,6 +307,13 @@ foreach ($image in $pushed) { Write-Host "    $image" -ForegroundColor Green }
 
 Write-Host @"
 
-다음: 이 태그를 ECS 태스크 정의가 참조한다 (ecs.tf, 아직 작성 전).
+다음: 위 태그를 infra/terraform/terraform.tfvars 의 image_tag 에 넣는다.
+      ecs.tf 의 태스크 정의가 그 값을 참조한다. 기본값이 없으므로 비우면
+      terraform plan 이 멈춰 서서 값을 묻는다.
+
+      ★ `git rev-parse HEAD` 를 다시 돌려 쓰지 않는다. 푸시 후에 커밋이
+        늘어났으면 그 SHA 의 이미지는 ECR 에 없고, 태스크가
+        CannotPullContainerError 로 떨어진다. 위에 찍힌 태그를 쓴다.
+
       태그는 커밋 SHA 이므로 **무엇이 떠 있는지 git 에서 되짚을 수 있다.**
 "@ -ForegroundColor DarkGray
