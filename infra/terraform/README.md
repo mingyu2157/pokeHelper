@@ -58,6 +58,51 @@ export AWS_PROFILE=pokehelper     # PowerShell: $env:AWS_PROFILE = "pokehelper"
 aws sts get-caller-identity       # Arn 이 assumed-role/... 이면 된다
 ```
 
+### ★ 이 두 줄은 **매일, 그리고 새 터미널마다** 다시 해야 한다 (2026-11-24 추가)
+
+둘이 서로 다른 이유로 사라진다. 하나만 고치면 다른 하나로 또 막힌다.
+
+| | 무엇이 사라지나 | 수명 | 되살리는 법 |
+|---|---|---|---|
+| ① | **SSO 액세스 토큰** (`~/.aws/sso/cache/`) | ★ **8시간** | `aws sso login --profile pokehelper` (브라우저가 열린다) |
+| ② | **`AWS_PROFILE` 환경변수** | ★ **그 셸에서만** | `$env:AWS_PROFILE = "pokehelper"` |
+
+②가 매번 필요한 이유: 이 PC 에는 **`default` 프로필도 `~/.aws/credentials` 파일도
+없다.** `[profile pokehelper]` 하나뿐이라, 환경변수로 지목하지 않으면 Terraform 이
+쓸 프로필을 못 찾는다. 새 터미널을 열면 그 지목이 사라진다.
+
+★ **②를 영구히 박아두려면** (새로 여는 터미널에 적용, 현재 셸에는 적용 안 됨):
+
+```powershell
+setx AWS_PROFILE pokehelper
+```
+
+### ★ 증상 → 원인 대응표 ★
+
+이 구간의 에러 메시지는 **원인을 가리키지 않는다.** 그래서 표로 적어둔다.
+
+| 메시지 | 실제 원인 |
+|---|---|
+| `No valid credential sources found` + ★ `dial tcp 169.254.169.254:80` | **②가 안 잡혔다.** `169.254.169.254` 는 **EC2 인스턴스 메타데이터** 주소다 — 자격증명 체인이 프로필을 하나도 못 찾아 맨 마지막 후보까지 떨어진 것이다. 노트북은 EC2 가 아니니 당연히 닿지 않는다. **AWS 문제도 네트워크 문제도 아니다** |
+| `SSO session ... has expired` / `Token has expired and refresh failed` | **①이 만료됐다.** 8시간이 지났다 |
+| `backend/s3` 링크가 같이 나온다 | **state 백엔드**가 먼저 실패한 것이다. 프로바이더가 아니다 — 둘 다 같은 체인을 쓰므로 고치는 법은 같다 |
+
+토큰이 언제 만료되는지는 캐시 파일의 `expiresAt` 에 있다. ★ **그 파일에는 액세스
+토큰이 들어 있으니 통째로 출력하지 않는다.**
+
+```powershell
+Get-ChildItem ~/.aws/sso/cache/*.json | ForEach-Object {
+  $j = Get-Content $_ -Raw | ConvertFrom-Json
+  if ($j.expiresAt) { "$($_.Name.Substring(0,8)) : $($j.expiresAt)" }
+}
+```
+
+> `profile` 을 `backend.hcl` 과 프로바이더에 박아 환경변수 의존을 없앨 수도 있다.
+> 지금 그렇게 하지 않은 이유는 `backend.hcl` 을 바꾸면 **`terraform init
+> -reconfigure` 가 필요**해서다. 환경변수 한 줄이 백엔드와 프로바이더 **양쪽을
+> 한 번에** 덮으므로 더 싸다. 되돌리는 조건: 프로필을 여러 개 쓰게 되면 그때
+> 코드로 옮긴다 (`backend.hcl.example` 에 주석으로 남겨뒀다).
+
 ---
 
 ## 2. state 저장소 만들기 (최초 1회)

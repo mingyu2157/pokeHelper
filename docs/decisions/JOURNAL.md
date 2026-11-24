@@ -1823,3 +1823,58 @@
   사람이 브라우저로 열어보기 전까지 아무 테스트도 잡지 못한다. 프론트 단위
   테스트가 없다는 `docs/TEST_STRATEGY.md` 6장의 한계가 그대로 드러난 사례다.
 - 소요: 약 15분 (발견과 범위 확인까지. 수정은 미룸)
+
+## 2026-11-24 — terraform 이 자격증명을 못 찾았다 (EC2 메타데이터를 찾아갔다)
+
+- 증상: 전날 멀쩡히 돌던 `terraform plan` 이 자원을 읽지도 못하고 죽는다.
+  ```
+  Error: No valid credential sources found
+  Please see .../language/backend/s3 for more information about providing credentials.
+  Error: failed to refresh cached credentials, no EC2 IMDS role found,
+  operation error ec2imds: GetMetadata, ... Get
+  "http://169.254.169.254/latest/meta-data/iam/security-credentials/":
+  dial tcp 169.254.169.254:80: ... unreachable network.
+  ```
+- 기대 동작: SSO 프로필로 S3 백엔드의 state 를 읽고 `plan` 을 내놓아야 한다.
+- 재현 절차:
+  ```powershell
+  # 새 PowerShell 창을 연다 (= AWS_PROFILE 이 없는 상태)
+  cd C:\project\pokehelper\infra\terraform
+  terraform plan
+  ```
+- 원인: **두 가지가 동시에 사라져 있었다.** 하나만 봤으면 다른 하나로 또 막혔다.
+  1. **SSO 액세스 토큰이 만료됐다.** `~/.aws/sso/cache/*.json` 의 `expiresAt` 가
+     `2026-11-24 01:54`, 확인 시각이 `10:14` 였다 — **8시간 세션**이다.
+  2. **`AWS_PROFILE` 이 안 잡혀 있었다.** 새 터미널을 열었기 때문이다. 이 PC 에는
+     `default` 프로필도 `~/.aws/credentials` 파일도 없고 `[profile pokehelper]`
+     하나뿐이라, 환경변수로 지목하지 않으면 **쓸 프로필이 아예 없다.**
+  ★ 그래서 자격증명 체인이 맨 마지막 후보인 **EC2 인스턴스 메타데이터**까지
+  떨어졌다. `169.254.169.254` 가 그 주소다. 메시지가 네트워크 오류처럼 읽히는데
+  **AWS 문제도 네트워크 문제도 아니다** — 노트북은 EC2 가 아니니 닿지 않는 것이
+  정상이다. 이 메시지가 원인을 가리키지 않는 것이 이 건의 전부다.
+- 해결: 둘을 순서대로 되살린다.
+  ```powershell
+  aws sso login --profile pokehelper
+  $env:AWS_PROFILE = "pokehelper"
+  aws sts get-caller-identity
+  ```
+  영구히 박으려면 `setx AWS_PROFILE pokehelper` (새 터미널에만 적용).
+- ★ **내 진단이 처음에 틀렸다.** "README 에 프로필 설정이 아무 데도 적혀 있지
+  않다"고 보고했는데, **§1 끝에 이미 있었다** (`export AWS_PROFILE=pokehelper`,
+  PowerShell 주석까지). 문서를 안 읽고 "문서가 없다"고 단정한 것이다.
+  실제로 빠져 있던 것은 **세 가지뿐**이고, 그래서 고친 것도 그 셋이다.
+  1. 토큰이 **8시간**이라는 것
+  2. `export`/`$env:` 가 **그 셸에서만** 유효하다는 것 — 명령이 "최초 1회"
+     블록처럼 놓여 있어서 새 터미널에서 조용히 사라지는 것이 안 보였다
+  3. ★ **증상 → 원인 대응표.** 비싼 것은 "환경변수를 설정하라"가 아니라
+     "`169.254.169.254` 가 보이면 그건 프로필 문제다"를 아는 것이었다
+- 배운 것: **"문서에 없다"는 진단은 문서를 읽은 뒤에만 해야 한다.** 그리고 문서에
+  명령이 적혀 있는 것과 **그 명령의 수명이 적혀 있는 것**은 다르다. 수명이 없으면
+  읽는 사람은 "한 번 하면 되는 것"으로 읽는다 — 어제의 나와 오늘의 나가 그랬다.
+- `profile` 을 `backend.hcl` 과 프로바이더에 박는 쪽은 **일부러 안 했다.** 전날
+  "코드로 옮기겠다"고 말했지만, 실제 실패는 **백엔드가 먼저** 난 것이라
+  프로바이더만 고쳐서는 막히지 않는다. `backend.hcl` 을 고치면
+  `terraform init -reconfigure` 가 필요하고, 환경변수 한 줄이 백엔드와 프로바이더
+  **양쪽을 한 번에** 덮으므로 더 싸다. 되돌리는 조건: 프로필을 여러 개 쓰게 되면
+  그때 옮긴다 (`backend.hcl.example` 에 주석으로 남겨뒀다).
+- 소요: 약 20분 (진단 10분, 문서화 10분)
