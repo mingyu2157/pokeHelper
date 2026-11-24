@@ -164,7 +164,7 @@ PowerShell 5.1 은 **`-` 로 시작하면서 `=` 가 들어간 인자**를 외�
 | 2 | `ecr.tf` + ARM 이미지 push | `infra/scripts/push-images.ps1` (아래 5-B) |
 | 3 | `data.tf` (RDS·ElastiCache) | ★ **코드는 있고 apply 는 5단계와 함께** (아래) |
 | 4 | `iam.tf`, `secrets.tf` | 역할 3개 · ★ **시크릿은 껍데기까지만** (값은 5단계) |
-| 5 | `dns.tf`, `alb.tf`, `ecs.tf` | 시크릿 값 주입(5-C) → DB 계정 생성 → `/health` 가 200 |
+| 5 | `dns.tf`, `alb.tf`, `ecs.tf` | 5-C 시크릿 → `/health` 200 → 5-D DB 계정 → 5-E 스키마·시드 |
 | 6 | `scheduler.tf`, `observability.tf` | 다음 날 수집이 돌았는가 |
 
 ★ **`image_tag` 가 없으면 `plan` 이 멈춰 서서 값을 묻는다** (2026-11-24 추가).
@@ -236,9 +236,9 @@ data.tf apply            # RDS 엔드포인트가 생긴다
 2. **`/health` 200 은 "DB 가 붙었다"를 뜻하지 않는다.** 수락 기준으로 쓸 때 그
    차이를 알고 써야 한다. DB 연결까지 보는 readiness 체크는 아직 없다.
 
-구체적인 ECS Exec 명령은 **실제로 돌려본 뒤에** 5-D 에 쓴다. 검증하지 않은
-절차를 먼저 적는 것이 바로 JOURNAL 2026-11-23("README 가 지킬 수 없는 약속을
-먼저 적어두고 있었다")에 기록된 실수다.
+구체적인 ECS Exec 명령은 **5-D** 에 있다. 2026-11-24 에 실제로 돌려 성공한 뒤에
+썼다 — 검증하지 않은 절차를 먼저 적는 것이 JOURNAL 2026-11-23("README 가 지킬
+수 없는 약속을 먼저 적어두고 있었다")에 기록된 실수다.
 
 ★ **반대로 4단계(`iam.tf`)는 미루지 않는다.** IAM 역할은 **무료**고, 태스크
 정의가 역할 ARN 을 참조하므로 **ECS 보다 먼저 있어야 한다.** `iam.tf` 는 아직
@@ -439,7 +439,42 @@ catch { "★ JSON 파싱 실패 - 내용이 JSON 이 아니다" }
 프로그램에 인자를 넘길 때 문자열 안의 따옴표를 이스케이프하지 않아
 `{"A":"b"}` 가 `{A:b}` 로 도착한다. `file://` 로 넘기면 그 경로를 피한다.
 
-**값을 바꿀 때도 같은 절차다.** 한 키만 바꾸려면 현재 값을 받아 고쳐야 한다:
+### ★★ 값을 바꿨으면 **재배포까지 해야 반영된다** (2026-11-24 추가) ★★
+
+**ECS 는 시크릿을 태스크가 뜰 때 한 번만 읽는다.** 그 뒤 시크릿을 바꿔도 **도는
+태스크는 옛 값을 계속 들고 있다.** 자동 갱신이 없다.
+
+이걸 빠뜨리면 증상이 **"DB 쪽은 다 맞는데 앱만 인증 실패"** 로 나온다. 실제로
+그랬다 — `psql` 로는 새 비밀번호가 멀쩡히 붙는데 API 는 500 이었고, 로그를 보고야
+`InvalidPasswordError: password authentication failed for user "champs_app"` 를
+확인했다 (JOURNAL 2026-11-24).
+
+```powershell
+aws ecs update-service --cluster pokehelper-prod --service pokehelper-prod-backend `
+  --force-new-deployment --profile pokehelper
+```
+
+이미지는 그대로이고 태스크만 새로 떠서 시크릿을 다시 읽는다.
+`deployment_minimum_healthy_percent = 100` 이라 새 태스크가 정상이 된 뒤 옛 것이
+내려간다 — 무중단이다. 완료 확인:
+
+```powershell
+aws ecs describe-services --cluster pokehelper-prod --services pokehelper-prod-backend `
+  --query "services[0].{running:runningCount,deployments:length(deployments)}" --profile pokehelper
+```
+
+`deployments: 1` 이면 교체가 끝났다 (`2` 면 진행 중).
+
+★ **일회성 태스크(`run-task`)는 해당 없다.** 띄울 때마다 새로 읽는다. 그래서
+교체 뒤에 돌린 마이그레이션·시드는 정상이었고 **서비스만 깨져 있었다.**
+
+★ **ECS Exec 로 들어간 세션도 그 태스크의 환경을 본다.** 재배포하면 옛 태스크가
+사라지면서 **세션이 조용히 끊긴다.** 프롬프트의 IP 로 어느 태스크인지 확인한다.
+
+---
+
+**값을 바꿀 때도 JSON 을 올리는 절차는 같다.** 한 키만 바꾸려면 현재 값을 받아
+고쳐야 한다:
 
 ```powershell
 $cur = aws secretsmanager get-secret-value --secret-id (terraform output -raw app_secret_name) `
@@ -453,6 +488,315 @@ $cur = aws secretsmanager get-secret-value --secret-id (terraform output -raw ap
 ★ **빠뜨리면 조용히 넘어가지 않는다.** 값이 없으면 ECS 가 컨테이너를 띄우기
 전에 시크릿을 못 가져와 `ResourceInitializationError` 로 실패한다. 플레이스홀더를
 심지 않았으므로 "가짜 값으로 떠 있는" 상태가 없다.
+
+## 5-D. 운영 DB 계정 만들기 (★ `ecs.tf` apply 직후, 최초 1회)
+
+**아래는 2026-11-24 에 실제로 돌려 성공한 절차다.** 돌려보기 전에는 쓰지 않았다
+(JOURNAL 2026-11-23, "README 가 지킬 수 없는 약속을 먼저 적어두고 있었다").
+
+★ **왜 이 번거로운 경로뿐인가.** RDS 는 프라이빗 서브넷 + `publicly_accessible
+= false` 이고 보안그룹이 **태스크 SG 에서 오는 5432 만** 받는다. NAT 도 배스천도
+없다. 그래서 `backend/sql/roles.sql` 을 돌릴 수 있는 곳은 **ECS 태스크 안**
+뿐이고, 그래서 운영 이미지가 `psql` 과 `sql/` 을 들고 있다
+(`backend/Dockerfile` 의 `dbclient` 스테이지 주석, JOURNAL 2026-11-23).
+
+### 선결 조건 — Session Manager 플러그인
+
+`aws ecs execute-command` 가 요구한다. 없으면
+`SessionManagerPlugin is not found` 로 실패한다.
+
+```
+https://s3.amazonaws.com/session-manager-downloads/plugin/latest/windows/SessionManagerPluginSetup.exe
+```
+
+관리자 권한으로 설치하면 `%PROGRAMFILES%\Amazon\SessionManagerPlugin\bin\` 에
+들어간다. ★ **이미 열려 있던 셸은 그 경로를 모른다** — `AWS_PROFILE` 과 같은
+종류의 함정이다 (1장의 수명 표). 그 셸에서 계속 쓰려면:
+
+```powershell
+$env:PATH += ";C:\Program Files\Amazon\SessionManagerPlugin\bin"
+session-manager-plugin   # 성공 문구가 나와야 한다
+```
+
+### ★ 창을 두 개 쓴다. 그리고 비밀번호를 화면에 띄우지 않는다 ★
+
+비밀번호가 4개 필요하다 — RDS 마스터 1개(AWS 가 관리) + 우리가 정한 3개.
+
+★ **마스터 비밀번호는 컨테이너 안에서 꺼낼 수 없다.** `iam.tf` 가 실행 역할에서
+RDS 마스터 시크릿을 **일부러 제외**했기 때문이다("앱 컨테이너가 DB 마스터
+비밀번호를 읽을 수 있는 상태"를 막으려고). 그래서 로컬에서 꺼내 컨테이너 안으로
+넘긴다.
+
+★★ **`Set-Clipboard` 로 넘기고, 화면에 출력하지 않는다.** 처음에는 로컬에서
+`Write-Output` 으로 찍어 보여주는 절차였고, 그 출력이 그대로 외부에 붙여넣어져
+**비밀번호 4개를 교체해야 했다** (JOURNAL 2026-11-24). `read -s` 로 가린 것은
+컨테이너 안쪽뿐이었고 **로컬 출력은 가리지 않았다** — 절차 설계의 결함이었다.
+
+| 창 | 무엇 |
+|---|---|
+| **A** | ECS Exec 세션 (컨테이너 안) |
+| **B** | 로컬 AWS CLI. 비밀번호를 클립보드로 넘긴다 |
+
+### 창 B — 열기
+
+```powershell
+$env:AWS_PROFILE = "pokehelper"
+cd C:\project\pokehelper\infra\terraform
+
+# 마스터 비밀번호 교체가 끝났는지 — "active" 여야 한다 ("rotating" 이면 대기)
+aws rds describe-db-instances --db-instance-identifier pokehelper-prod-db `
+  --query "DBInstances[0].MasterUserSecret.SecretStatus" --profile pokehelper
+```
+
+> ★ 이 시크릿은 **기본 7일마다 자동 교체**된다. 그래서 이 절차를 다시 할 때는
+> 매번 새로 꺼내야 한다.
+
+### 창 A — 컨테이너에 들어가기
+
+```powershell
+$task = aws ecs list-tasks --cluster pokehelper-prod --service-name pokehelper-prod-backend `
+  --query "taskArns[0]" --output text --profile pokehelper
+aws ecs execute-command --cluster pokehelper-prod --task $task --container backend `
+  --interactive --command "/bin/bash" --profile pokehelper
+```
+
+프롬프트가 `root@ip-10-0-x-x:/app#` 로 바뀌면 컨테이너 안이다. ★ `appuser` 가
+아니라 `root` 인 것은 정상이다 — ECS Exec 는 SSM 에이전트를 통해 들어가므로
+Dockerfile 의 `USER` 와 무관하다.
+
+접속 정보를 환경변수로 둔다 (비밀이 아니다):
+
+```sh
+export PGHOST=$(echo pokehelper-prod-db.XXXXXXXX.ap-northeast-2.rds.amazonaws.com)
+export PGUSER=champs_master
+export PGDATABASE=champs
+```
+
+> `PGHOST` 값은 `terraform output db_endpoint` 에서 **`:5432` 를 뗀** 호스트명이다.
+
+### 비밀번호 넘기기 — 네 번 반복한다
+
+패턴은 늘 같다: **창 B 에서 클립보드로 복사 → 창 A 에서 `read -s` → 붙여넣기 →
+Enter → 길이 확인.**
+
+★ `read -s` 는 입력을 **화면에 보여주지 않는다.** 붙여넣어도 아무 변화가 없는
+것이 정상이고, 그래서 "안 들어갔다"고 느껴 Enter 만 누르기 쉽다. 그러면 **빈
+값이 들어간다.** 그래서 매번 길이를 확인한다.
+
+창 B (마스터):
+```powershell
+(aws secretsmanager get-secret-value --secret-id (terraform output -raw db_master_secret_arn) `
+  --query SecretString --output text --profile pokehelper | Out-String | ConvertFrom-Json).password | Set-Clipboard
+```
+창 A — 치고, **붙여넣고**(오른쪽 클릭 또는 Ctrl+V), Enter:
+```sh
+read -s -p 'master  : ' PGPASSWORD; export PGPASSWORD; echo
+echo "${#PGPASSWORD}"      # ★ 28 이어야 한다 (AWS 가 만드는 길이가 고정이다)
+```
+
+창 B (나머지 셋 — 한 번만 준비):
+```powershell
+$sec = aws secretsmanager get-secret-value --secret-id (terraform output -raw app_secret_name) `
+  --query SecretString --output text --profile pokehelper | Out-String | ConvertFrom-Json
+function Get-Pw($dsn) { [regex]::Match($dsn, '://[^:/]+:([^@]+)@').Groups[1].Value }
+```
+그다음 **하나씩** 복사하고, 그때마다 창 A 에서 받는다:
+```powershell
+Get-Pw $sec.MIGRATION_DATABASE_URL | Set-Clipboard     # 창 A: read -s -p 'migrate : ' MIG; echo
+Get-Pw $sec.DATABASE_URL           | Set-Clipboard     # 창 A: read -s -p 'app     : ' APP; echo
+Get-Pw $sec.DATA_SOURCE_NAME       | Set-Clipboard     # 창 A: read -s -p 'read    : ' RD;  echo
+```
+창 A — 넷 다 확인:
+```sh
+echo "master=${#PGPASSWORD} migrate=${#MIG} app=${#APP} read=${#RD}"
+# master=28 migrate=32 app=32 read=32
+```
+
+### 창 A — 접속 확인 → `roles.sql`
+
+```sh
+psql -c "\conninfo"
+```
+
+실측(2026-11-24):
+
+```
+You are connected to database "champs" as user "champs_master" on host "..." (address "10.0.11.98") at port "5432".
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, compression: off)
+```
+
+★ `address` 가 **프라이빗 서브넷 IP** 이고 **TLS 1.3** 으로 붙는다. 둘 다 설계
+그대로다.
+
+```sh
+psql -v migrate_password="$MIG" -v app_password="$APP" -v read_password="$RD" -f /app/sql/roles.sql
+```
+
+★ **`NOTICE: champs_master 에게 champs_migrate 멤버십(INHERIT) 부여`** 는 정상
+출력이다. PG16 의 CREATEROLE 동작 때문이다 (`roles.sql` 주석 참조).
+
+★★ **실측에서 `pg_read_all_data` 가 그냥 성공했다.** RDS 마스터는 슈퍼유저가
+아니지만 `rds_superuser` 멤버라 그 역할에 대한 ADMIN 옵션을 갖고 있었다. 즉
+`roles.sql` 4장의 **대체 경로(기본 권한으로 내려앉기)를 타지 않았고**,
+`champs_read` 는 **미래 테이블까지 자동 포함되는 더 강한 보장**을 받았다.
+`WARNING ... 기본 권한으로 대체한다` 가 나오면 그건 ADMIN 옵션이 없는 환경이고,
+그때는 `champs_migrate` 가 만든 테이블만 포함된다 — 둘을 구분해서 읽어야 한다.
+
+### 창 A — 권한 3종 검증 ★ 이게 5-D 의 본체다
+
+★ **`roles.sql` 을 빈 DB 에서 돌린다**는 점이 중요하다. 그 시점에
+`GRANT ... ON ALL TABLES` 의 대상은 **0개**이고, 테이블은 그 뒤에 alembic 이
+만든다(5-E). 그래서 앱이 테이블을 읽을 수 있는 근거는 5장의
+**`ALTER DEFAULT PRIVILEGES FOR ROLE champs_migrate`** 하나뿐이다 — 그 파일이
+직접 "가장 틀리기 쉬운 부분"이라고 적어둔 곳이다. **5-E 를 돌린 뒤** 아래를 한다.
+
+```sh
+# ① 앱 계정이 미래 테이블을 읽는가 (= 기본 권한이 동작했는가)
+PGPASSWORD="$APP" psql -U champs_app  -c "select count(*) from pokemon"
+
+# ② 읽기 전용 계정도 되는가
+PGPASSWORD="$RD"  psql -U champs_read -c "select count(*) from moves"
+
+# ③ ★ 부정 검증 — 앱 계정이 DDL 을 **못 해야** 한다
+PGPASSWORD="$APP" psql -U champs_app  -c "create table should_fail (id int)"
+```
+
+③의 기대 결과는 **성공이 아니라 실패**다:
+
+```
+ERROR:  permission denied for schema public
+```
+
+테이블이 만들어지면 ADR-015 의 계정 분리가 깨진 것이다.
+
+### 창 A — 정리
+
+```sh
+unset PGPASSWORD MIG APP RD
+```
+
+창 B 에서 클립보드도 비운다:
+
+```powershell
+Set-Clipboard -Value " "
+```
+
+---
+
+## 5-E. 스키마와 시드 올리기 (★ 5-D 직후, 최초 1회)
+
+**2026-11-24 에 실제로 돌려 성공한 절차다.**
+
+### ① `migrate` 태스크 정의를 만든다
+
+★ `ecs.tf` 를 `-target=aws_ecs_service.*` 로 적용했으면 **이 태스크 정의와 그
+로그 그룹이 아직 없다.** 서비스가 참조하지 않기 때문이다.
+
+```powershell
+terraform apply "-target=aws_ecs_task_definition.migrate"
+```
+
+**기대: `2 to add`** — 태스크 정의 + `/ecs/pokehelper-prod/migrate` 로그 그룹.
+
+> ★ 서비스 apply 때 plan 은 로그 그룹 3개를 보여주지만 **2개만 만들어진다.**
+> `migrate` 로그 그룹은 `migrate` 태스크 정의만 참조하므로 타깃 그래프에
+> 들어오지 않는다. 그래서 그 apply 의 `Plan: 8 to add` 와 `7 added` 가
+> 어긋난다 — **plan 과 apply 숫자가 다르면 그냥 넘기지 않는다.**
+
+### ② 네트워크 설정을 출력에서 조립한다
+
+손으로 서브넷 ID 를 적으면 거기서 틀린다. 프라이빗 서브넷을 적으면 태스크가
+이미지를 못 받고, 메시지는 서브넷을 가리키지 않는다.
+
+```powershell
+$net = terraform output -json task_network_configuration | ConvertFrom-Json
+$netcfg = "awsvpcConfiguration={subnets=[$($net.subnets -join ',')],securityGroups=[$($net.security_groups -join ',')],assignPublicIp=ENABLED}"
+$netcfg
+```
+
+### ③ 스키마 — `alembic upgrade head`
+
+태스크 정의의 기본 `command` 가 그것이므로 덮어쓸 것이 없다.
+
+```powershell
+$t = aws ecs run-task --cluster pokehelper-prod --task-definition pokehelper-prod-migrate `
+  --launch-type FARGATE --network-configuration $netcfg `
+  --query "tasks[0].taskArn" --output text --profile pokehelper
+
+aws ecs describe-tasks --cluster pokehelper-prod --tasks $t `
+  --query "tasks[0].{status:lastStatus,stopCode:stopCode,reason:stoppedReason,exit:containers[0].exitCode}" `
+  --profile pokehelper
+
+aws logs tail /ecs/pokehelper-prod/migrate --since 15m --profile pokehelper
+```
+
+★ **`status: STOPPED` + `exit: 0` 이 성공이다.** `stopCode:
+EssentialContainerExited` / `reason: Essential container in task exited` 가 같이
+나오는데, 일회성 태스크에서는 **그게 정상 종료**다. 서비스라면 장애 신호지만
+여기서는 아니다.
+
+실측 로그:
+```
+INFO [alembic.runtime.migration] Running upgrade  -> e4425a76c12b, 초기 스키마: 마스터 + 메타 스냅샷
+INFO [alembic.runtime.migration] Running upgrade e4425a76c12b -> fe1cfe8d79d0, pokemon_learnset 추가
+```
+
+### ④ 시드 — 같은 태스크 정의에 `command` 만 덮어쓴다
+
+★ **`--overrides` 에 JSON 을 직접 넘기지 마라.** PowerShell 5.1 은 네이티브
+프로그램에 인자를 넘길 때 문자열 안의 따옴표를 이스케이프하지 않는다
+(5-C 의 `--secret-string` 과 같은 함정). **파일로 넘긴다.**
+
+```powershell
+$ov = "$env:TEMP\pokehelper-seed-override.json"
+$body = '{"containerOverrides":[{"name":"migrate","command":["python","-m","scripts.load_seed_to_db"]}]}'
+[IO.File]::WriteAllText($ov, $body, (New-Object System.Text.UTF8Encoding $false))
+
+$t2 = aws ecs run-task --cluster pokehelper-prod --task-definition pokehelper-prod-migrate `
+  --launch-type FARGATE --network-configuration $netcfg --overrides "file://$ov" `
+  --query "tasks[0].taskArn" --output text --profile pokehelper
+
+aws ecs describe-tasks --cluster pokehelper-prod --tasks $t2 `
+  --query "tasks[0].{status:lastStatus,exit:containers[0].exitCode}" --profile pokehelper
+aws logs tail /ecs/pokehelper-prod/migrate --since 10m --profile pokehelper
+
+Remove-Item $ov
+```
+
+실측 로그:
+```
+포켓몬 263건 적재 / 기술 516건 적재 / 특성 202건 적재 / 성격 25건 적재
+도구 22건 적재 / learnset 16037쌍 적재 / 적재 완료.
+```
+
+★ **시드 적재는 `champs_app` 으로 돈다** (`scripts/load_seed_to_db.py` →
+`app.db.session.get_engine` → `DATABASE_URL`). 그 계정에는 `TRUNCATE` 권한이
+없는데(`roles.sql` 4장이 일부러 안 줬다), 스크립트가 upsert 와 DELETE 만 쓰므로
+성립한다. **그 전제가 깨지면 여기서 권한 에러가 난다** — 이 단계가 그걸 검증한다.
+
+### ⑤ 끝났는지 — 창 A 에서
+
+```sh
+psql -c "\dt"
+psql -c "select version_num from alembic_version"
+```
+
+★ 테이블 **10개**가 나오고 `Owner` 가 **전부 `champs_migrate`** 여야 한다.
+그게 ADR-015 의 핵심이다 — alembic 만 DDL 을 쥔다.
+
+그리고 **5-D 의 권한 3종 검증을 지금 돌린다.** 테이블이 생긴 뒤에야
+`ALTER DEFAULT PRIVILEGES` 가 동작했는지 확인할 수 있다.
+
+### ⑥ ALB 를 통한 end-to-end
+
+```powershell
+curl.exe -s -o NUL -w "%{http_code}\n" https://paoriprofessor.click/api/v1/meta/usage
+```
+
+★ **404 가 정상이고 그게 성공 신호다.** 수집 데이터가 아직 없어
+`NotAvailableError` → 404 로 설계돼 있다(`app/api/v1/meta.py`). **404 는 요청이
+백엔드에 닿아 DB 를 조회하고 설계된 응답을 돌려줬다는 뜻**이고, DB 가 안 붙으면
+500 이 나온다. 둘을 구분해서 읽어야 한다.
 
 ---
 
