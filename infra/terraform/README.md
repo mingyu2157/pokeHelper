@@ -359,6 +359,73 @@ aws secretsmanager put-secret-value `
 Remove-Item $f
 ```
 
+### ★ `-target` 으로 apply 했으면 1번이 실패한다 (2026-11-24 추가)
+
+```
+Error: Output "app_secret_template" not found
+```
+
+4장처럼 `-target` 으로 단계별 apply 를 했으면 **이 출력은 state 에 없다.**
+`-target` 은 타깃 자원에 **의존하지 않는 출력을 평가하지 않는데**,
+`app_secret_template` 과 `app_secret_keys_documented` 는 `local.app_secret_keys`
+만 참조하고 자원을 참조하지 않는다. (`app_secret_name`·`app_secret_arn` 은
+`aws_secretsmanager_secret.app` 을 참조하므로 **있다** — 그래서 4번은 그냥 된다.)
+
+★★ **그리고 1번이 실패해도 그 뒤가 전부 성공한다** ★★
+
+`$json` 이 빈 값이 되고 → 빈 파일이 만들어지고 → notepad 에 빈 파일이 열리고 →
+`put-secret-value` 가 **그 빈 내용을 그대로 올린다.** Secrets Manager 는
+**내용이 JSON 인지 검사하지 않으므로** `VersionId` 가 정상적으로 돌아온다.
+실패가 조용히 성공으로 포장된다. 실제로 그렇게 됐다
+(JOURNAL 2026-11-24).
+
+대체 절차 — 키 이름을 `secrets.tf` 에서 읽는다. 손으로 타이핑하지 않는 원칙은
+그대로다.
+
+```powershell
+$f = "$env:TEMP\pokehelper-secret.json"
+$lines = Get-Content .\secrets.tf
+$start = ($lines | Select-String -Pattern 'app_secret_keys\s*=\s*\{' | Select-Object -First 1).LineNumber
+$keys = @()
+for ($i = $start; $i -lt $lines.Count; $i++) {
+  if ($lines[$i] -match '^\s*\}') { break }
+  if ($lines[$i] -match '^\s*([A-Z][A-Z0-9_]*)\s*=') { $keys += $Matches[1] }
+}
+"읽은 키 $($keys.Count) 개: $($keys -join ', ')"   # ★ 6 이 아니면 멈춘다
+
+$obj = [ordered]@{}
+foreach ($k in $keys) { $obj[$k] = "" }
+[IO.File]::WriteAllText($f, ($obj | ConvertTo-Json), (New-Object System.Text.UTF8Encoding $false))
+notepad $f
+```
+
+### ★ 올린 뒤 **반드시** 검증한다 (2026-11-24 추가)
+
+`put-secret-value` 의 성공은 "올라갔다"만 뜻한다. **내용이 맞다는 뜻이 아니다.**
+아래는 **값을 출력하지 않고** 키 이름과 길이만 본다.
+
+```powershell
+$s = aws secretsmanager get-secret-value --secret-id (terraform output -raw app_secret_name) `
+  --query SecretString --output text --profile pokehelper
+"줄 수: $($s.Length)"   # ★ 바이트가 아니다 — PowerShell 이 출력을 줄 배열로 받는다
+try { ($s | ConvertFrom-Json).PSObject.Properties | ForEach-Object { "  $($_.Name) = $($_.Value.Length)" } }
+catch { "★ JSON 파싱 실패 - 내용이 JSON 이 아니다" }
+```
+
+★ **길이만으로 DSN 구조가 맞는지 산술로 확인된다.** 값을 화면에 띄우지 않고
+검증할 수 있다는 것이 이 방법의 요점이다. 호스트명이
+`pokehelper-prod-db.<12자>.ap-northeast-2.rds.amazonaws.com`(64자), 비밀번호가
+32자, DB 이름이 `champs` 일 때:
+
+| 키 | 계산 | 기대 |
+|---|---|---|
+| `DATABASE_URL` | `postgresql+asyncpg://`21 + `champs_app`10 + `:`1 + 32 + `@`1 + 64 + `:5432`5 + `/champs`7 | **141** |
+| `MIGRATION_DATABASE_URL` | 위 + (`champs_migrate`14 − `champs_app`10) | **145** |
+| `DATA_SOURCE_NAME` | `postgresql://`13 + `champs_read`11 + `:`1 + 32 + `@`1 + 64 + 5 + 7 + `?sslmode=require`16 | **150** |
+
+한 글자라도 다르면 `+asyncpg` 누락, 포트 중복, `sslmode` 오타 중 하나다.
+**키가 6개가 아니거나 길이가 0 이면 다시 올린다.**
+
 ★ **값을 명령에 직접 적지 않는다.** 템플릿을 `terraform output` 에서 받으므로
 키 이름을 손으로 칠 일이 없고, 오타로 키가 어긋나 **앱이 기본값으로 조용히
 뜨는 일**이 생기지 않는다.

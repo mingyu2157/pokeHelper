@@ -1878,3 +1878,60 @@
   **양쪽을 한 번에** 덮으므로 더 싸다. 되돌리는 조건: 프로필을 여러 개 쓰게 되면
   그때 옮긴다 (`backend.hcl.example` 에 주석으로 남겨뒀다).
 - 소요: 약 20분 (진단 10분, 문서화 10분)
+
+## 2026-11-24 — 시크릿 주입 1단계가 실패했는데 4단계가 성공했다
+
+- 증상: README 5-C 의 첫 명령이 실패한다.
+  ```
+  Error: Output "app_secret_template" not found
+  ```
+  ★ 그런데 **그 뒤 명령이 전부 성공한다.** `put-secret-value` 가 정상적으로
+  `VersionId` 를 돌려주고, 겉보기에 시크릿 주입이 끝난 것처럼 보인다.
+- 기대 동작: 1번이 키 6개를 담은 빈 JSON 템플릿을 만들고, 사람이 값을 채운 뒤
+  4번이 그 내용을 올려야 한다. 1번이 실패하면 **그 자리에서 멈춰야** 한다.
+- 재현 절차:
+  ```powershell
+  cd C:\project\pokehelper\infra\terraform
+  # -target 으로만 apply 한 state 에서
+  terraform output -json app_secret_template      # Error: Output not found
+  terraform output -raw app_secret_name           # ★ 이건 된다
+  ```
+- 원인: **`-target` 은 타깃 자원에 의존하지 않는 출력을 평가하지 않는다.**
+
+  | 출력 | 참조하는 것 | state 에 있나 |
+  |---|---|---|
+  | `app_secret_name`·`app_secret_arn` | `aws_secretsmanager_secret.app` (자원) | 있다 |
+  | `app_secret_template`·`app_secret_keys_documented` | `local.app_secret_keys` 뿐 | ★ **없다** |
+
+  그래서 `$json` 이 빈 값이 되고 → `WriteAllText` 가 **빈 파일**을 만들고 →
+  notepad 에 빈 파일이 열리고 → `put-secret-value` 가 그 빈 내용을 올린다.
+  ★ **Secrets Manager 는 내용이 JSON 인지 검사하지 않는다.** 그래서 실패가
+  조용히 성공으로 포장된다.
+
+  ★ 이 메커니즘은 **하루 전에 이미 겪었다.** `dns.tf` 의 `service_url` 출력이
+  같은 이유로 안 나왔고, 그 자리에서 "`-target` 은 타깃에 의존하지 않는 출력을
+  평가하지 않는다"고 설명까지 적었다. 그런데 다음 날 5-C 절차를 그대로 안내할
+  때 **그 절차의 첫 줄이 바로 그런 출력에 의존한다는 것을 확인하지 않았다.**
+- 해결: 둘 다 고쳤다.
+  1. **대체 절차** — 키 이름을 `secrets.tf` 의 `app_secret_keys` 블록에서 읽어
+     템플릿을 만든다. "키를 손으로 타이핑하지 않는다"는 원래 의도는 유지된다.
+     `읽은 키 N 개` 를 찍어서 6이 아니면 멈추게 했다.
+  2. ★ **올린 뒤 검증 단계를 추가했다.** `put-secret-value` 의 성공은
+     "올라갔다"만 뜻하고 내용이 맞다는 뜻이 아니다. 이 단계가 아예 없었다.
+- ★ **검증을 값을 보지 않고 한다.** `get-secret-value` 로 받아 키 이름과
+  **길이만** 출력하면, 길이 산술로 DSN 구조가 맞는지 확인된다.
+  호스트명 64자 / 비밀번호 32자 / DB `champs` 일 때 141·145·150 이 나와야 한다.
+  한 글자라도 다르면 `+asyncpg` 누락, 포트 중복, `sslmode` 오타 중 하나다.
+  실제로 이번 건은 세 값이 **바이트 단위로 정확히** 141·145·150 이었고, 그래서
+  "사람이 notepad 에서 직접 채웠다"가 값을 보지 않고 확정됐다.
+- 배운 것 둘.
+  - **같은 메커니즘에 두 번 걸렸다.** 메커니즘을 아는 것과 **그 메커니즘이
+    적용되는 자리를 점검하는 것**은 다른 일이다. 전날 적어둔 설명이 다음 날의
+    절차 점검으로 이어지지 않았다.
+  - ★ **"성공했다"는 종료 코드를 믿으면 안 되는 구간이 있다.** 저장소가 내용을
+    검사하지 않는 API(`put-secret-value`)는 쓰레기도 받아준다. 그런 호출 뒤에는
+    **읽어서 확인하는 단계가 절차의 일부**여야 한다.
+    `tests/integration/test_terraform_secrets.py` 는 "값이 코드·plan·state 에
+    들어오는 경로"를 막지만, **올라간 값이 맞는지는 검사 범위 밖이다** —
+    실제 계정을 보지 않기 때문이다 (`terraform_support.py` 머리말의 한계).
+- 소요: 약 25분
