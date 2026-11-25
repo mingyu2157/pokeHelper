@@ -2,6 +2,15 @@
 # 실제 backend.hcl 은 계정 ID 가 들어가므로 커밋하지 않는다(.gitignore).
 # 값은 bootstrap 의 `terraform output backend_config` 가 그대로 찍어준다.
 
+# ★ profile 은 일부러 비워뒀다. 환경변수 `AWS_PROFILE` 이 **백엔드와 프로바이더
+#   양쪽을** 한 번에 덮으므로 더 싸다 (README 1장의 대응표).
+#
+#   여기에 박고 싶으면 아래 줄의 주석을 풀고 **`terraform init -reconfigure`** 를
+#   돌려야 한다. 백엔드 설정이 바뀌면 재초기화가 필요하다 — 버킷·키가 그대로면
+#   state 위치는 바뀌지 않는다. 프로필을 여러 개 쓰게 되면 그때 옮긴다.
+#
+# profile      = "pokehelper"
+
 bucket         = "pokehelper-tfstate-000000000000"
 key            = "pokehelper/prod/terraform.tfstate"
 region         = "ap-northeast-2"

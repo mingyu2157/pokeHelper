@@ -66,7 +66,7 @@ locals {
   # ★ 평범한 리스트로 둔다. `toset(...)` 을 여기 쓰면 python-hcl2 가 호출식
   #   전체를 문자열 하나로 돌려줘서 테스트가 원소를 볼 수 없다 (컨테이너 정의를
   #   locals 로 뺀 것과 같은 이유). 집합 변환은 쓰는 쪽에서 한다.
-  log_streams = ["backend", "frontend", "migrate"]
+  log_streams = ["backend", "frontend", "migrate", "ingest"]
 }
 
 resource "aws_cloudwatch_log_group" "ecs" {
@@ -108,6 +108,16 @@ locals {
   # (`scripts/load_seed_to_db.py` → `app.db.session.get_engine`)는 DATABASE_ 를
   # 읽는다. 같은 태스크 정의로 둘을 돌린다 — 아래 패밀리 주석 참조.
   migrate_secret_keys = ["DATABASE_URL", "MIGRATION_DATABASE_URL", "METRICS_TOKEN"]
+
+  # ── 수집 태스크가 받는 시크릿 ─────────────────────────
+  #
+  # ★ `MIGRATION_DATABASE_URL` 이 **없다.** 수집은 DDL 을 쓰지 않는다 —
+  #   `scripts/run_ingest.py` 와 `scripts/cleanup_snapshots.py` 는 둘 다
+  #   `app.db.session.get_engine` 을 거쳐 `DATABASE_URL`(= `champs_app`)로 붙고,
+  #   연산이 INSERT·UPDATE·DELETE 뿐이다. TRUNCATE 도 쓰지 않는다
+  #   (`roles.sql` 4장이 일부러 주지 않았다).
+  #   매일 무인으로 도는 태스크에 DDL 자격증명을 들려 보낼 이유가 없다.
+  ingest_secret_keys = ["DATABASE_URL", "METRICS_TOKEN"]
 
   # ── 평문 환경변수 ─────────────────────────────────────
   #
@@ -237,6 +247,72 @@ locals {
         "awslogs-group"         = aws_cloudwatch_log_group.ecs["migrate"].name
         "awslogs-region"        = var.region
         "awslogs-stream-prefix" = "migrate"
+      }
+    }
+  }
+
+  ############################################################
+  # 수집 컨테이너 — ★ 스케줄러가 매일 돌린다 (scheduler.tf)
+  #
+  # ★★ 왜 `migrate` 를 재사용하지 않고 따로 두는가 ★★
+  #
+  # 이미지·역할·시크릿이 같아서 `--overrides` 로 명령만 바꿔도 돈다. 실제로
+  # 2026-11-25 의 수동 검증은 그렇게 했다. 그런데 **상시 스케줄로는 분리한다.**
+  #
+  #   1. ★ **로그가 섞이면 "어젯밤 수집이 돌았나"를 못 본다.** `migrate` 는
+  #      배포할 때 사람이 돌리는 것이고 수집은 매일 무인으로 도는 것이다.
+  #      로그 그룹이 같으면 둘이 한 스트림에 섞인다.
+  #   2. **기본 command 가 진짜 명령이어야 한다.** 스케줄에 `--overrides` 를
+  #      넣으면 "이 태스크가 무엇을 하는가"가 두 파일에 나뉜다.
+  #   3. 나중에 수집 실패 경보를 붙일 때 **대상 로그 그룹이 분리돼 있어야** 한다.
+  #
+  # ★ 대신 두 컨테이너 정의가 **거의 같은 내용을 두 번** 적는다. `merge()` 로
+  #   묶지 않은 이유는 python-hcl2 가 함수 호출을 문자열 하나로 돌려줘서
+  #   **테스트가 안을 볼 수 없게 되기 때문**이다(이 파일 위쪽 주석과 같은 이유).
+  #   대신 **둘이 어긋나지 않는지를 테스트가 교차검증한다**
+  #   (`TestScheduledIngestMatchesMigrate`). 중복을 없애는 대신 중복이 갈라지는
+  #   것을 집행한다.
+  ############################################################
+
+  ingest_container = {
+    name      = "ingest"
+    image     = "${aws_ecr_repository.app["backend"].repository_url}:${var.image_tag}"
+    essential = true
+
+    # ★★ `&&` 가 Airflow DAG 의 `ingest >> cleanup` 을 대신한다 ★★
+    #
+    # EventBridge Scheduler 에는 **작업 간 의존 개념이 없다.** 스케줄을 둘로
+    # 나누면 수집이 실패한 날에도 정리가 돌아서, DAG 주석이 경고한 상태
+    # ("수집이 실패한 날 오래된 스냅샷만 지워져 보존 기간이 짧아진다")가 된다.
+    # 한 셸에서 `&&` 로 이으면 **수집이 0 으로 끝날 때만** 정리가 돈다.
+    #
+    # ★ 종료 코드 2(적재는 됐지만 한영 매핑 해석 실패)도 정리를 막는다.
+    #   그것도 DAG 와 같다 — Airflow 에서 2 는 실패이고 하류가 돌지 않았다.
+    #
+    # ★★ `timeout` 이 DAG 의 `execution_timeout` 을 대신한다 ★★
+    #
+    # ECS RunTask 에는 **실행 시간 상한이 없다.** 멈춘 태스크가 영원히 돌면서
+    # 과금된다. DAG 는 수집 15분 / 정리 5분을 걸어뒀고, 그 숫자를 그대로 옮긴다.
+    # `timeout` 은 상한을 넘기면 124 로 끝내므로 `&&` 가 거기서 멈춘다.
+    command = [
+      "sh", "-c",
+      "timeout 900 python -m scripts.run_ingest --format ${var.ingest_format} --limit ${var.ingest_limit} && timeout 300 python -m scripts.cleanup_snapshots",
+    ]
+
+    # ★ 수집은 `champs_app` 으로 쓴다 (`DATABASE_URL`). DDL 을 쓰지 않으므로
+    #   마이그레이션 계정이 필요 없다 — `migrate` 보다 **한 키 적다**.
+    environment = [for key, value in local.common_environment : { name = key, value = value }]
+    secrets = [
+      for key in local.ingest_secret_keys :
+      { name = key, valueFrom = "${local.app_secret_arn}:${key}::" }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.ecs["ingest"].name
+        "awslogs-region"        = var.region
+        "awslogs-stream-prefix" = "ingest"
       }
     }
   }
@@ -378,6 +454,41 @@ resource "aws_ecs_task_definition" "migrate" {
   container_definitions = jsonencode([local.migrate_container])
 
   tags = { Name = "${local.name}-migrate" }
+}
+
+############################################################
+# 수집 태스크 정의 — ★ 스케줄러가 매일 돌린다
+#
+# 패밀리 이름이 `${local.name}-ingest` 다. `iam.tf` 의
+# `local.scheduled_task_definition_arn`(`task-definition/pokehelper-prod-*:*`)
+# 이 이 접두사를 덮는다 — 그래서 스케줄러 역할이 **이 태스크만** 띄울 수 있다.
+#
+# ★ 스케줄은 `scheduler.tf` 에 있다. "무엇을 돌리는가"(여기)와 "언제 돌리는가"
+#   (거기)를 나눠 둔다 — ADR-011 이 CLI 와 스케줄러를 나눈 것과 같은 선이다.
+############################################################
+
+resource "aws_ecs_task_definition" "ingest" {
+  family = "${local.name}-ingest"
+
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+
+  # 수집은 외부 API 를 1초에 한 번 부르며 기다리는 일이라 CPU 를 거의 쓰지 않는다.
+  # 2026-11-25 실측: 50종 수집에 55초, 대부분이 대기다.
+  cpu    = 256
+  memory = 512
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
+
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([local.ingest_container])
+
+  tags = { Name = "${local.name}-ingest" }
 }
 
 ############################################################

@@ -58,6 +58,51 @@ export AWS_PROFILE=pokehelper     # PowerShell: $env:AWS_PROFILE = "pokehelper"
 aws sts get-caller-identity       # Arn 이 assumed-role/... 이면 된다
 ```
 
+### ★ 이 두 줄은 **매일, 그리고 새 터미널마다** 다시 해야 한다 (2026-11-24 추가)
+
+둘이 서로 다른 이유로 사라진다. 하나만 고치면 다른 하나로 또 막힌다.
+
+| | 무엇이 사라지나 | 수명 | 되살리는 법 |
+|---|---|---|---|
+| ① | **SSO 액세스 토큰** (`~/.aws/sso/cache/`) | ★ **8시간** | `aws sso login --profile pokehelper` (브라우저가 열린다) |
+| ② | **`AWS_PROFILE` 환경변수** | ★ **그 셸에서만** | `$env:AWS_PROFILE = "pokehelper"` |
+
+②가 매번 필요한 이유: 이 PC 에는 **`default` 프로필도 `~/.aws/credentials` 파일도
+없다.** `[profile pokehelper]` 하나뿐이라, 환경변수로 지목하지 않으면 Terraform 이
+쓸 프로필을 못 찾는다. 새 터미널을 열면 그 지목이 사라진다.
+
+★ **②를 영구히 박아두려면** (새로 여는 터미널에 적용, 현재 셸에는 적용 안 됨):
+
+```powershell
+setx AWS_PROFILE pokehelper
+```
+
+### ★ 증상 → 원인 대응표 ★
+
+이 구간의 에러 메시지는 **원인을 가리키지 않는다.** 그래서 표로 적어둔다.
+
+| 메시지 | 실제 원인 |
+|---|---|
+| `No valid credential sources found` + ★ `dial tcp 169.254.169.254:80` | **②가 안 잡혔다.** `169.254.169.254` 는 **EC2 인스턴스 메타데이터** 주소다 — 자격증명 체인이 프로필을 하나도 못 찾아 맨 마지막 후보까지 떨어진 것이다. 노트북은 EC2 가 아니니 당연히 닿지 않는다. **AWS 문제도 네트워크 문제도 아니다** |
+| `SSO session ... has expired` / `Token has expired and refresh failed` | **①이 만료됐다.** 8시간이 지났다 |
+| `backend/s3` 링크가 같이 나온다 | **state 백엔드**가 먼저 실패한 것이다. 프로바이더가 아니다 — 둘 다 같은 체인을 쓰므로 고치는 법은 같다 |
+
+토큰이 언제 만료되는지는 캐시 파일의 `expiresAt` 에 있다. ★ **그 파일에는 액세스
+토큰이 들어 있으니 통째로 출력하지 않는다.**
+
+```powershell
+Get-ChildItem ~/.aws/sso/cache/*.json | ForEach-Object {
+  $j = Get-Content $_ -Raw | ConvertFrom-Json
+  if ($j.expiresAt) { "$($_.Name.Substring(0,8)) : $($j.expiresAt)" }
+}
+```
+
+> `profile` 을 `backend.hcl` 과 프로바이더에 박아 환경변수 의존을 없앨 수도 있다.
+> 지금 그렇게 하지 않은 이유는 `backend.hcl` 을 바꾸면 **`terraform init
+> -reconfigure` 가 필요**해서다. 환경변수 한 줄이 백엔드와 프로바이더 **양쪽을
+> 한 번에** 덮으므로 더 싸다. 되돌리는 조건: 프로필을 여러 개 쓰게 되면 그때
+> 코드로 옮긴다 (`backend.hcl.example` 에 주석으로 남겨뒀다).
+
 ---
 
 ## 2. state 저장소 만들기 (최초 1회)
@@ -119,8 +164,8 @@ PowerShell 5.1 은 **`-` 로 시작하면서 `=` 가 들어간 인자**를 외�
 | 2 | `ecr.tf` + ARM 이미지 push | `infra/scripts/push-images.ps1` (아래 5-B) |
 | 3 | `data.tf` (RDS·ElastiCache) | ★ **코드는 있고 apply 는 5단계와 함께** (아래) |
 | 4 | `iam.tf`, `secrets.tf` | 역할 3개 · ★ **시크릿은 껍데기까지만** (값은 5단계) |
-| 5 | `dns.tf`, `alb.tf`, `ecs.tf` | 시크릿 값 주입(5-C) → DB 계정 생성 → `/health` 가 200 |
-| 6 | `scheduler.tf`, `observability.tf` | 다음 날 수집이 돌았는가 |
+| 5 | `dns.tf`, `alb.tf`, `ecs.tf` | 5-C 시크릿 → `/health` 200 → 5-D DB 계정 → 5-E 스키마·시드 |
+| 6 | `scheduler.tf`, `observability.tf` | 5-F — ★ 스케줄을 기다리지 말고 **손으로 한 번** 돌려본다 |
 
 ★ **`image_tag` 가 없으면 `plan` 이 멈춰 서서 값을 묻는다** (2026-11-24 추가).
 `ecs.tf` 가 생기면서 **기본값 없는 필수 변수**가 하나 늘었다. 기본값을 두지 않은
@@ -191,9 +236,9 @@ data.tf apply            # RDS 엔드포인트가 생긴다
 2. **`/health` 200 은 "DB 가 붙었다"를 뜻하지 않는다.** 수락 기준으로 쓸 때 그
    차이를 알고 써야 한다. DB 연결까지 보는 readiness 체크는 아직 없다.
 
-구체적인 ECS Exec 명령은 **실제로 돌려본 뒤에** 5-D 에 쓴다. 검증하지 않은
-절차를 먼저 적는 것이 바로 JOURNAL 2026-11-23("README 가 지킬 수 없는 약속을
-먼저 적어두고 있었다")에 기록된 실수다.
+구체적인 ECS Exec 명령은 **5-D** 에 있다. 2026-11-24 에 실제로 돌려 성공한 뒤에
+썼다 — 검증하지 않은 절차를 먼저 적는 것이 JOURNAL 2026-11-23("README 가 지킬
+수 없는 약속을 먼저 적어두고 있었다")에 기록된 실수다.
 
 ★ **반대로 4단계(`iam.tf`)는 미루지 않는다.** IAM 역할은 **무료**고, 태스크
 정의가 역할 ARN 을 참조하므로 **ECS 보다 먼저 있어야 한다.** `iam.tf` 는 아직
@@ -314,6 +359,73 @@ aws secretsmanager put-secret-value `
 Remove-Item $f
 ```
 
+### ★ `-target` 으로 apply 했으면 1번이 실패한다 (2026-11-24 추가)
+
+```
+Error: Output "app_secret_template" not found
+```
+
+4장처럼 `-target` 으로 단계별 apply 를 했으면 **이 출력은 state 에 없다.**
+`-target` 은 타깃 자원에 **의존하지 않는 출력을 평가하지 않는데**,
+`app_secret_template` 과 `app_secret_keys_documented` 는 `local.app_secret_keys`
+만 참조하고 자원을 참조하지 않는다. (`app_secret_name`·`app_secret_arn` 은
+`aws_secretsmanager_secret.app` 을 참조하므로 **있다** — 그래서 4번은 그냥 된다.)
+
+★★ **그리고 1번이 실패해도 그 뒤가 전부 성공한다** ★★
+
+`$json` 이 빈 값이 되고 → 빈 파일이 만들어지고 → notepad 에 빈 파일이 열리고 →
+`put-secret-value` 가 **그 빈 내용을 그대로 올린다.** Secrets Manager 는
+**내용이 JSON 인지 검사하지 않으므로** `VersionId` 가 정상적으로 돌아온다.
+실패가 조용히 성공으로 포장된다. 실제로 그렇게 됐다
+(JOURNAL 2026-11-24).
+
+대체 절차 — 키 이름을 `secrets.tf` 에서 읽는다. 손으로 타이핑하지 않는 원칙은
+그대로다.
+
+```powershell
+$f = "$env:TEMP\pokehelper-secret.json"
+$lines = Get-Content .\secrets.tf
+$start = ($lines | Select-String -Pattern 'app_secret_keys\s*=\s*\{' | Select-Object -First 1).LineNumber
+$keys = @()
+for ($i = $start; $i -lt $lines.Count; $i++) {
+  if ($lines[$i] -match '^\s*\}') { break }
+  if ($lines[$i] -match '^\s*([A-Z][A-Z0-9_]*)\s*=') { $keys += $Matches[1] }
+}
+"읽은 키 $($keys.Count) 개: $($keys -join ', ')"   # ★ 6 이 아니면 멈춘다
+
+$obj = [ordered]@{}
+foreach ($k in $keys) { $obj[$k] = "" }
+[IO.File]::WriteAllText($f, ($obj | ConvertTo-Json), (New-Object System.Text.UTF8Encoding $false))
+notepad $f
+```
+
+### ★ 올린 뒤 **반드시** 검증한다 (2026-11-24 추가)
+
+`put-secret-value` 의 성공은 "올라갔다"만 뜻한다. **내용이 맞다는 뜻이 아니다.**
+아래는 **값을 출력하지 않고** 키 이름과 길이만 본다.
+
+```powershell
+$s = aws secretsmanager get-secret-value --secret-id (terraform output -raw app_secret_name) `
+  --query SecretString --output text --profile pokehelper
+"줄 수: $($s.Length)"   # ★ 바이트가 아니다 — PowerShell 이 출력을 줄 배열로 받는다
+try { ($s | ConvertFrom-Json).PSObject.Properties | ForEach-Object { "  $($_.Name) = $($_.Value.Length)" } }
+catch { "★ JSON 파싱 실패 - 내용이 JSON 이 아니다" }
+```
+
+★ **길이만으로 DSN 구조가 맞는지 산술로 확인된다.** 값을 화면에 띄우지 않고
+검증할 수 있다는 것이 이 방법의 요점이다. 호스트명이
+`pokehelper-prod-db.<12자>.ap-northeast-2.rds.amazonaws.com`(64자), 비밀번호가
+32자, DB 이름이 `champs` 일 때:
+
+| 키 | 계산 | 기대 |
+|---|---|---|
+| `DATABASE_URL` | `postgresql+asyncpg://`21 + `champs_app`10 + `:`1 + 32 + `@`1 + 64 + `:5432`5 + `/champs`7 | **141** |
+| `MIGRATION_DATABASE_URL` | 위 + (`champs_migrate`14 − `champs_app`10) | **145** |
+| `DATA_SOURCE_NAME` | `postgresql://`13 + `champs_read`11 + `:`1 + 32 + `@`1 + 64 + 5 + 7 + `?sslmode=require`16 | **150** |
+
+한 글자라도 다르면 `+asyncpg` 누락, 포트 중복, `sslmode` 오타 중 하나다.
+**키가 6개가 아니거나 길이가 0 이면 다시 올린다.**
+
 ★ **값을 명령에 직접 적지 않는다.** 템플릿을 `terraform output` 에서 받으므로
 키 이름을 손으로 칠 일이 없고, 오타로 키가 어긋나 **앱이 기본값으로 조용히
 뜨는 일**이 생기지 않는다.
@@ -327,7 +439,42 @@ Remove-Item $f
 프로그램에 인자를 넘길 때 문자열 안의 따옴표를 이스케이프하지 않아
 `{"A":"b"}` 가 `{A:b}` 로 도착한다. `file://` 로 넘기면 그 경로를 피한다.
 
-**값을 바꿀 때도 같은 절차다.** 한 키만 바꾸려면 현재 값을 받아 고쳐야 한다:
+### ★★ 값을 바꿨으면 **재배포까지 해야 반영된다** (2026-11-24 추가) ★★
+
+**ECS 는 시크릿을 태스크가 뜰 때 한 번만 읽는다.** 그 뒤 시크릿을 바꿔도 **도는
+태스크는 옛 값을 계속 들고 있다.** 자동 갱신이 없다.
+
+이걸 빠뜨리면 증상이 **"DB 쪽은 다 맞는데 앱만 인증 실패"** 로 나온다. 실제로
+그랬다 — `psql` 로는 새 비밀번호가 멀쩡히 붙는데 API 는 500 이었고, 로그를 보고야
+`InvalidPasswordError: password authentication failed for user "champs_app"` 를
+확인했다 (JOURNAL 2026-11-24).
+
+```powershell
+aws ecs update-service --cluster pokehelper-prod --service pokehelper-prod-backend `
+  --force-new-deployment --profile pokehelper
+```
+
+이미지는 그대로이고 태스크만 새로 떠서 시크릿을 다시 읽는다.
+`deployment_minimum_healthy_percent = 100` 이라 새 태스크가 정상이 된 뒤 옛 것이
+내려간다 — 무중단이다. 완료 확인:
+
+```powershell
+aws ecs describe-services --cluster pokehelper-prod --services pokehelper-prod-backend `
+  --query "services[0].{running:runningCount,deployments:length(deployments)}" --profile pokehelper
+```
+
+`deployments: 1` 이면 교체가 끝났다 (`2` 면 진행 중).
+
+★ **일회성 태스크(`run-task`)는 해당 없다.** 띄울 때마다 새로 읽는다. 그래서
+교체 뒤에 돌린 마이그레이션·시드는 정상이었고 **서비스만 깨져 있었다.**
+
+★ **ECS Exec 로 들어간 세션도 그 태스크의 환경을 본다.** 재배포하면 옛 태스크가
+사라지면서 **세션이 조용히 끊긴다.** 프롬프트의 IP 로 어느 태스크인지 확인한다.
+
+---
+
+**값을 바꿀 때도 JSON 을 올리는 절차는 같다.** 한 키만 바꾸려면 현재 값을 받아
+고쳐야 한다:
 
 ```powershell
 $cur = aws secretsmanager get-secret-value --secret-id (terraform output -raw app_secret_name) `
@@ -341,6 +488,403 @@ $cur = aws secretsmanager get-secret-value --secret-id (terraform output -raw ap
 ★ **빠뜨리면 조용히 넘어가지 않는다.** 값이 없으면 ECS 가 컨테이너를 띄우기
 전에 시크릿을 못 가져와 `ResourceInitializationError` 로 실패한다. 플레이스홀더를
 심지 않았으므로 "가짜 값으로 떠 있는" 상태가 없다.
+
+## 5-D. 운영 DB 계정 만들기 (★ `ecs.tf` apply 직후, 최초 1회)
+
+**아래는 2026-11-24 에 실제로 돌려 성공한 절차다.** 돌려보기 전에는 쓰지 않았다
+(JOURNAL 2026-11-23, "README 가 지킬 수 없는 약속을 먼저 적어두고 있었다").
+
+★ **왜 이 번거로운 경로뿐인가.** RDS 는 프라이빗 서브넷 + `publicly_accessible
+= false` 이고 보안그룹이 **태스크 SG 에서 오는 5432 만** 받는다. NAT 도 배스천도
+없다. 그래서 `backend/sql/roles.sql` 을 돌릴 수 있는 곳은 **ECS 태스크 안**
+뿐이고, 그래서 운영 이미지가 `psql` 과 `sql/` 을 들고 있다
+(`backend/Dockerfile` 의 `dbclient` 스테이지 주석, JOURNAL 2026-11-23).
+
+### 선결 조건 — Session Manager 플러그인
+
+`aws ecs execute-command` 가 요구한다. 없으면
+`SessionManagerPlugin is not found` 로 실패한다.
+
+```
+https://s3.amazonaws.com/session-manager-downloads/plugin/latest/windows/SessionManagerPluginSetup.exe
+```
+
+관리자 권한으로 설치하면 `%PROGRAMFILES%\Amazon\SessionManagerPlugin\bin\` 에
+들어간다. ★ **이미 열려 있던 셸은 그 경로를 모른다** — `AWS_PROFILE` 과 같은
+종류의 함정이다 (1장의 수명 표). 그 셸에서 계속 쓰려면:
+
+```powershell
+$env:PATH += ";C:\Program Files\Amazon\SessionManagerPlugin\bin"
+session-manager-plugin   # 성공 문구가 나와야 한다
+```
+
+### ★ 창을 두 개 쓴다. 그리고 비밀번호를 화면에 띄우지 않는다 ★
+
+비밀번호가 4개 필요하다 — RDS 마스터 1개(AWS 가 관리) + 우리가 정한 3개.
+
+★ **마스터 비밀번호는 컨테이너 안에서 꺼낼 수 없다.** `iam.tf` 가 실행 역할에서
+RDS 마스터 시크릿을 **일부러 제외**했기 때문이다("앱 컨테이너가 DB 마스터
+비밀번호를 읽을 수 있는 상태"를 막으려고). 그래서 로컬에서 꺼내 컨테이너 안으로
+넘긴다.
+
+★★ **`Set-Clipboard` 로 넘기고, 화면에 출력하지 않는다.** 처음에는 로컬에서
+`Write-Output` 으로 찍어 보여주는 절차였고, 그 출력이 그대로 외부에 붙여넣어져
+**비밀번호 4개를 교체해야 했다** (JOURNAL 2026-11-24). `read -s` 로 가린 것은
+컨테이너 안쪽뿐이었고 **로컬 출력은 가리지 않았다** — 절차 설계의 결함이었다.
+
+| 창 | 무엇 |
+|---|---|
+| **A** | ECS Exec 세션 (컨테이너 안) |
+| **B** | 로컬 AWS CLI. 비밀번호를 클립보드로 넘긴다 |
+
+### 창 B — 열기
+
+```powershell
+$env:AWS_PROFILE = "pokehelper"
+cd C:\project\pokehelper\infra\terraform
+
+# 마스터 비밀번호 교체가 끝났는지 — "active" 여야 한다 ("rotating" 이면 대기)
+aws rds describe-db-instances --db-instance-identifier pokehelper-prod-db `
+  --query "DBInstances[0].MasterUserSecret.SecretStatus" --profile pokehelper
+```
+
+> ★ 이 시크릿은 **기본 7일마다 자동 교체**된다. 그래서 이 절차를 다시 할 때는
+> 매번 새로 꺼내야 한다.
+
+### 창 A — 컨테이너에 들어가기
+
+```powershell
+$task = aws ecs list-tasks --cluster pokehelper-prod --service-name pokehelper-prod-backend `
+  --query "taskArns[0]" --output text --profile pokehelper
+aws ecs execute-command --cluster pokehelper-prod --task $task --container backend `
+  --interactive --command "/bin/bash" --profile pokehelper
+```
+
+프롬프트가 `root@ip-10-0-x-x:/app#` 로 바뀌면 컨테이너 안이다. ★ `appuser` 가
+아니라 `root` 인 것은 정상이다 — ECS Exec 는 SSM 에이전트를 통해 들어가므로
+Dockerfile 의 `USER` 와 무관하다.
+
+접속 정보를 환경변수로 둔다 (비밀이 아니다):
+
+```sh
+export PGHOST=$(echo pokehelper-prod-db.XXXXXXXX.ap-northeast-2.rds.amazonaws.com)
+export PGUSER=champs_master
+export PGDATABASE=champs
+```
+
+> `PGHOST` 값은 `terraform output db_endpoint` 에서 **`:5432` 를 뗀** 호스트명이다.
+
+### 비밀번호 넘기기 — 네 번 반복한다
+
+패턴은 늘 같다: **창 B 에서 클립보드로 복사 → 창 A 에서 `read -s` → 붙여넣기 →
+Enter → 길이 확인.**
+
+★ `read -s` 는 입력을 **화면에 보여주지 않는다.** 붙여넣어도 아무 변화가 없는
+것이 정상이고, 그래서 "안 들어갔다"고 느껴 Enter 만 누르기 쉽다. 그러면 **빈
+값이 들어간다.** 그래서 매번 길이를 확인한다.
+
+창 B (마스터):
+```powershell
+(aws secretsmanager get-secret-value --secret-id (terraform output -raw db_master_secret_arn) `
+  --query SecretString --output text --profile pokehelper | Out-String | ConvertFrom-Json).password | Set-Clipboard
+```
+창 A — 치고, **붙여넣고**(오른쪽 클릭 또는 Ctrl+V), Enter:
+```sh
+read -s -p 'master  : ' PGPASSWORD; export PGPASSWORD; echo
+echo "${#PGPASSWORD}"      # ★ 28 이어야 한다 (AWS 가 만드는 길이가 고정이다)
+```
+
+창 B (나머지 셋 — 한 번만 준비):
+```powershell
+$sec = aws secretsmanager get-secret-value --secret-id (terraform output -raw app_secret_name) `
+  --query SecretString --output text --profile pokehelper | Out-String | ConvertFrom-Json
+function Get-Pw($dsn) { [regex]::Match($dsn, '://[^:/]+:([^@]+)@').Groups[1].Value }
+```
+그다음 **하나씩** 복사하고, 그때마다 창 A 에서 받는다:
+```powershell
+Get-Pw $sec.MIGRATION_DATABASE_URL | Set-Clipboard     # 창 A: read -s -p 'migrate : ' MIG; echo
+Get-Pw $sec.DATABASE_URL           | Set-Clipboard     # 창 A: read -s -p 'app     : ' APP; echo
+Get-Pw $sec.DATA_SOURCE_NAME       | Set-Clipboard     # 창 A: read -s -p 'read    : ' RD;  echo
+```
+창 A — 넷 다 확인:
+```sh
+echo "master=${#PGPASSWORD} migrate=${#MIG} app=${#APP} read=${#RD}"
+# master=28 migrate=32 app=32 read=32
+```
+
+### 창 A — 접속 확인 → `roles.sql`
+
+```sh
+psql -c "\conninfo"
+```
+
+실측(2026-11-24):
+
+```
+You are connected to database "champs" as user "champs_master" on host "..." (address "10.0.11.98") at port "5432".
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, compression: off)
+```
+
+★ `address` 가 **프라이빗 서브넷 IP** 이고 **TLS 1.3** 으로 붙는다. 둘 다 설계
+그대로다.
+
+```sh
+psql -v migrate_password="$MIG" -v app_password="$APP" -v read_password="$RD" -f /app/sql/roles.sql
+```
+
+★ **`NOTICE: champs_master 에게 champs_migrate 멤버십(INHERIT) 부여`** 는 정상
+출력이다. PG16 의 CREATEROLE 동작 때문이다 (`roles.sql` 주석 참조).
+
+★★ **실측에서 `pg_read_all_data` 가 그냥 성공했다.** RDS 마스터는 슈퍼유저가
+아니지만 `rds_superuser` 멤버라 그 역할에 대한 ADMIN 옵션을 갖고 있었다. 즉
+`roles.sql` 4장의 **대체 경로(기본 권한으로 내려앉기)를 타지 않았고**,
+`champs_read` 는 **미래 테이블까지 자동 포함되는 더 강한 보장**을 받았다.
+`WARNING ... 기본 권한으로 대체한다` 가 나오면 그건 ADMIN 옵션이 없는 환경이고,
+그때는 `champs_migrate` 가 만든 테이블만 포함된다 — 둘을 구분해서 읽어야 한다.
+
+### 창 A — 권한 3종 검증 ★ 이게 5-D 의 본체다
+
+★ **`roles.sql` 을 빈 DB 에서 돌린다**는 점이 중요하다. 그 시점에
+`GRANT ... ON ALL TABLES` 의 대상은 **0개**이고, 테이블은 그 뒤에 alembic 이
+만든다(5-E). 그래서 앱이 테이블을 읽을 수 있는 근거는 5장의
+**`ALTER DEFAULT PRIVILEGES FOR ROLE champs_migrate`** 하나뿐이다 — 그 파일이
+직접 "가장 틀리기 쉬운 부분"이라고 적어둔 곳이다. **5-E 를 돌린 뒤** 아래를 한다.
+
+```sh
+# ① 앱 계정이 미래 테이블을 읽는가 (= 기본 권한이 동작했는가)
+PGPASSWORD="$APP" psql -U champs_app  -c "select count(*) from pokemon"
+
+# ② 읽기 전용 계정도 되는가
+PGPASSWORD="$RD"  psql -U champs_read -c "select count(*) from moves"
+
+# ③ ★ 부정 검증 — 앱 계정이 DDL 을 **못 해야** 한다
+PGPASSWORD="$APP" psql -U champs_app  -c "create table should_fail (id int)"
+```
+
+③의 기대 결과는 **성공이 아니라 실패**다:
+
+```
+ERROR:  permission denied for schema public
+```
+
+테이블이 만들어지면 ADR-015 의 계정 분리가 깨진 것이다.
+
+### 창 A — 정리
+
+```sh
+unset PGPASSWORD MIG APP RD
+```
+
+창 B 에서 클립보드도 비운다:
+
+```powershell
+Set-Clipboard -Value " "
+```
+
+---
+
+## 5-E. 스키마와 시드 올리기 (★ 5-D 직후, 최초 1회)
+
+**2026-11-24 에 실제로 돌려 성공한 절차다.**
+
+### ① `migrate` 태스크 정의를 만든다
+
+★ `ecs.tf` 를 `-target=aws_ecs_service.*` 로 적용했으면 **이 태스크 정의와 그
+로그 그룹이 아직 없다.** 서비스가 참조하지 않기 때문이다.
+
+```powershell
+terraform apply "-target=aws_ecs_task_definition.migrate"
+```
+
+**기대: `2 to add`** — 태스크 정의 + `/ecs/pokehelper-prod/migrate` 로그 그룹.
+
+> ★ 서비스 apply 때 plan 은 로그 그룹 3개를 보여주지만 **2개만 만들어진다.**
+> `migrate` 로그 그룹은 `migrate` 태스크 정의만 참조하므로 타깃 그래프에
+> 들어오지 않는다. 그래서 그 apply 의 `Plan: 8 to add` 와 `7 added` 가
+> 어긋난다 — **plan 과 apply 숫자가 다르면 그냥 넘기지 않는다.**
+
+### ② 네트워크 설정을 출력에서 조립한다
+
+손으로 서브넷 ID 를 적으면 거기서 틀린다. 프라이빗 서브넷을 적으면 태스크가
+이미지를 못 받고, 메시지는 서브넷을 가리키지 않는다.
+
+```powershell
+$net = terraform output -json task_network_configuration | ConvertFrom-Json
+$netcfg = "awsvpcConfiguration={subnets=[$($net.subnets -join ',')],securityGroups=[$($net.security_groups -join ',')],assignPublicIp=ENABLED}"
+$netcfg
+```
+
+### ③ 스키마 — `alembic upgrade head`
+
+태스크 정의의 기본 `command` 가 그것이므로 덮어쓸 것이 없다.
+
+```powershell
+$t = aws ecs run-task --cluster pokehelper-prod --task-definition pokehelper-prod-migrate `
+  --launch-type FARGATE --network-configuration $netcfg `
+  --query "tasks[0].taskArn" --output text --profile pokehelper
+
+aws ecs describe-tasks --cluster pokehelper-prod --tasks $t `
+  --query "tasks[0].{status:lastStatus,stopCode:stopCode,reason:stoppedReason,exit:containers[0].exitCode}" `
+  --profile pokehelper
+
+aws logs tail /ecs/pokehelper-prod/migrate --since 15m --profile pokehelper
+```
+
+★ **`status: STOPPED` + `exit: 0` 이 성공이다.** `stopCode:
+EssentialContainerExited` / `reason: Essential container in task exited` 가 같이
+나오는데, 일회성 태스크에서는 **그게 정상 종료**다. 서비스라면 장애 신호지만
+여기서는 아니다.
+
+실측 로그:
+```
+INFO [alembic.runtime.migration] Running upgrade  -> e4425a76c12b, 초기 스키마: 마스터 + 메타 스냅샷
+INFO [alembic.runtime.migration] Running upgrade e4425a76c12b -> fe1cfe8d79d0, pokemon_learnset 추가
+```
+
+### ④ 시드 — 같은 태스크 정의에 `command` 만 덮어쓴다
+
+★ **`--overrides` 에 JSON 을 직접 넘기지 마라.** PowerShell 5.1 은 네이티브
+프로그램에 인자를 넘길 때 문자열 안의 따옴표를 이스케이프하지 않는다
+(5-C 의 `--secret-string` 과 같은 함정). **파일로 넘긴다.**
+
+```powershell
+$ov = "$env:TEMP\pokehelper-seed-override.json"
+$body = '{"containerOverrides":[{"name":"migrate","command":["python","-m","scripts.load_seed_to_db"]}]}'
+[IO.File]::WriteAllText($ov, $body, (New-Object System.Text.UTF8Encoding $false))
+
+$t2 = aws ecs run-task --cluster pokehelper-prod --task-definition pokehelper-prod-migrate `
+  --launch-type FARGATE --network-configuration $netcfg --overrides "file://$ov" `
+  --query "tasks[0].taskArn" --output text --profile pokehelper
+
+aws ecs describe-tasks --cluster pokehelper-prod --tasks $t2 `
+  --query "tasks[0].{status:lastStatus,exit:containers[0].exitCode}" --profile pokehelper
+aws logs tail /ecs/pokehelper-prod/migrate --since 10m --profile pokehelper
+
+Remove-Item $ov
+```
+
+실측 로그:
+```
+포켓몬 263건 적재 / 기술 516건 적재 / 특성 202건 적재 / 성격 25건 적재
+도구 22건 적재 / learnset 16037쌍 적재 / 적재 완료.
+```
+
+★ **시드 적재는 `champs_app` 으로 돈다** (`scripts/load_seed_to_db.py` →
+`app.db.session.get_engine` → `DATABASE_URL`). 그 계정에는 `TRUNCATE` 권한이
+없는데(`roles.sql` 4장이 일부러 안 줬다), 스크립트가 upsert 와 DELETE 만 쓰므로
+성립한다. **그 전제가 깨지면 여기서 권한 에러가 난다** — 이 단계가 그걸 검증한다.
+
+### ⑤ 끝났는지 — 창 A 에서
+
+```sh
+psql -c "\dt"
+psql -c "select version_num from alembic_version"
+```
+
+★ 테이블 **10개**가 나오고 `Owner` 가 **전부 `champs_migrate`** 여야 한다.
+그게 ADR-015 의 핵심이다 — alembic 만 DDL 을 쥔다.
+
+그리고 **5-D 의 권한 3종 검증을 지금 돌린다.** 테이블이 생긴 뒤에야
+`ALTER DEFAULT PRIVILEGES` 가 동작했는지 확인할 수 있다.
+
+### ⑥ ALB 를 통한 end-to-end
+
+```powershell
+curl.exe -s -o NUL -w "%{http_code}\n" https://paoriprofessor.click/api/v1/meta/usage
+```
+
+★ **404 가 정상이고 그게 성공 신호다.** 수집 데이터가 아직 없어
+`NotAvailableError` → 404 로 설계돼 있다(`app/api/v1/meta.py`). **404 는 요청이
+백엔드에 닿아 DB 를 조회하고 설계된 응답을 돌려줬다는 뜻**이고, DB 가 안 붙으면
+500 이 나온다. 둘을 구분해서 읽어야 한다.
+
+---
+
+## 5-F. 수집 스케줄 (★ 5-E 직후)
+
+`scheduler.tf` 가 **매일 06:00 (KST)** 에 수집 → 정리를 한 번 돌린다.
+구현 근거는 `scheduler.tf` 머리말, 결정 기록은 JOURNAL 2026-11-25.
+
+### ★ Airflow DAG 와 달라진 것 둘 — 먼저 안다
+
+| DAG | 여기 | 왜 |
+|---|---|---|
+| `ingest >> cleanup` (의존) | **한 태스크 안에서 `&&`** | EventBridge 에는 작업 간 의존이 없다. 스케줄을 둘로 나누면 **수집이 실패한 날에도 정리가 돈다** |
+| `retries: 2 / 10분` | ★ **재시도 없음** | EventBridge 의 `retry_policy` 는 **RunTask API 호출 실패**만 재시도한다. 태스크가 떠서 종료 코드 1·2 로 죽으면 재시도 대상이 아니다 — 숫자를 올려두면 **재현된다고 착각**하게 된다 |
+| `execution_timeout` 15분/5분 | 컨테이너의 `timeout 900` / `timeout 300` | ECS RunTask 에는 실행 시간 상한이 없다. 멈춘 태스크가 영원히 돌면서 과금된다 |
+| `"0 6 * * *"` = **UTC** (15:00 KST) | **06:00 Asia/Seoul** | 적지 않으면 UTC 다. 그게 DAG 에서 실제로 일어난 일이고, 주석에는 "매일 06:00" 이라고만 적혀 있어 아무도 몰랐다 |
+
+### ① apply
+
+```powershell
+terraform apply "-target=aws_scheduler_schedule.daily_ingest"
+```
+
+**기대: `3 to add`** — 스케줄 + `pokehelper-prod-ingest` 태스크 정의 +
+`/ecs/pokehelper-prod/ingest` 로그 그룹.
+
+```powershell
+terraform output ingest_schedule
+```
+
+★ `timezone` 이 **`Asia/Seoul`** 인지 눈으로 확인한다. 이 한 줄이 틀리면
+9시간 어긋난 채로 매일 돌고, 아무 경보도 울리지 않는다.
+
+### ② 스케줄을 기다리지 않고 한 번 돌려본다
+
+★ **스케줄이 처음 도는 것을 다음 날 아침에 확인하지 않는다.** 같은 태스크
+정의를 지금 손으로 띄워서 먼저 본다.
+
+```powershell
+$net = terraform output -json task_network_configuration | ConvertFrom-Json
+$netcfg = "awsvpcConfiguration={subnets=[$($net.subnets -join ',')],securityGroups=[$($net.security_groups -join ',')],assignPublicIp=ENABLED}"
+
+$t = aws ecs run-task --cluster pokehelper-prod --task-definition pokehelper-prod-ingest `
+  --launch-type FARGATE --network-configuration $netcfg `
+  --query "tasks[0].taskArn" --output text --profile pokehelper
+```
+
+★ `--overrides` 가 없다. 태스크 정의의 **기본 command 가 진짜 명령**이다 —
+그게 `migrate` 를 재사용하지 않고 패밀리를 따로 둔 이유 중 하나다.
+
+2~3분 뒤:
+
+```powershell
+aws ecs describe-tasks --cluster pokehelper-prod --tasks $t `
+  --query "tasks[0].{status:lastStatus,exit:containers[0].exitCode}" --profile pokehelper
+aws logs tail /ecs/pokehelper-prod/ingest --since 10m --profile pokehelper
+```
+
+### ★ 종료 코드를 읽는 법 — 0 이 아니라고 다 실패가 아니다
+
+`scripts/run_ingest.py` 가 셋으로 나눈다.
+
+| `exit` | 뜻 | 대응 |
+|---|---|---|
+| **0** | 활성 스냅샷이 갱신됐다. 이어서 정리까지 돌았다 | — |
+| **1** | 수집 실패 (네트워크·HTTP·형식) | 이전 스냅샷으로 계속 서비스한다. 다음 날 재시도 |
+| ★ **2** | **적재는 됐는데 활성화하지 못했다** — 한영 매핑 해석 실패 | ★ 사람이 봐야 한다. 로그의 `해석 실패 내역` 을 보고 `backend/data/name_map.json` 을 고친 뒤 다시 돌린다 |
+| **124** | `timeout` 이 끊었다 | `ingest_limit` 이 상한에 비해 큰지 본다 |
+
+★ **2 가 가장 위험한 상태다.** 데이터는 들어갔는데 서비스가 보는 메타는 그대로다.
+그래서 종료 코드로 구분하고, `&&` 가 **정리까지 막는다**(DAG 와 같다).
+
+### ③ 서비스에서 확인
+
+```powershell
+curl.exe -s https://paoriprofessor.click/api/v1/meta/usage
+```
+
+실제 순위표가 나오고 **출처 표기와 수집 시각**이 같이 와야 한다 (ADR-013·018).
+
+### ★ 아직 없는 것 — 실패를 알려주는 장치
+
+스케줄이 실패해도 **아무도 모른다.** EventBridge 는 실패를 알려주지 않고,
+우리도 경보를 붙이지 않았다. 지금은 `aws logs tail` 로 사람이 본다.
+
+> 되돌리는 조건: 수집을 **며칠 놓친 것을 뒤늦게 알게 되면** CloudWatch 로그
+> 지표 필터 + 경보를 붙인다. 그때 로그 그룹이 `migrate` 와 **분리돼 있는 것**이
+> 쓸모가 있다 (그래서 패밀리를 나눴다).
 
 ---
 
@@ -368,6 +912,10 @@ docker compose exec backend uv run pytest tests/integration/test_terraform_alb.p
 # ★ ECS — 시크릿이 평문 환경변수로 새는 것, 클러스터 이름이 iam.tf 와 어긋나는 것,
 #   컨테이너 포트가 타깃그룹과 달라져 영구 503 이 되는 것을 막는다
 docker compose exec backend uv run pytest tests/integration/test_terraform_ecs.py
+
+# ★ 스케줄 — 시간대를 안 적어 UTC 로 도는 것, `&&` 가 `;` 로 바뀌어 의존이
+#   사라지는 것, timeout 이 빠져 멈춘 태스크가 영원히 도는 것을 막는다
+docker compose exec backend uv run pytest tests/integration/test_terraform_scheduler.py
 
 # 데이터 저장소의 위험한 기본값 · 예산
 docker compose exec backend uv run pytest tests/integration/test_terraform_data.py \

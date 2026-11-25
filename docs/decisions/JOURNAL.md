@@ -1823,3 +1823,360 @@
   사람이 브라우저로 열어보기 전까지 아무 테스트도 잡지 못한다. 프론트 단위
   테스트가 없다는 `docs/TEST_STRATEGY.md` 6장의 한계가 그대로 드러난 사례다.
 - 소요: 약 15분 (발견과 범위 확인까지. 수정은 미룸)
+
+## 2026-11-24 — terraform 이 자격증명을 못 찾았다 (EC2 메타데이터를 찾아갔다)
+
+- 증상: 전날 멀쩡히 돌던 `terraform plan` 이 자원을 읽지도 못하고 죽는다.
+  ```
+  Error: No valid credential sources found
+  Please see .../language/backend/s3 for more information about providing credentials.
+  Error: failed to refresh cached credentials, no EC2 IMDS role found,
+  operation error ec2imds: GetMetadata, ... Get
+  "http://169.254.169.254/latest/meta-data/iam/security-credentials/":
+  dial tcp 169.254.169.254:80: ... unreachable network.
+  ```
+- 기대 동작: SSO 프로필로 S3 백엔드의 state 를 읽고 `plan` 을 내놓아야 한다.
+- 재현 절차:
+  ```powershell
+  # 새 PowerShell 창을 연다 (= AWS_PROFILE 이 없는 상태)
+  cd C:\project\pokehelper\infra\terraform
+  terraform plan
+  ```
+- 원인: **두 가지가 동시에 사라져 있었다.** 하나만 봤으면 다른 하나로 또 막혔다.
+  1. **SSO 액세스 토큰이 만료됐다.** `~/.aws/sso/cache/*.json` 의 `expiresAt` 가
+     `2026-11-24 01:54`, 확인 시각이 `10:14` 였다 — **8시간 세션**이다.
+  2. **`AWS_PROFILE` 이 안 잡혀 있었다.** 새 터미널을 열었기 때문이다. 이 PC 에는
+     `default` 프로필도 `~/.aws/credentials` 파일도 없고 `[profile pokehelper]`
+     하나뿐이라, 환경변수로 지목하지 않으면 **쓸 프로필이 아예 없다.**
+  ★ 그래서 자격증명 체인이 맨 마지막 후보인 **EC2 인스턴스 메타데이터**까지
+  떨어졌다. `169.254.169.254` 가 그 주소다. 메시지가 네트워크 오류처럼 읽히는데
+  **AWS 문제도 네트워크 문제도 아니다** — 노트북은 EC2 가 아니니 닿지 않는 것이
+  정상이다. 이 메시지가 원인을 가리키지 않는 것이 이 건의 전부다.
+- 해결: 둘을 순서대로 되살린다.
+  ```powershell
+  aws sso login --profile pokehelper
+  $env:AWS_PROFILE = "pokehelper"
+  aws sts get-caller-identity
+  ```
+  영구히 박으려면 `setx AWS_PROFILE pokehelper` (새 터미널에만 적용).
+- ★ **내 진단이 처음에 틀렸다.** "README 에 프로필 설정이 아무 데도 적혀 있지
+  않다"고 보고했는데, **§1 끝에 이미 있었다** (`export AWS_PROFILE=pokehelper`,
+  PowerShell 주석까지). 문서를 안 읽고 "문서가 없다"고 단정한 것이다.
+  실제로 빠져 있던 것은 **세 가지뿐**이고, 그래서 고친 것도 그 셋이다.
+  1. 토큰이 **8시간**이라는 것
+  2. `export`/`$env:` 가 **그 셸에서만** 유효하다는 것 — 명령이 "최초 1회"
+     블록처럼 놓여 있어서 새 터미널에서 조용히 사라지는 것이 안 보였다
+  3. ★ **증상 → 원인 대응표.** 비싼 것은 "환경변수를 설정하라"가 아니라
+     "`169.254.169.254` 가 보이면 그건 프로필 문제다"를 아는 것이었다
+- 배운 것: **"문서에 없다"는 진단은 문서를 읽은 뒤에만 해야 한다.** 그리고 문서에
+  명령이 적혀 있는 것과 **그 명령의 수명이 적혀 있는 것**은 다르다. 수명이 없으면
+  읽는 사람은 "한 번 하면 되는 것"으로 읽는다 — 어제의 나와 오늘의 나가 그랬다.
+- `profile` 을 `backend.hcl` 과 프로바이더에 박는 쪽은 **일부러 안 했다.** 전날
+  "코드로 옮기겠다"고 말했지만, 실제 실패는 **백엔드가 먼저** 난 것이라
+  프로바이더만 고쳐서는 막히지 않는다. `backend.hcl` 을 고치면
+  `terraform init -reconfigure` 가 필요하고, 환경변수 한 줄이 백엔드와 프로바이더
+  **양쪽을 한 번에** 덮으므로 더 싸다. 되돌리는 조건: 프로필을 여러 개 쓰게 되면
+  그때 옮긴다 (`backend.hcl.example` 에 주석으로 남겨뒀다).
+- 소요: 약 20분 (진단 10분, 문서화 10분)
+
+## 2026-11-24 — 시크릿 주입 1단계가 실패했는데 4단계가 성공했다
+
+- 증상: README 5-C 의 첫 명령이 실패한다.
+  ```
+  Error: Output "app_secret_template" not found
+  ```
+  ★ 그런데 **그 뒤 명령이 전부 성공한다.** `put-secret-value` 가 정상적으로
+  `VersionId` 를 돌려주고, 겉보기에 시크릿 주입이 끝난 것처럼 보인다.
+- 기대 동작: 1번이 키 6개를 담은 빈 JSON 템플릿을 만들고, 사람이 값을 채운 뒤
+  4번이 그 내용을 올려야 한다. 1번이 실패하면 **그 자리에서 멈춰야** 한다.
+- 재현 절차:
+  ```powershell
+  cd C:\project\pokehelper\infra\terraform
+  # -target 으로만 apply 한 state 에서
+  terraform output -json app_secret_template      # Error: Output not found
+  terraform output -raw app_secret_name           # ★ 이건 된다
+  ```
+- 원인: **`-target` 은 타깃 자원에 의존하지 않는 출력을 평가하지 않는다.**
+
+  | 출력 | 참조하는 것 | state 에 있나 |
+  |---|---|---|
+  | `app_secret_name`·`app_secret_arn` | `aws_secretsmanager_secret.app` (자원) | 있다 |
+  | `app_secret_template`·`app_secret_keys_documented` | `local.app_secret_keys` 뿐 | ★ **없다** |
+
+  그래서 `$json` 이 빈 값이 되고 → `WriteAllText` 가 **빈 파일**을 만들고 →
+  notepad 에 빈 파일이 열리고 → `put-secret-value` 가 그 빈 내용을 올린다.
+  ★ **Secrets Manager 는 내용이 JSON 인지 검사하지 않는다.** 그래서 실패가
+  조용히 성공으로 포장된다.
+
+  ★ 이 메커니즘은 **하루 전에 이미 겪었다.** `dns.tf` 의 `service_url` 출력이
+  같은 이유로 안 나왔고, 그 자리에서 "`-target` 은 타깃에 의존하지 않는 출력을
+  평가하지 않는다"고 설명까지 적었다. 그런데 다음 날 5-C 절차를 그대로 안내할
+  때 **그 절차의 첫 줄이 바로 그런 출력에 의존한다는 것을 확인하지 않았다.**
+- 해결: 둘 다 고쳤다.
+  1. **대체 절차** — 키 이름을 `secrets.tf` 의 `app_secret_keys` 블록에서 읽어
+     템플릿을 만든다. "키를 손으로 타이핑하지 않는다"는 원래 의도는 유지된다.
+     `읽은 키 N 개` 를 찍어서 6이 아니면 멈추게 했다.
+  2. ★ **올린 뒤 검증 단계를 추가했다.** `put-secret-value` 의 성공은
+     "올라갔다"만 뜻하고 내용이 맞다는 뜻이 아니다. 이 단계가 아예 없었다.
+- ★ **검증을 값을 보지 않고 한다.** `get-secret-value` 로 받아 키 이름과
+  **길이만** 출력하면, 길이 산술로 DSN 구조가 맞는지 확인된다.
+  호스트명 64자 / 비밀번호 32자 / DB `champs` 일 때 141·145·150 이 나와야 한다.
+  한 글자라도 다르면 `+asyncpg` 누락, 포트 중복, `sslmode` 오타 중 하나다.
+  실제로 이번 건은 세 값이 **바이트 단위로 정확히** 141·145·150 이었고, 그래서
+  "사람이 notepad 에서 직접 채웠다"가 값을 보지 않고 확정됐다.
+- 배운 것 둘.
+  - **같은 메커니즘에 두 번 걸렸다.** 메커니즘을 아는 것과 **그 메커니즘이
+    적용되는 자리를 점검하는 것**은 다른 일이다. 전날 적어둔 설명이 다음 날의
+    절차 점검으로 이어지지 않았다.
+  - ★ **"성공했다"는 종료 코드를 믿으면 안 되는 구간이 있다.** 저장소가 내용을
+    검사하지 않는 API(`put-secret-value`)는 쓰레기도 받아준다. 그런 호출 뒤에는
+    **읽어서 확인하는 단계가 절차의 일부**여야 한다.
+    `tests/integration/test_terraform_secrets.py` 는 "값이 코드·plan·state 에
+    들어오는 경로"를 막지만, **올라간 값이 맞는지는 검사 범위 밖이다** —
+    실제 계정을 보지 않기 때문이다 (`terraform_support.py` 머리말의 한계).
+- 소요: 약 25분
+
+## 2026-11-24 — 비밀번호를 화면에 출력하는 절차를 만들었고, 그게 노출로 이어졌다
+
+- 증상: 운영 DB 비밀번호 4개(RDS 마스터 1 + 우리 계정 3)가 외부 대화에 평문으로
+  남았다. 터미널 출력을 그대로 붙여넣는 과정에서 같이 들어갔다.
+- 기대 동작: 비밀번호는 **사람 눈에도 띄우지 않고** 로컬에서 컨테이너로 건너가야
+  한다. 저장소에도, 화면에도, 명령 기록에도 남지 않아야 한다.
+- 재현 절차:
+  ```powershell
+  cd C:\project\pokehelper\infra\terraform
+  $sec = aws secretsmanager get-secret-value --secret-id (terraform output -raw app_secret_name) `
+    --query SecretString --output text --profile pokehelper | Out-String | ConvertFrom-Json
+  function Get-Pw($dsn) { [regex]::Match($dsn, '://[^:/]+:([^@]+)@').Groups[1].Value }
+  "app : $(Get-Pw $sec.DATABASE_URL)"      # ★ 여기서 평문이 화면에 찍힌다
+  ```
+- 원인: **절차 설계의 결함이고, 그 절차는 내가 만들었다.** 컨테이너 안쪽은
+  `read -s` 로 가렸는데 **로컬 출력은 가리지 않았다.** 가린 쪽만 보고 "비밀번호를
+  노출하지 않는 절차"라고 불렀다. 실제로는 **컨테이너에 붙여넣기 위해 사람이
+  읽어야 하는 구조**였고, 읽을 수 있으면 복사되고 복사되면 어딘가에 붙는다.
+- 해결: 두 단계로 처리했다.
+  1. **교체.** 앱 비밀번호 3개는 `roles.sql` 을 아직 돌리기 **전**이라 DB 에
+     존재하지 않았다 — 시크릿 값만 바꾸면 끝이었다(가장 싼 시점). 그 뒤에
+     `roles.sql` 이 새 값으로 계정을 만들었다. RDS 마스터는 이미 살아 있어서
+     `aws rds modify-db-instance --rotate-master-user-password --apply-immediately`
+     로 AWS 가 교체했다(새 비밀번호는 항상 28자).
+  2. **절차 교체.** 화면 출력 대신 **`Set-Clipboard`** 로 넘긴다. 사람은 값을
+     보지 않고 붙여넣기만 한다. `infra/terraform/README.md` 5-D 에 반영했다.
+- ★ **실제 침해 위험은 낮았다. 그래도 바꿨다.** RDS 는 프라이빗 서브넷 +
+  `publicly_accessible = false` 이고 보안그룹이 태스크 SG 에서 오는 5432 만 받는다.
+  인터넷에서는 비밀번호를 알아도 접속 경로가 없다. 바꾼 이유는 **이 프로젝트가
+  다층 방어를 전제로 설계됐기 때문**이다 — "네트워크가 막으니 비밀번호는 덜
+  중요하다"로 가면 ADR-015·ADR-022 가 한 일이 무의미해진다. 한 층이 무너진 걸
+  알면서 두는 것은 층을 하나 지운 것과 같다.
+- 배운 것 둘.
+  - ★ **"가렸다"는 가린 구간에 대해서만 참이다.** `read -s` 는 입력을 가리고
+    로컬 출력은 가리지 않는다. 비밀이 지나가는 **전 구간**을 보지 않으면
+    "안전한 절차"라는 말이 절반만 맞는다.
+  - **사람이 읽어야 하는 비밀은 이미 노출된 것으로 취급해야 한다.** 클립보드로
+    바꾼 것이 본질적 개선인 이유는 "사람이 읽을 필요를 없앤 것"이다.
+- ★ **남은 한계**: 클립보드 방식도 완전하지 않다. 클립보드 히스토리를 켜둔
+  환경에서는 값이 남는다. 5-D 끝에 `Set-Clipboard -Value " "` 를 넣었지만 그건
+  현재 값만 지운다. 근본 해법은 **사람을 경로에서 빼는 것** — 태스크 역할에
+  시크릿 읽기 권한을 주고 컨테이너가 직접 꺼내게 하거나, RDS IAM 인증으로
+  비밀번호 자체를 없애는 쪽이다. 지금은 그 권한을 **일부러 주지 않았으므로**
+  (앱 컨테이너가 DB 마스터를 읽을 수 있는 상태를 막으려고) 트레이드오프가 있다.
+- 소요: 약 30분 (교체 10분, 절차 수정·기록 20분)
+
+## 2026-11-24 — 시크릿을 바꿨는데 도는 태스크는 옛 값을 쓰고 있었다
+
+- 증상: `roles.sql` 로 DB 계정을 만들고 마이그레이션·시드까지 전부 성공했는데
+  API 만 **500** 이다. `/health` 는 200 이고 `/`·`/metrics`·`/grafana/` 도 전부
+  기대대로다. 백엔드 로그:
+  ```
+  asyncpg.exceptions.InvalidPasswordError: password authentication failed for user "champs_app"
+  ```
+- 기대 동작: `GET /api/v1/meta/usage` 가 DB 를 조회하고, 수집 데이터가 없으므로
+  `NotAvailableError` → **404** 를 돌려줘야 한다.
+- 재현 절차:
+  ```powershell
+  curl.exe -s -o NUL -w "%{http_code}`n" https://paoriprofessor.click/api/v1/meta/usage   # 500
+  aws logs tail /ecs/pokehelper-prod/backend --since 20m --profile pokehelper
+  ```
+  컨테이너 안에서 둘을 갈라보면 원인이 바로 좁혀진다:
+  ```sh
+  python -c "
+  import asyncio
+  from redis.asyncio import Redis
+  from app.core.config import get_settings
+  async def main():
+      r = Redis.from_url(get_settings().redis_url, decode_responses=True)
+      print('PING ->', await r.ping())
+  asyncio.run(main())
+  "
+  ```
+  Redis 는 `True`, DB 만 `InvalidPasswordError` 였다.
+- 원인: ★ **ECS 는 시크릿을 태스크가 뜰 때 한 번만 읽는다.** 순서가 이랬다.
+  1. `ecs.tf` apply → 백엔드 태스크가 **그때의** `DATABASE_URL` 을 받아 기동
+  2. 비밀번호 노출 대응으로 **시크릿 교체**
+  3. `roles.sql` 이 **새** 비밀번호로 DB 계정 생성
+  4. 태스크만 **옛** 값을 들고 있음
+
+  증거 세 개가 맞물렸다 — ① 컨테이너 안에서 시크릿의 현재 값으로는
+  `psql -U champs_app` 이 **성공**했고(시크릿 == DB), ② 교체 **이후에** 띄운
+  `migrate` 일회성 태스크는 정상이었고(run-task 는 띄울 때 읽는다),
+  ③ `pg_stat_ssl` 에 `champs_app` 연결이 **아예 없었다**(연결 시도가 전부 실패).
+- 해결:
+  ```powershell
+  aws ecs update-service --cluster pokehelper-prod --service pokehelper-prod-backend `
+    --force-new-deployment --profile pokehelper
+  ```
+  이미지는 그대로이고 태스크만 새로 떠서 시크릿을 다시 읽는다. 무중단이다
+  (`deployment_minimum_healthy_percent = 100`). 직후 `/api/v1/meta/usage` 가
+  **404 + `{"detail":"'Singles' 포맷의 활성 스냅샷이 없다"}`** 로 바뀌었다.
+- ★ **이건 내 안내의 공백이었다.** 교체를 지시할 때 `METRICS_TOKEN` 에 대해서는
+  "재배포해야 반영된다"고 적어놓고 **`DATABASE_URL` 에는 같은 규칙을 적용하지
+  않았다.** 한 번 쓴 사실을 옆 칸에 옮기지 않았다.
+- 배운 것: **"주입"은 한 번 일어나는 사건이지 연결이 아니다.** ECS 의
+  `secrets`/`valueFrom` 은 시크릿을 *구독*하는 것처럼 보이지만 기동 시 복사일
+  뿐이다. 그래서 **시크릿 교체 절차에는 "누가 그 값을 들고 있는가"가 반드시
+  포함돼야 한다** — 서비스는 재배포, 일회성 태스크는 해당 없음, 열려 있는 ECS
+  Exec 세션은 옛 태스크와 함께 조용히 끊긴다.
+- `README.md` 5-C 에 `--force-new-deployment` 절을 추가했고, ADR-022 의 `## 결과`
+  에 "본문이 값을 **바꿀** 때 무엇을 더 해야 하는지 적지 않았다"로 기록했다.
+- 소요: 약 25분 (진단 10분 — 로그 한 번으로 확정됐다)
+
+## 2026-11-24 — 배포 당일에 닫힌 미지 둘과, 예측이 빗나간 셋
+
+문제 해결이 아니라 **열어뒀던 질문의 종결 기록**이다.
+
+- ★ **asyncpg 가 TLS 를 쓰는가 — 쓴다.** 11-23 에 "SQLAlchemy 공식 문서가 asyncpg
+  의 SSL 파라미터를 전혀 설명하지 않는다. asyncpg 기본값이 `prefer` 이므로
+  `?sslmode=require` 를 붙이지 말자. 다만 SQLAlchemy 가 `ssl=None` 을 명시적으로
+  넘기는지는 확인 못 했다"로 남겨뒀다. 컨테이너 안에서 **앱과 같은 경로**로
+  물었다:
+  ```sh
+  python -c "
+  import asyncio
+  from sqlalchemy import text
+  from app.db.session import get_engine
+  async def main():
+      async with get_engine().connect() as c:
+          r = await c.execute(text('select current_user, ssl, version from pg_stat_ssl join pg_stat_activity using (pid) where pid = pg_backend_pid()'))
+          print('asyncpg ->', r.first())
+  asyncio.run(main())
+  "
+  ```
+  → `asyncpg -> ('champs_app', True, 'TLSv1.3')`. **코드 변경 없이 암호화된다.**
+  ★ `psql` 로 보는 것으로는 답이 안 됐다 — psql 은 자기 연결만 보여주고, 궁금한
+  것은 **앱이 쓰는 드라이버**였다. 측정 도구를 대상에 맞춘 것이 요점이다.
+  (`rds.force_ssl` 은 `SHOW` 가 `unrecognized configuration parameter` 로 떨어져
+  확인하지 못했다. 이유는 추측하지 않는다 — 그리고 알 필요가 없어졌다.)
+- ★ **arm64 이미지가 Graviton 에서 도는가 — 돈다.** ADR-020 의 11-23 결과가
+  *"진짜 Graviton CPU 위에서 도는지는 ECS 가 띄울 때 처음 드러난다"* 로 끝나
+  있었다. 두 서비스 모두 `running: 1` 로 떴고 `exec format error` 는 없었다.
+- 예측이 빗나간 셋 (전부 **덜 나쁜 쪽**으로):
+  | 내가 말한 것 | 실제 | 왜 틀렸나 |
+  |---|---|---|
+  | 인증서 검증에 "몇 분 멈춘다" | **0초** | NS 일치를 미리 확인해둬서 CNAME 이 올라간 32초 사이에 ACM 이 끝냈다 |
+  | `pg_read_all_data` 는 **대체 경로**를 탈 것 | 그냥 **성공** | RDS 마스터는 슈퍼유저가 아니지만 `rds_superuser` 멤버라 ADMIN 옵션이 있었다. `roles.sql` 주석이 두 경우를 다 적어둔 것이 맞았다 |
+  | `/api/v1/meta/usage` 는 **404** 일 것 | **500** | 위 항목의 시크릿 건. 예측 자체는 설계상 맞았고 **상태가 틀렸다** |
+- ★ 그리고 **`plan` 과 `apply` 숫자가 어긋난 것을 한 번 그냥 넘겼다.**
+  `Plan: 8 to add` → `7 added` 를 "태스크 정의가 즉시 완료돼서"라고 설명했는데
+  틀렸다. 실제로는 `migrate` 로그 그룹이 `-target` 그래프 밖이라 만들어지지
+  않았다. 다음 apply 가 `2 to add` 로 나와서야 드러났다.
+  **숫자가 다르면 설명이 떠오르더라도 세어 봐야 한다.**
+- 소요: — (배포 전체에 걸쳐)
+
+## 2026-11-25 — Airflow DAG 를 EventBridge 로 옮기면서 못 옮긴 것 둘을 정했다
+
+- 맥락: ADR-020 결정 4 가 "EventBridge Scheduler → ECS RunTask" 로 정했고,
+  `iam.tf` 의 주석은 *"스케줄러가 돌릴 태스크 정의. 수집과 만료 정리 **둘이다**"*
+  로 **스케줄 2개**를 가정하고 있었다. 그런데 원본인 Airflow DAG 를 읽어보니
+  **EventBridge 로 옮길 수 없는 속성이 셋** 있었다. 추측해서 넘기면 매일 06:00 에
+  조용히 틀린 일이 일어나는 자리라 전부 정하고 기록한다.
+- ① **작업 간 의존** (`ingest >> cleanup`)
+  - DAG 주석: *"수집이 성공해야 정리를 돌린다. 반대로 하면, 수집이 실패한 날
+    오래된 스냅샷만 지워져 보존 기간이 짧아진다."*
+  - EventBridge Scheduler 에는 **작업 간 의존 개념이 없다.** 후보가 셋이었다.
+    - A: **한 태스크 안에서 `&&`** — 추가 자원 0, 의존이 정확히 보존된다
+    - B: 스케줄 2개 (ADR-020 이 가정한 모양) — 각 작업 상태가 따로 보이지만
+      **의존이 사라진다**
+    - C: Step Functions — 완전히 표현 가능하지만 ADR-020 의 범위를 넘는다
+  - 고른 것: **A**. 근거: "한 태스크에서 && 로 (추천)" 선택.
+  - ★ 종료 코드 **2**(적재는 됐으나 한영 매핑 해석 실패)도 정리를 막는다.
+    그것도 DAG 와 같다 — Airflow 에서 2 는 실패고 하류가 돌지 않았다.
+  - 포기한 것: 두 작업의 상태가 **한 종료 코드로 합쳐진다.** "수집은 됐는데
+    정리가 실패"를 종료 코드만으로는 구분 못 한다(로그에는 남는다).
+- ② **종료 코드 기반 재시도** (`retries: 2, retry_delay: 10분`)
+  - ★ EventBridge 의 `retry_policy` 는 **RunTask API 호출이 실패했을 때**만
+    재시도한다. 태스크가 정상적으로 떠서 종료 코드 1·2 로 죽는 경우는 **재시도
+    대상이 아니다.** 즉 거기에 `2` 를 적어도 DAG 동작이 재현되지 않는다.
+  - 고른 것: **재시도 없음**, 그리고 `maximum_retry_attempts = 0` 을 **명시**한다.
+    근거: "재시도 없이 간다 (추천)" 선택.
+  - ★ **블록을 지우지 않고 0 을 적은 이유**: 없으면 "정했다"와 "안 봤다"를
+    구분할 수 없다. 숫자를 올려두는 쪽이 더 나쁘다 — **재현된다고 착각**하게 된다.
+  - 되돌리는 조건: "하루를 건너뛰는 것"이 실제로 문제가 되면 Step Functions 로
+    옮긴다. 거기서는 1 만 재시도하고 2 는 알림으로 보낼 수 있다 — DAG 주석이
+    *"지금은 구분하지 않는다"* 고 적어둔 그 구분이다.
+- ③ **시간대** — ★ 이게 가장 조용한 함정이었다
+  - DAG 의 `schedule="0 6 * * *"` 은 Airflow 기본값이라 **UTC** 로 해석된다.
+    즉 실제로는 **한국 시간 오후 3시**에 돌고 있었다. 주석에는 "매일 06:00"
+    이라고만 적혀 있어 **어느 쪽을 의도했는지 알 수 없었고, 틀렸는지도 알 수
+    없었다.**
+  - 고른 것: **06:00 Asia/Seoul** 로 `schedule_expression_timezone` 을 명시.
+    근거: "06:00 KST 로 명시 (추천)" 선택.
+  - `data.tf` 가 RDS 백업 창을 03:00-04:00 KST 로 고른 기준("한국 사용자가 가장
+    적은 시각")과 같은 기준이다. 백업 창·유지보수 창(월 04:30 KST)과도 겹치지
+    않는다. **기존 동작(15:00 KST)과 달라지므로 바꾼 것으로 기록한다.**
+- ④ **`execution_timeout` 은 `timeout` 명령으로 옮겼다.** ECS RunTask 에는 실행
+  시간 상한이 **없다.** 멈춘 태스크가 영원히 돌면서 과금되고, 알려주는 것은
+  청구서뿐이다. DAG 의 15분/5분을 그대로 `timeout 900` / `timeout 300` 으로 썼다.
+  초과 시 124 로 끝나므로 `&&` 가 거기서 멈춘다.
+- ★ **`migrate` 를 재사용하지 않고 `ingest` 패밀리를 따로 뒀다.** 이미지·역할·
+  시크릿이 같아서 `--overrides` 로도 돌지만(11-25 수동 검증은 그렇게 했다),
+  상시 스케줄은 분리했다.
+  1. ★ **로그가 섞이면 "어젯밤 수집이 돌았나"를 못 본다.** `migrate` 는 배포할
+     때 사람이 돌리는 것이고 수집은 매일 무인으로 돈다.
+  2. **기본 command 가 진짜 명령이어야 한다.** 스케줄에 `--overrides` 를 넣으면
+     "이 태스크가 무엇을 하는가"가 두 파일로 나뉜다.
+  3. 나중에 실패 경보를 붙일 **대상 로그 그룹이 분리돼 있어야** 한다.
+  - ★ 대가: 컨테이너 정의를 **거의 같은 내용으로 두 번** 적는다. `merge()` 로
+    묶지 않은 이유는 python-hcl2 가 함수 호출을 문자열 하나로 돌려줘 **테스트가
+    안을 볼 수 없게** 되기 때문이다. 그래서 **중복을 없애는 대신 중복이 갈라지는
+    것을 테스트가 집행한다**(`TestScheduledIngestMatchesMigrate` — 이미지·평문
+    환경변수가 같은지, 그리고 수집 쪽에만 `MIGRATION_DATABASE_URL` 이 **없는지**).
+- ★ **수집 태스크에 DDL 자격증명을 주지 않는다.** `run_ingest`·`cleanup_snapshots`
+  는 둘 다 `DATABASE_URL`(= `champs_app`)로 붙고 연산이 INSERT·UPDATE·DELETE
+  뿐이다. TRUNCATE 도 쓰지 않는다. 매일 무인으로 도는 태스크에 DDL 을 들려 보낼
+  이유가 없다 (ADR-015).
+- 검증: `terraform fmt -check` · `validate` 통과. `ruff check`/`format --check` ·
+  `mypy app/domain` 통과. `pytest` **980 passed, 33 deselected** (934 → +46).
+  ★ **돌연변이 22건 중 21건이 처음에 탐지됐고, 1건이 뚫렸다** — 아래 참조.
+- 소요: 약 120분
+
+## 2026-11-25 — 변수의 기본값이 자기 validation 을 어겨도 아무도 몰랐다
+
+- 증상: 돌연변이 검증에서 **1건이 탐지되지 않았다.** `ingest_format` 의 기본값을
+  `"Singles"` 에서 `"Single"`(s 빠짐)로 바꿨는데 테스트 전체가 통과했다.
+- 기대 동작: 변수에 `validation { condition = contains(["Singles","Doubles"], ...) }`
+  를 달아뒀으므로, 그 목록에 없는 기본값은 **커밋 전에 걸려야** 한다.
+- 재현 절차:
+  ```bash
+  cd /c/project/pokehelper
+  sed -i 's/  default     = "Singles"/  default     = "Single"/' infra/terraform/variables.tf
+  docker compose exec -T backend uv run pytest tests/integration/ -q   # 통과해버린다
+  sed -i 's/  default     = "Single"$/  default     = "Singles"/' infra/terraform/variables.tf
+  ```
+- 원인: 테스트가 **변수의 기본값과 그 변수의 validation 을 대조한 적이 없었다.**
+  `validation` 블록이 있는지, 정규식이 무엇을 막는지는 보고 있었는데, **기본값이
+  그 규칙을 통과하는지**는 아무도 안 봤다. 두 정보가 같은 파일 같은 블록 안에
+  있는데도 서로를 검사하지 않았다.
+- 해결: `TestDefaultsSatisfyTheirOwnValidation` 추가. `contains(...)` 를 쓰는
+  **모든** 변수에 대해 기본값이 목록 안/밖에 맞게 있는지 본다.
+  ★ 첫 구현이 **거짓 양성**을 냈다 — `db_master_username` 이 `!contains([...])`
+  로 **금지 목록**을 쓰고 있었다. 허용 목록만 가정했던 것이다. 부정 여부를
+  같이 뽑아 두 방향 다 검사하게 고쳤고, 덕분에 **검사 범위가 오히려 넓어졌다.**
+  `lower(var.x)` 가 조건에 있으면 기본값도 소문자로 맞춰 비교한다.
+- 배운 것 둘.
+  - ★ **"검증 장치가 있다"와 "검증 장치가 올바른 값을 지키고 있다"는 다르다.**
+    validation 은 **사람이 넘기는 값**을 검사하지 **자기 기본값**은 검사하지
+    않는다. 아무 값도 안 넘기는 사람(= 대부분의 경우)은 그 규칙 밖에 있다.
+  - ★ **돌연변이 1건이 뚫린 것이 테스트 1건보다 비싼 정보였다.** 21/22 를
+    "거의 다 잡았다"로 넘겼으면 이 구멍은 남았다. 비공허성 검증은 통과율이 아니라
+    **뚫린 항목**을 보는 것이다.
+- 소요: 약 25분
