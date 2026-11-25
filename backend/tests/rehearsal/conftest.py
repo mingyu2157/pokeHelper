@@ -11,6 +11,14 @@
 3. 장애 때 운영자가 실제로 쓰는 도구가 psql 이다. 같은 도구로 검증하면
    `docs/RUNBOOK.md` 의 확인 명령이 테스트로 뒷받침된다.
 
+★ 네 층 비교는 `scripts/db_state.py` 에 있다 (2026-11-25 추출) ★
+
+`DatabaseState`·`capture_state`·`psql`·`scalar`·`rows` 는 원래 이 파일에 있었다.
+ADR-020 세부사항 5 가 "운영판은 **같은 4층을 비교**로 그대로 옮긴다"고 약속했는데,
+운영 이미지는 `tests/` 를 복사하지 않는다. 그래서 `scripts/` 로 옮기고 여기서
+import 한다 — 비교 기준이 환경마다 달라지지 않게 하려는 것이다.
+**로컬 리허설 33건이 그대로 통과하는 것이 추출이 성공했다는 증거다.**
+
 ★ 왜 스크립트를 subprocess 로 실행하는가 ★
 
 테스트가 `pg_dump` 를 직접 부르면 **PostgreSQL 이 동작한다**는 것만 확인되고,
@@ -36,6 +44,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
+
+from scripts.db_state import DatabaseState
+from scripts.db_state import capture_state as capture_state_impl
+from scripts.db_state import psql as _psql
+from scripts.db_state import rows as _rows
+from scripts.db_state import scalar as _scalar
+from scripts.db_state import table_names as _table_names
 
 # /app/tests/rehearsal/conftest.py → /app
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -178,36 +193,20 @@ def bare_env(**overrides: str) -> dict[str, str]:
 
 
 def psql(sql: str, *, env: dict[str, str] | None = None, check: bool = True):
-    """psql 로 SQL 한 덩어리를 실행한다. 결과는 탭 구분 평문으로 받는다."""
-    return subprocess.run(
-        [
-            "psql",
-            "--no-psqlrc",
-            "--quiet",
-            "--tuples-only",
-            "--no-align",
-            "--field-separator=\t",
-            "--set=ON_ERROR_STOP=1",
-            "--command",
-            sql,
-        ],
-        env=env or pg_env(),
-        capture_output=True,
-        text=True,
-        check=check,
-        timeout=180,
-    )
+    """`scripts.db_state.psql` 에 리허설 기본 환경을 붙인 래퍼.
+
+    ★ 공용 쪽은 `env` 에 기본값이 없다 — 어느 DB 를 봤는지 호출부에서 보이게
+      하려는 것이다. 리허설은 거의 모든 호출이 같은 DB 라 여기서만 기본값을 준다.
+    """
+    return _psql(sql, env=env or pg_env(), check=check)
 
 
 def scalar(sql: str, *, env: dict[str, str] | None = None) -> str:
-    return psql(sql, env=env).stdout.strip()
+    return _scalar(sql, env=env or pg_env())
 
 
 def rows(sql: str, *, env: dict[str, str] | None = None) -> list[list[str]]:
-    out = psql(sql, env=env).stdout.strip()
-    if not out:
-        return []
-    return [line.split("\t") for line in out.splitlines()]
+    return _rows(sql, env=env or pg_env())
 
 
 def run_script(script: Path, *args: str, env: dict[str, str] | None = None, check: bool = True):
@@ -221,71 +220,16 @@ def run_script(script: Path, *args: str, env: dict[str, str] | None = None, chec
     )
 
 
-@dataclass(frozen=True)
-class DatabaseState:
-    """복구 전/후를 비교하기 위한 DB 스냅샷.
-
-    행만 담지 않는다. **인덱스·제약·시퀀스까지** 담는 게 요점이다 —
-    행은 맞는데 무결성 장치가 사라진 복구가 가장 위험하다.
-    """
-
-    row_counts: dict[str, int]
-    checksums: dict[str, str]
-    sequences: dict[str, str]
-    indexes: dict[str, str]
-    constraints: dict[str, str]
+# ★ `DatabaseState`·`capture_state` 는 `scripts/db_state.py` 로 옮겼다
+#   (머리말 참조). 여기서는 리허설 기본 환경을 붙인 얇은 래퍼만 둔다.
 
 
 def table_names(env: dict[str, str] | None = None) -> list[str]:
-    return [
-        r[0]
-        for r in rows(
-            "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename",
-            env=env,
-        )
-    ]
+    return _table_names(env or pg_env())
 
 
 def capture_state(env: dict[str, str] | None = None) -> DatabaseState:
-    env = env or pg_env()
-    tables = table_names(env)
-
-    row_counts: dict[str, int] = {}
-    checksums: dict[str, str] = {}
-    for table in tables:
-        row_counts[table] = int(scalar(f'SELECT count(*) FROM public."{table}"', env=env))
-        # 행을 텍스트로 직렬화해 정렬 후 md5. 행 수가 같고 값이 깨진 복구를 잡는다.
-        checksums[table] = scalar(
-            f"SELECT coalesce(md5(string_agg(t::text, '|' ORDER BY t::text)), '') "
-            f'FROM public."{table}" t',
-            env=env,
-        )
-
-    sequences = {
-        r[0]: (r[1] if len(r) > 1 else "")
-        for r in rows(
-            "SELECT sequencename, coalesce(last_value::text, '<unused>') "
-            "FROM pg_sequences WHERE schemaname='public' ORDER BY sequencename",
-            env=env,
-        )
-    }
-    indexes = {
-        r[0]: r[1]
-        for r in rows(
-            "SELECT indexname, indexdef FROM pg_indexes "
-            "WHERE schemaname='public' ORDER BY indexname",
-            env=env,
-        )
-    }
-    constraints = {
-        r[0]: r[1]
-        for r in rows(
-            "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
-            "WHERE connamespace = 'public'::regnamespace ORDER BY conname",
-            env=env,
-        )
-    }
-    return DatabaseState(row_counts, checksums, sequences, indexes, constraints)
+    return capture_state_impl(env or pg_env())
 
 
 @dataclass(frozen=True)
