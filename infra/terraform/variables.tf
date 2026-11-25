@@ -135,6 +135,71 @@ variable "image_tag" {
   }
 }
 
+############################################################
+# 수집 스케줄 (ADR-011 / ADR-020 결정 4)
+############################################################
+
+variable "ingest_format" {
+  description = "수집할 포맷. 이 서비스는 싱글 기준이다 (CLAUDE.md 8-1)."
+  type        = string
+  default     = "Singles"
+
+  validation {
+    # API 가 받는 값은 둘뿐이다. 오타는 수집 실패로만 드러나는데, 그건 다음 날
+    # 아침에야 알게 된다.
+    condition     = contains(["Singles", "Doubles"], var.ingest_format)
+    error_message = "ingest_format 은 Singles 또는 Doubles 여야 한다."
+  }
+}
+
+variable "ingest_limit" {
+  description = <<-EOT
+    수집할 상위 포켓몬 수.
+
+    ★ **요청 수와 1:1 이다.** 요청 예절 게이트가 요청 간 1초를 강제하므로
+    (ADR-013), 이 값이 곧 **초 단위 소요 시간**이다. 2026-11-25 실측으로
+    50종에 55초였다. 늘리면 출처에 거는 부하가 그만큼 늘어난다.
+
+    태스크의 `timeout 900`(15분) 안에 끝나야 한다 — 즉 실질 상한은 800 남짓이다.
+  EOT
+  type        = number
+  default     = 50
+
+  validation {
+    condition     = var.ingest_limit >= 1 && var.ingest_limit <= 500
+    error_message = "ingest_limit 은 1~500 이어야 한다. 그 이상은 timeout 900 을 넘길 위험이 있다."
+  }
+}
+
+variable "ingest_schedule_expression" {
+  description = <<-EOT
+    EventBridge Scheduler cron. ★ **6필드**이고 일(day-of-month)과
+    요일(day-of-week) 중 하나는 반드시 `?` 다.
+
+      cron(분 시 일 월 요일 년)
+
+    기본값은 매일 06:00 (아래 시간대 기준).
+  EOT
+  type        = string
+  default     = "cron(0 6 * * ? *)"
+}
+
+variable "ingest_schedule_timezone" {
+  description = <<-EOT
+    위 cron 을 해석할 시간대.
+
+    ★ **Airflow DAG 와 다르다 (2026-11-25 결정).** DAG 의 `"0 6 * * *"` 은
+    Airflow 기본값이라 **UTC** 로 해석됐고, 그건 한국 시간 오후 3시다 —
+    사용자가 있는 시간에 외부 API 를 50회 부르고 DB 에 쓰기가 몰린다.
+
+    `data.tf` 가 RDS 백업 창을 03:00-04:00 KST 로 고른 기준("한국 사용자가 가장
+    적은 시각")과 같은 기준으로 **06:00 KST** 를 쓴다. 백업 창(03-04)·유지보수
+    창(월 04:30)과도 겹치지 않는다.
+  EOT
+  type        = string
+  default     = "Asia/Seoul"
+}
+
 variable "log_retention_days" {
   description = <<-EOT
     ECS 로그 그룹 보존 기간(일).

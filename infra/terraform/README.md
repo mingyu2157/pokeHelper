@@ -165,7 +165,7 @@ PowerShell 5.1 은 **`-` 로 시작하면서 `=` 가 들어간 인자**를 외�
 | 3 | `data.tf` (RDS·ElastiCache) | ★ **코드는 있고 apply 는 5단계와 함께** (아래) |
 | 4 | `iam.tf`, `secrets.tf` | 역할 3개 · ★ **시크릿은 껍데기까지만** (값은 5단계) |
 | 5 | `dns.tf`, `alb.tf`, `ecs.tf` | 5-C 시크릿 → `/health` 200 → 5-D DB 계정 → 5-E 스키마·시드 |
-| 6 | `scheduler.tf`, `observability.tf` | 다음 날 수집이 돌았는가 |
+| 6 | `scheduler.tf`, `observability.tf` | 5-F — ★ 스케줄을 기다리지 말고 **손으로 한 번** 돌려본다 |
 
 ★ **`image_tag` 가 없으면 `plan` 이 멈춰 서서 값을 묻는다** (2026-11-24 추가).
 `ecs.tf` 가 생기면서 **기본값 없는 필수 변수**가 하나 늘었다. 기본값을 두지 않은
@@ -800,6 +800,94 @@ curl.exe -s -o NUL -w "%{http_code}\n" https://paoriprofessor.click/api/v1/meta/
 
 ---
 
+## 5-F. 수집 스케줄 (★ 5-E 직후)
+
+`scheduler.tf` 가 **매일 06:00 (KST)** 에 수집 → 정리를 한 번 돌린다.
+구현 근거는 `scheduler.tf` 머리말, 결정 기록은 JOURNAL 2026-11-25.
+
+### ★ Airflow DAG 와 달라진 것 둘 — 먼저 안다
+
+| DAG | 여기 | 왜 |
+|---|---|---|
+| `ingest >> cleanup` (의존) | **한 태스크 안에서 `&&`** | EventBridge 에는 작업 간 의존이 없다. 스케줄을 둘로 나누면 **수집이 실패한 날에도 정리가 돈다** |
+| `retries: 2 / 10분` | ★ **재시도 없음** | EventBridge 의 `retry_policy` 는 **RunTask API 호출 실패**만 재시도한다. 태스크가 떠서 종료 코드 1·2 로 죽으면 재시도 대상이 아니다 — 숫자를 올려두면 **재현된다고 착각**하게 된다 |
+| `execution_timeout` 15분/5분 | 컨테이너의 `timeout 900` / `timeout 300` | ECS RunTask 에는 실행 시간 상한이 없다. 멈춘 태스크가 영원히 돌면서 과금된다 |
+| `"0 6 * * *"` = **UTC** (15:00 KST) | **06:00 Asia/Seoul** | 적지 않으면 UTC 다. 그게 DAG 에서 실제로 일어난 일이고, 주석에는 "매일 06:00" 이라고만 적혀 있어 아무도 몰랐다 |
+
+### ① apply
+
+```powershell
+terraform apply "-target=aws_scheduler_schedule.daily_ingest"
+```
+
+**기대: `3 to add`** — 스케줄 + `pokehelper-prod-ingest` 태스크 정의 +
+`/ecs/pokehelper-prod/ingest` 로그 그룹.
+
+```powershell
+terraform output ingest_schedule
+```
+
+★ `timezone` 이 **`Asia/Seoul`** 인지 눈으로 확인한다. 이 한 줄이 틀리면
+9시간 어긋난 채로 매일 돌고, 아무 경보도 울리지 않는다.
+
+### ② 스케줄을 기다리지 않고 한 번 돌려본다
+
+★ **스케줄이 처음 도는 것을 다음 날 아침에 확인하지 않는다.** 같은 태스크
+정의를 지금 손으로 띄워서 먼저 본다.
+
+```powershell
+$net = terraform output -json task_network_configuration | ConvertFrom-Json
+$netcfg = "awsvpcConfiguration={subnets=[$($net.subnets -join ',')],securityGroups=[$($net.security_groups -join ',')],assignPublicIp=ENABLED}"
+
+$t = aws ecs run-task --cluster pokehelper-prod --task-definition pokehelper-prod-ingest `
+  --launch-type FARGATE --network-configuration $netcfg `
+  --query "tasks[0].taskArn" --output text --profile pokehelper
+```
+
+★ `--overrides` 가 없다. 태스크 정의의 **기본 command 가 진짜 명령**이다 —
+그게 `migrate` 를 재사용하지 않고 패밀리를 따로 둔 이유 중 하나다.
+
+2~3분 뒤:
+
+```powershell
+aws ecs describe-tasks --cluster pokehelper-prod --tasks $t `
+  --query "tasks[0].{status:lastStatus,exit:containers[0].exitCode}" --profile pokehelper
+aws logs tail /ecs/pokehelper-prod/ingest --since 10m --profile pokehelper
+```
+
+### ★ 종료 코드를 읽는 법 — 0 이 아니라고 다 실패가 아니다
+
+`scripts/run_ingest.py` 가 셋으로 나눈다.
+
+| `exit` | 뜻 | 대응 |
+|---|---|---|
+| **0** | 활성 스냅샷이 갱신됐다. 이어서 정리까지 돌았다 | — |
+| **1** | 수집 실패 (네트워크·HTTP·형식) | 이전 스냅샷으로 계속 서비스한다. 다음 날 재시도 |
+| ★ **2** | **적재는 됐는데 활성화하지 못했다** — 한영 매핑 해석 실패 | ★ 사람이 봐야 한다. 로그의 `해석 실패 내역` 을 보고 `backend/data/name_map.json` 을 고친 뒤 다시 돌린다 |
+| **124** | `timeout` 이 끊었다 | `ingest_limit` 이 상한에 비해 큰지 본다 |
+
+★ **2 가 가장 위험한 상태다.** 데이터는 들어갔는데 서비스가 보는 메타는 그대로다.
+그래서 종료 코드로 구분하고, `&&` 가 **정리까지 막는다**(DAG 와 같다).
+
+### ③ 서비스에서 확인
+
+```powershell
+curl.exe -s https://paoriprofessor.click/api/v1/meta/usage
+```
+
+실제 순위표가 나오고 **출처 표기와 수집 시각**이 같이 와야 한다 (ADR-013·018).
+
+### ★ 아직 없는 것 — 실패를 알려주는 장치
+
+스케줄이 실패해도 **아무도 모른다.** EventBridge 는 실패를 알려주지 않고,
+우리도 경보를 붙이지 않았다. 지금은 `aws logs tail` 로 사람이 본다.
+
+> 되돌리는 조건: 수집을 **며칠 놓친 것을 뒤늦게 알게 되면** CloudWatch 로그
+> 지표 필터 + 경보를 붙인다. 그때 로그 그룹이 `migrate` 와 **분리돼 있는 것**이
+> 쓸모가 있다 (그래서 패밀리를 나눴다).
+
+---
+
 ## 5. 검사
 
 ```bash
@@ -824,6 +912,10 @@ docker compose exec backend uv run pytest tests/integration/test_terraform_alb.p
 # ★ ECS — 시크릿이 평문 환경변수로 새는 것, 클러스터 이름이 iam.tf 와 어긋나는 것,
 #   컨테이너 포트가 타깃그룹과 달라져 영구 503 이 되는 것을 막는다
 docker compose exec backend uv run pytest tests/integration/test_terraform_ecs.py
+
+# ★ 스케줄 — 시간대를 안 적어 UTC 로 도는 것, `&&` 가 `;` 로 바뀌어 의존이
+#   사라지는 것, timeout 이 빠져 멈춘 태스크가 영원히 도는 것을 막는다
+docker compose exec backend uv run pytest tests/integration/test_terraform_scheduler.py
 
 # 데이터 저장소의 위험한 기본값 · 예산
 docker compose exec backend uv run pytest tests/integration/test_terraform_data.py \

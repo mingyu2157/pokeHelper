@@ -38,6 +38,7 @@ from tests.terraform_support import (
     local_values,
     resources,
     unquote,
+    variables,
 )
 
 CLUSTER = "aws_ecs_cluster"
@@ -45,7 +46,7 @@ TASK_DEFINITION = "aws_ecs_task_definition"
 SERVICE = "aws_ecs_service"
 LOG_GROUP = "aws_cloudwatch_log_group"
 
-EXPECTED_TASK_DEFINITIONS = {"backend", "frontend", "migrate"}
+EXPECTED_TASK_DEFINITIONS = {"backend", "frontend", "migrate", "ingest"}
 EXPECTED_SERVICES = {"backend", "frontend"}
 
 # `local.name` 은 main.tf 에서 `${var.project}-${var.environment}` 로 조립된다.
@@ -71,16 +72,6 @@ def dequote_keys(mapping: Any) -> dict[str, Any]:
     raw = clean(mapping)
     assert isinstance(raw, dict), raw
     return {unquote(key): value for key, value in raw.items()}
-
-
-def variables(documents: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """`variable` 블록을 {이름: 본문} 으로 모은다."""
-    found: dict[str, dict[str, Any]] = {}
-    for document in documents:
-        for block in document.get("variable", []):
-            for name, body in block.items():
-                found[unquote(name)] = clean(body)
-    return found
 
 
 @pytest.fixture(scope="module")
@@ -128,6 +119,7 @@ def containers(locals_: dict[str, Any]) -> dict[str, dict[str, Any]]:
         "backend": locals_["backend_container"],
         "frontend": locals_["frontend_container"],
         "migrate": locals_["migrate_container"],
+        "ingest": locals_["ingest_container"],
     }
 
 
@@ -158,7 +150,7 @@ class TestClusterNameMatchesWhatIamAssumes:
 class TestTaskFamiliesMatchTheSchedulerPattern:
     """차등 단정 — 패밀리 접두사와 IAM 자원 패턴을 대조한다."""
 
-    def test_all_three_task_definitions_exist(
+    def test_every_task_definition_exists(
         self, task_definitions: dict[str, dict[str, Any]]
     ) -> None:
         assert set(task_definitions) == EXPECTED_TASK_DEFINITIONS
@@ -297,7 +289,7 @@ class TestProductionGuardsAreSatisfiable:
 class TestLogsCannotAccumulateForever:
     """규칙을 테스트가 집행한다 + 차등 단정 — 보존 기간과 IAM 을 함께 본다."""
 
-    def test_three_log_groups_are_declared(self, locals_: dict[str, Any]) -> None:
+    def test_a_log_group_per_task_definition(self, locals_: dict[str, Any]) -> None:
         assert set(listed(locals_["log_streams"])) == EXPECTED_TASK_DEFINITIONS
 
     def test_log_group_has_a_retention(self, documents: list[dict[str, Any]]) -> None:

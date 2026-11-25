@@ -123,6 +123,22 @@ def data_sources(documents: list[dict[str, Any]], kind: str) -> dict[str, dict[s
     return found
 
 
+def variables(documents: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """`variable` 블록을 {이름: 본문} 으로 모은다.
+
+    ★ 이 프로젝트에서 **변수 선언 자체가 검사 대상**이다. 기본값을 주지 않은
+    것(`image_tag`·`alarm_email`·`domain_name`·`hosted_zone_id`)과 `validation`
+    블록이 막는 것(스킴 붙은 도메인, `-dirty` 태그, CloudWatch 가 안 받는 보존
+    기간)이 전부 여기 있다.
+    """
+    found: dict[str, dict[str, Any]] = {}
+    for document in documents:
+        for block in document.get("variable", []):
+            for name, body in block.items():
+                found[unquote(name)] = clean(body)
+    return found
+
+
 def local_values(documents: list[dict[str, Any]]) -> dict[str, Any]:
     """모든 `locals` 블록을 하나의 딕셔너리로 합친다.
 
