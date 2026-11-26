@@ -31,6 +31,10 @@
 행만 세는 비교는 2·3·4 를 전부 놓친다. 특히 3번은 **그 순간에는 아무 증상이
 없다** — 다음에 잘못된 데이터가 들어올 때 비로소 드러난다.
 
+★ 1~3층은 **정확한 일치**를 요구하고, 4층만 **방향**으로 본다 (ADR-023).
+  복원본이 앞선 것은 안전하고(ID 를 건너뛸 뿐), 뒤처진 것만 PK 충돌이다.
+  자세한 근거는 아래 `_compare_sequences` 위의 주석에 있다.
+
 실행 (운영 이미지 안에서):
 
     python -m scripts.db_state capture
@@ -177,13 +181,19 @@ def capture_state(env: dict[str, str]) -> DatabaseState:
 # 비교 — ★ 순수 함수다. DB 없이 테스트할 수 있다
 ############################################################
 
+#: 1~3층 — **정확히 같아야** 하는 것들. 값이 다르면 그대로 차이다.
 LAYERS: Final[tuple[tuple[str, str], ...]] = (
     ("row_counts", "1 행 수"),
     ("checksums", "2 내용 체크섬"),
     ("constraints", "3 제약"),
     ("indexes", "3 인덱스"),
-    ("sequences", "4 시퀀스"),
 )
+
+#: 4층 — ★ 정확한 일치가 아니라 **방향**으로 본다. 아래 `_compare_sequences` 참조.
+SEQUENCE_LAYER: Final[str] = "4 시퀀스"
+
+#: `pg_sequences.last_value` 가 NULL 일 때 `capture_state` 가 채우는 값.
+UNUSED: Final[str] = "<unused>"
 
 
 def compare(before: DatabaseState, after: DatabaseState) -> list[str]:
@@ -191,6 +201,8 @@ def compare(before: DatabaseState, after: DatabaseState) -> list[str]:
 
     ★ 층마다 **사라진 것 / 생긴 것 / 값이 다른 것**을 따로 적는다.
       "다르다"만 적으면 복구가 덜 됐는지 더 됐는지 구분이 안 된다.
+
+    ★ 4층만 판정 방식이 다르다 (ADR-023). `_compare_sequences` 를 읽어라.
     """
     differences: list[str] = []
 
@@ -208,7 +220,101 @@ def compare(before: DatabaseState, after: DatabaseState) -> list[str]:
                     f"[{label}] 다름: {key} 원본={left[key]!r} 복원본={right[key]!r}"
                 )
 
+    differences.extend(_compare_sequences(before, after))
     return differences
+
+
+############################################################
+# 4층 — ★ 방향으로 판정한다 (ADR-023)
+############################################################
+#
+# 처음에는 1~3층과 똑같이 "값이 다르면 차이"로 봤다. **운영에서 첫 실행에 바로
+# 거짓 양성이 났다** (2026-11-26, RDS PITR 리허설):
+#
+#   [4 시퀀스] 다름: meta_snapshots_id_seq 원본='3'   복원본='35'   (+32)
+#   [4 시퀀스] 다름: pokemon_meta_id_seq   원본='150' 복원본='166'  (+16)
+#
+# PostgreSQL 의 `nextval` 은 32회마다만 WAL 에 기록하고, 그때 **현재값 + 32 를
+# 미리** 적는다. 복구가 그 선행 값으로 돌아오므로 복원본은 최대 32 앞선다.
+# 복구 결함이 아니라 설계다.
+#
+# ★ 그런데 이 층이 막으려던 것은 "값이 다른 것"이 아니라 **PK 충돌**이다.
+#   앞선 시퀀스는 ID 를 건너뛸 뿐 충돌하지 않는다. 뒤처진 시퀀스만 터진다.
+#   그래서 **판정 기준을 목적과 일치시킨다** — 방향만 본다.
+#
+# 매 복구마다 빨간불이 뜨면 운영자가 4층을 읽지 않게 되고, 그게 4층이 잡으려던
+# 뒤처짐을 놓치는 길이다. 거짓 양성을 없애는 것이 이 층을 살리는 길이다.
+#
+# ★ 로컬 리허설(`tests/rehearsal/`)은 **여전히 정확한 일치를 요구한다.**
+#   그쪽은 pg_dump/pg_restore 경로이고 `setval` 로 값을 그대로 복원하므로,
+#   앞서는 일이 애초에 없다. 복구 방식이 다르면 올바름의 기준도 다르다.
+
+
+def _sequence_position(value: str) -> int | None:
+    """`last_value` 문자열을 순서 비교용 정수로. 읽을 수 없으면 None.
+
+    ★ `<unused>` 는 **0** 으로 본다. 한 번도 쓰지 않은 시퀀스는 다음에 1 을
+      내주므로, 원본이 3 인데 복원본이 `<unused>` 면 1 부터 다시 시작해
+      **PK 충돌**이다. "같지 않다"가 아니라 "뒤처졌다"로 판정돼야 한다.
+    """
+    if value == UNUSED:
+        return 0
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _compare_sequences(before: DatabaseState, after: DatabaseState) -> list[str]:
+    """뒤처진 시퀀스만 차이로 돌려준다. 앞선 것은 `sequence_advances` 로 간다."""
+    differences: list[str] = []
+    left, right = before.sequences, after.sequences
+
+    for key in sorted(set(left) - set(right)):
+        differences.append(f"[{SEQUENCE_LAYER}] 사라짐: {key} (원본={left[key]!r})")
+    for key in sorted(set(right) - set(left)):
+        differences.append(f"[{SEQUENCE_LAYER}] 생김: {key} (복원본={right[key]!r})")
+
+    for key in sorted(set(left) & set(right)):
+        source, restored = left[key], right[key]
+        if source == restored:
+            continue
+
+        source_position = _sequence_position(source)
+        restored_position = _sequence_position(restored)
+
+        # ★ 읽을 수 없는 값은 통과시키지 않는다. 판정할 수 없으면 차이로 올린다 —
+        #   조용히 넘기면 뒤처짐을 놓칠 수 있다.
+        if source_position is None or restored_position is None:
+            differences.append(
+                f"[{SEQUENCE_LAYER}] 읽을 수 없음: {key} 원본={source!r} 복원본={restored!r}"
+            )
+        elif restored_position < source_position:
+            differences.append(
+                f"[{SEQUENCE_LAYER}] 뒤처짐: {key} 원본={source!r} 복원본={restored!r} "
+                f"— 복구 직후 첫 INSERT 가 PK 충돌한다"
+            )
+
+    return differences
+
+
+def sequence_advances(before: DatabaseState, after: DatabaseState) -> list[str]:
+    """복원본에서 **앞선** 시퀀스를 사람이 읽는 줄로 돌려준다.
+
+    ★ 차이가 아니므로 `compare` 가 아니라 여기서 돌려준다. 그래도 **버리지는
+      않는다** — 정보를 숨기면 다음 사람이 같은 조사를 처음부터 반복한다.
+      CLI 가 `참고` 로 따로 찍고, 종료 코드에는 영향을 주지 않는다.
+    """
+    notes: list[str] = []
+    for key in sorted(set(before.sequences) & set(after.sequences)):
+        source, restored = before.sequences[key], after.sequences[key]
+        source_position = _sequence_position(source)
+        restored_position = _sequence_position(restored)
+        if source_position is None or restored_position is None:
+            continue
+        if restored_position > source_position:
+            notes.append(f"{key}  {source} → {restored}  (+{restored_position - source_position})")
+    return notes
 
 
 ############################################################
@@ -268,6 +374,7 @@ def _compare(args: argparse.Namespace) -> int:
     before = capture_state(source_env)
     after = capture_state(target_env)
     differences = compare(before, after)
+    advances = sequence_advances(before, after)
 
     print(f"테이블 {len(before.row_counts)}개 / 행 {sum(before.row_counts.values())}건")
     print(
@@ -275,6 +382,13 @@ def _compare(args: argparse.Namespace) -> int:
         f"/ 시퀀스 {len(before.sequences)}개"
     )
     print()
+
+    # ★ 차이가 아니지만 버리지 않는다 (ADR-023). 종료 코드에는 영향이 없다.
+    if advances:
+        print(f"참고 — 복원본에서 앞선 시퀀스 {len(advances)}개 (안전: PK 충돌 없음)")
+        for note in advances:
+            print(f"  {note}")
+        print()
 
     if not differences:
         print("네 층 모두 일치한다.")

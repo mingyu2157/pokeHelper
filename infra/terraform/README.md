@@ -888,6 +888,287 @@ curl.exe -s https://paoriprofessor.click/api/v1/meta/usage
 
 ---
 
+## 5-G. DR 리허설 — PITR 복원 → 4층 비교 → 전환 (정기)
+
+**왜**: [ADR-014](../../docs/adr/014-restore-rehearsal.md) 가 "검증되지 않은 백업은
+백업이 아니다"로 시작했고, 그 `되돌리는 조건` 이 "운영 대상이 RDS 면 복원
+리허설을 따로 만든다"였다. [ADR-020](../../docs/adr/020-production-topology.md)
+결정 3 의 RPO·RTO 가 **목표였고 측정값이 아니었다** — 이 절차가 그걸 잰다.
+
+★ **아래는 2026-11-26 에 전부 실행한 절차다.** 실측값은 맨 끝에 있다.
+
+### ① 전제 — 운영 DB 가 멈춰 있어야 한다
+
+복원본은 과거 시점에 얼어 있고 운영은 계속 흐른다. 비교 중에 쓰기가 생기면
+**"복구가 틀렸다"와 "그동안 쓰기가 있었다"를 구분할 수 없다.**
+
+```powershell
+$env:AWS_PAGER = ""      # 표가 --More-- 에 잘리는 것을 막는다
+aws logs tail /ecs/pokehelper-prod/ingest --since 3h --profile pokehelper
+```
+
+비어 있어야 한다. 수집은 매일 06:00 KST(`21:00Z`)이므로 **그 직후는 피한다.**
+
+### ② RPO 측정 — 복원 가능 시각과 지금의 간격
+
+```powershell
+aws rds describe-db-instance-automated-backups --db-instance-identifier pokehelper-prod-db `
+  --query "DBInstanceAutomatedBackups[].{status:Status,earliest:RestoreWindow.EarliestTime,latest:RestoreWindow.LatestTime}" `
+  --output table --profile pokehelper
+[DateTime]::UtcNow.ToString("o")
+```
+
+★ **`describe-db-instances` 의 `EarliestRestorableTime` 은 비어 있을 수 있다.**
+위 자동 백업 API 를 1차 출처로 쓴다. 이유는 모른다 (JOURNAL 11-26).
+
+★ **`latest` 와 지금의 차이가 그 순간의 유실 구간이다.** 5분 격자로 갱신되므로
+**표본 하나는 RPO 가 아니라 측정 순간의 위치**다. 최악값을 알려면 여러 번 재야
+한다.
+
+★ **보존 기간은 되돌릴 수 있는 기간이 아니다.** 설정이 7일이어도 인스턴스가
+2.5일만 살았으면 구간은 2.5일이다.
+
+### ③ 복원 — ★ 네 개를 반드시 명시한다
+
+```powershell
+$t0 = Get-Date
+
+aws rds restore-db-instance-to-point-in-time `
+  --source-db-instance-identifier pokehelper-prod-db `
+  --target-db-instance-identifier pokehelper-prod-db-restore `
+  --use-latest-restorable-time `
+  --db-subnet-group-name pokehelper-prod-db `
+  --vpc-security-group-ids sg-06acb38656c00dbb7 `
+  --db-parameter-group-name pokehelper-prod-pg16 `
+  --no-publicly-accessible `
+  --db-instance-class db.t4g.micro `
+  --storage-type gp3 `
+  --no-multi-az `
+  --no-deletion-protection `
+  --query "DBInstance.{id:DBInstanceIdentifier,status:DBInstanceStatus}" `
+  --profile pokehelper
+```
+
+(보안그룹 ID 가 바뀌었으면 `terraform state show aws_security_group.rds` 로 확인한다)
+
+| 플래그 | 빠뜨리면 |
+|---|---|
+| `--db-subnet-group-name` | **기본 서브넷 그룹** — 다른 네트워크에 뜬다 |
+| `--vpc-security-group-ids` | **기본 SG** — 태스크가 붙지 못하고, **오류가 SG 를 가리키지 않는다** |
+| `--db-parameter-group-name` | **기본 파라미터 그룹** — 우리 설정이 없다 |
+| `--no-publicly-accessible` | ★ AWS 문서가 **아무 말을 하지 않는다.** 운영 DB 복제본이 인터넷에 열릴 수 있다 |
+| `--no-deletion-protection` | 기본 off 지만, 지울 때 막히지 않도록 의도를 못 박는다 |
+
+앞 셋은 문서가 "unless you choose different ones"라고 쓴 것이고, 넷째는 문서에
+**언급 자체가 없다.** 상속한다는 보장도 안 한다는 보장도 없으므로 추측하지 않는다.
+
+★ **태그를 주지 않는다.** 새 태그를 주면 상속 태그가 전부 사라진다. 식별자의
+`-restore` 가 임시임을 말해준다.
+
+### ④ 완료 대기 — ★ `wait` 는 30분까지만 기다린다
+
+```powershell
+do {
+  $s = aws rds describe-db-instances --db-instance-identifier pokehelper-prod-db-restore `
+       --query "DBInstances[0].DBInstanceStatus" --output text --profile pokehelper
+  "$([int]((Get-Date) - $t0).TotalSeconds)초 : $s"
+  if ($s -ne "available") { Start-Sleep -Seconds 30 }
+} while ($s -ne "available")
+```
+
+★ **`aws rds wait db-instance-available` 을 쓰지 마라.** 30초 × 60회 = 30분이
+한도이고, 복원은 그보다 오래 걸린다. 한도를 넘으면 `Max attempts exceeded` 로
+떨어지고 **측정이 거기서 끊긴다** (11-26 에 실제로 당했다).
+
+★ **소요 시간은 벽시계가 아니라 RDS 이벤트를 1차 출처로 쓴다.**
+
+```powershell
+aws rds describe-events --source-identifier pokehelper-prod-db-restore --source-type db-instance `
+  --duration 180 --query "Events[].{t:Date,msg:Message}" --output table --profile pokehelper
+```
+
+여기에 `Restored from …` / `DB instance restarted` / `Backing up DB instance` /
+`Finished DB Instance backup` 이 초 단위로 남는다. ★ **`available` 이 늦게 뜨는
+이유가 여기서 보인다** — RDS 가 복원 직후 자동 백업을 한 번 돌리고, 그게 22분
+걸렸다. 실제 복원은 11분에 끝나 있었다.
+
+### ⑤ 4층 비교 — `scripts/db_state.py`
+
+```powershell
+$rh = aws rds describe-db-instances --db-instance-identifier pokehelper-prod-db-restore `
+  --query "DBInstances[0].Endpoint.Address" --output text --profile pokehelper
+$rh
+
+$net = terraform output -json task_network_configuration | ConvertFrom-Json
+$netcfg = "awsvpcConfiguration={subnets=[$($net.subnets -join ',')],securityGroups=[$($net.security_groups -join ',')],assignPublicIp=ENABLED}"
+
+$ov = "$env:TEMP\pokehelper-dr-compare.json"
+$tpl = '{"containerOverrides":[{"name":"migrate","command":["python","-m","scripts.db_state","compare","--target-host","TARGETHOST"]}]}'
+[IO.File]::WriteAllText($ov, $tpl.Replace("TARGETHOST", $rh), (New-Object System.Text.UTF8Encoding $false))
+Get-Content $ov       # ★ 실제 호스트가 박혔는지 눈으로 본다
+
+$t = aws ecs run-task --cluster pokehelper-prod --task-definition pokehelper-prod-migrate `
+  --launch-type FARGATE --network-configuration $netcfg --overrides "file://$ov" `
+  --query "tasks[0].taskArn" --output text --profile pokehelper
+
+aws ecs wait tasks-stopped --cluster pokehelper-prod --tasks $t --profile pokehelper
+aws ecs describe-tasks --cluster pokehelper-prod --tasks $t `
+  --query "tasks[0].{status:lastStatus,exit:containers[0].exitCode}" --output table --profile pokehelper
+aws logs tail /ecs/pokehelper-prod/migrate --since 10m --profile pokehelper
+Remove-Item $ov
+```
+
+★ `TARGETHOST` 는 **바로 아래 줄의 `.Replace()` 가 치환하는 토큰**이다. 사람이
+값을 끼워 넣는 칸을 만들지 않는다 (11-23 에 U+2026 이 버킷 이름에 들어가
+`InvalidBucketName` 이 났다).
+
+★ **비밀번호를 명령줄에 적지 않는다.** PITR 복원본은 같은 DB 의 같은 계정이고
+엔드포인트만 다르므로, `db_state.py` 가 `DATABASE_URL` 에서 **호스트만** 바꿔
+두 곳에 붙는다. 명령줄에 적으면 컨테이너 안 `ps` 에 보인다.
+
+| exit | 뜻 |
+|---|---|
+| **0** | 네 층 모두 통과 |
+| **1** | 차이 있음. 로그에 `★ 차이 N건` 과 층별 목록이 전부 찍힌다 |
+| 그 외 | 접속·권한 실패. 로그를 봐야 한다 |
+
+로그에서 같이 확인할 것:
+
+1. `원본 :` / `복원본 :` 두 줄이 **서로 다른 호스트**인가 (같으면 자기 자신과 비교했다)
+2. `시퀀스 N개` 가 **0이 아닌가** — 0이면 4층이 공짜로 통과한 것이다
+   (`champs_app` 의 시퀀스 권한은 `sql/roles.sql` §5 의 `ALTER DEFAULT PRIVILEGES`
+   가 준다. 그게 깨지면 여기서 드러난다)
+3. `참고 — 복원본에서 앞선 시퀀스 N개` — ★ **차이가 아니다.**
+   [ADR-023](../../docs/adr/023-sequence-comparison-direction.md) 참조.
+   PITR 는 시퀀스를 최대 32 앞서게 되돌린다(PostgreSQL 의 WAL 기록 주기).
+   앞선 것은 ID 를 건너뛸 뿐 PK 충돌이 없다. **뒤처진 것만 차이로 올라온다.**
+
+### ⑥ 전환 훈련 (선택 — RTO 를 끝까지 재려면 필요)
+
+```powershell
+$c0 = Get-Date
+$arn = terraform output -raw app_secret_arn
+
+$cur = aws secretsmanager get-secret-value --secret-id $arn --query SecretString --output text --profile pokehelper | ConvertFrom-Json
+$cur.DATABASE_URL = $cur.DATABASE_URL.Replace("pokehelper-prod-db.", "pokehelper-prod-db-restore.")
+$cur.DATABASE_URL -replace ':[^:@]+@', ':***@'      # ★ 비밀번호를 가린 채 호스트만 확인
+```
+
+★ **값을 사람이 읽는 단계를 만들지 않는다.** 11-24 에 평문 4개가 화면에 찍혀
+교체해야 했다. 위 한 줄은 호스트만 보여준다.
+
+```powershell
+$sf = "$env:TEMP\pokehelper-secret.json"
+[IO.File]::WriteAllText($sf, ($cur | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding $false))
+aws secretsmanager put-secret-value --secret-id $arn --secret-string "file://$sf" `
+  --query "VersionId" --output text --profile pokehelper
+Remove-Item $sf
+
+# ★ 되읽어 검증한다 — put-secret-value 는 내용을 검증하지 않는다 (5-C 참조)
+$back = aws secretsmanager get-secret-value --secret-id $arn --query SecretString --output text --profile pokehelper | ConvertFrom-Json
+"키 개수      : $(($back.PSObject.Properties | Measure-Object).Count)   ← 6"
+"DATABASE_URL : $(([Uri]$back.DATABASE_URL.Replace('+asyncpg','')).Host)"
+
+aws ecs update-service --cluster pokehelper-prod --service pokehelper-prod-backend `
+  --force-new-deployment --query "service.deployments[0].status" --output text --profile pokehelper
+aws ecs wait services-stable --cluster pokehelper-prod --services pokehelper-prod-backend --profile pokehelper
+"전환 소요: $([int]((Get-Date) - $c0).TotalSeconds)초"
+```
+
+★ **`--force-new-deployment` 가 없으면 아무 일도 안 일어난다.** ECS 는 시크릿을
+태스크 기동 시 한 번만 읽는다 (5-C 의 마지막 절).
+
+**확인 — ★ `200 OK` 는 어느 DB 인지 말해주지 않는다.** 1·2·3층이 일치하는
+복원본이면 응답도 똑같다. **접속**을 봐야 한다.
+
+```powershell
+1..5 | ForEach-Object { curl.exe -s -o NUL -w "usage=%{http_code} " https://paoriprofessor.click/api/v1/meta/usage }
+""
+Start-Sleep -Seconds 150     # ★ 지표가 생길 시간을 준다. 이걸 빼면 전부 0.0 으로 보인다
+
+foreach ($id in @("pokehelper-prod-db","pokehelper-prod-db-restore")) {
+  "=== $id ==="
+  aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DatabaseConnections `
+    --dimensions Name=DBInstanceIdentifier,Value=$id `
+    --start-time ((Get-Date).ToUniversalTime().AddMinutes(-10).ToString("o")) `
+    --end-time ((Get-Date).ToUniversalTime().ToString("o")) `
+    --period 60 --statistics Maximum `
+    --query "sort_by(Datapoints,&Timestamp)[].{t:Timestamp,conn:Maximum}" --output table --profile pokehelper
+}
+```
+
+★ **부하를 주고 150초 기다리는 것이 이 단계의 핵심이다.** 앱은 접속을 **지연
+생성**하고(`app/db/session.py`), `/health` 는 **DB 를 건드리지 않는다**. 그래서
+태스크가 healthy 가 된 뒤에도 트래픽이 올 때까지 접속이 0이다. 게다가 RDS 지표는
+1분 샘플이다. 요청 직후에 창을 끊으면 **정상인데 0.0 으로 보인다** (11-26 에 당했다).
+
+원본이 0, 복원본이 ≥1 이면 전환 성공이다.
+
+### ⑦ 되돌리기 — ⑥ 을 했으면 반드시
+
+```powershell
+$r0 = Get-Date
+$cur2 = aws secretsmanager get-secret-value --secret-id $arn --query SecretString --output text --profile pokehelper | ConvertFrom-Json
+$cur2.DATABASE_URL = $cur2.DATABASE_URL.Replace("pokehelper-prod-db-restore.", "pokehelper-prod-db.")
+$cur2.DATABASE_URL -replace ':[^:@]+@', ':***@'
+```
+
+`-restore` 가 **없어진 것**을 확인한 뒤, ⑥ 의 업로드·검증·재배포를 그대로 반복하고
+`pokehelper-prod-db` 의 접속이 ≥1 로 돌아오는지 본다.
+
+★ **실제 장애였다면 여기서 쓰기를 잃는다.** 복원본에 쌓인 쓰기는 원본에 없다.
+이 리허설은 읽기 트래픽으로만 해봤으므로 **그 문제를 다루지 않았다.**
+
+### ⑧ ★ 복원본 삭제 — 잊으면 월 $18
+
+```powershell
+aws rds delete-db-instance --db-instance-identifier pokehelper-prod-db-restore `
+  --skip-final-snapshot --delete-automated-backups `
+  --query "DBInstance.DBInstanceStatus" --output text --profile pokehelper
+```
+
+- `--skip-final-snapshot` 이 없으면 **스냅샷이 남아 계속 과금된다.**
+- `--delete-automated-backups` 는 복원본이 ④ 에서 만든 자동 백업을 같이 지운다.
+
+몇 분 뒤 잔여물 확인:
+
+```powershell
+aws rds describe-db-instances --query "DBInstances[].{id:DBInstanceIdentifier,status:DBInstanceStatus}" --output table --profile pokehelper
+aws rds describe-db-snapshots --snapshot-type manual --query "DBSnapshots[].DBSnapshotIdentifier" --output text --profile pokehelper
+aws rds describe-db-instance-automated-backups --query "DBInstanceAutomatedBackups[].{id:DBInstanceIdentifier,status:Status}" --output table --profile pokehelper
+```
+
+인스턴스는 `pokehelper-prod-db` 하나, 수동 스냅샷 없음, 자동 백업도 하나여야 한다.
+
+### 실측 — 2026-11-26 (첫 완주)
+
+| 항목 | 값 |
+|---|---|
+| 복구 가능 구간 | `2026-11-24T01:32:40Z` ~ `2026-11-26T12:51:46Z` (2.5일 / 보존 설정 7일) |
+| RPO (유실 구간) | 표본 2개 — **5분 13초**, **8분 5초** |
+| 복원: 명령 → `DB instance restarted` | **10분 47초** |
+| 복원: 명령 → `status: available` | **34분 6초** (차이 22분 = 복원 후 자동 백업) |
+| 전환 (시크릿 → 재배포 → 응답) | **4분 53초** |
+| 되돌리기 | **3분 33초** — 복원본이 이미 떠 있으니 더 빠르다 |
+| **RTO 합계** | **약 39분** (ADR-020 목표 1시간 안) |
+| 1층 행 수 | 테이블 10개 / 17,220행 **완전 일치** |
+| 2층 체크섬 | **완전 일치** |
+| 3층 제약·인덱스 | 제약 27개 / 인덱스 21개 **완전 일치** |
+| 4층 시퀀스 | 앞선 시퀀스 2개 (+32, +16) — ★ **차이 아님** (ADR-023) |
+| DB 계정 생존 | ★ **`champs_app` 으로 접속·조회 성공** — PITR 는 계정과 비밀번호를 유지한다 |
+
+### 아직 훈련하지 않은 것
+
+- **쓰기가 있는 전환.** 이번 트래픽은 전부 읽기였다.
+- **DSN 셋 전부 전환.** `DATABASE_URL` 만 바꿨고 `MIGRATION_DATABASE_URL` 은
+  원본을 가리킨 채였다. 실제 전환은 셋 다 필요하다.
+- **`backing-up` 중 접속 가능 여부.** 되면 RTO 가 34분에서 11분으로 줄어든다.
+  다음에는 상태를 폴링하는 대신 **`psql` 접속을 폴링**한다.
+- **리전 장애.** 크로스리전 스냅샷 복사는 설계에만 있다.
+- **자동화.** 이 절차는 사람이 기억해야 돈다. CI·스케줄러에 올라가 있지 않다.
+
+---
+
 ## 5. 검사
 
 ```bash
