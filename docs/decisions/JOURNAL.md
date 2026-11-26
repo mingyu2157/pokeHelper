@@ -2225,3 +2225,166 @@
   ADR 의 약속은 코드 위치까지 포함해야 지킬 수 있는 약속이 된다. 이번에는
   약속이 11일 먼저 쓰였고 코드는 그 자리에 없었다.
 - 소요: 약 70분
+
+## 2026-11-26 — 정상 복구를 4층이 실패로 판정했다
+
+- 증상: RDS PITR 복원본에 `scripts/db_state.py` 의 4층 비교를 처음 돌렸더니
+  종료 코드 1 과 차이 2건이 나왔다.
+
+      ★ 차이 2건
+        [4 시퀀스] 다름: meta_snapshots_id_seq 원본='3'   복원본='35'
+        [4 시퀀스] 다름: pokemon_meta_id_seq   원본='150' 복원본='166'
+
+- 기대 동작: 1·2·3층이 완전히 일치하는(테이블 10개 17,220행 / 제약 27개 /
+  인덱스 21개) 정상 복구이므로 네 층 모두 통과해야 한다.
+- 재현 절차: `infra/terraform/README.md` 6장의 "4층 비교" 절을 그대로 실행한다.
+  요점은 운영 이미지 안에서 `python -m scripts.db_state compare --target-host
+  <복원된-엔드포인트>` 를 일회성 태스크로 돌리는 것이다.
+- 원인: **PostgreSQL 의 설계였다.** `nextval` 은 호출마다 WAL 에 적지 않고
+  32회마다 적으며, 그때 `현재값 + 32` 를 **미리** 기록한다. 복구가 그 선행 값으로
+  돌아오므로 복원본의 `last_value` 는 최대 32 앞선다. 두 값 모두
+  `0 ≤ 차 ≤ 32` 안에 있었다 (+32, +16).
+
+  **4층 구현이 1~3층과 같았던 것**이 문제였다 — "값이 다르면 차이".
+  로컬 리허설(`pg_dump`/`pg_restore`)은 `setval` 로 값을 그대로 복원하므로
+  이 판정이 33건 내내 통과했고, **복구 방식이 다르면 깨진다는 것이 드러나지
+  않았다.**
+- 해결: 4층만 **방향으로 판정**한다 (ADR-023). `복원본 ≥ 원본` 은 정상,
+  `복원본 < 원본` 만 차이. 앞선 시퀀스는 ID 를 건너뛸 뿐 PK 충돌이 없다.
+  - ★ 선택지 B(`차 ∈ [0, 32]` 허용)를 버린 이유: `32` 는 PostgreSQL 내부
+    상수(`SEQ_LOG_VALS`)이고 공개 API 가 아니다. 그 수에 결합하면 버전이
+    바뀔 때 조용히 틀린다.
+  - ★ 앞선 사실을 **버리지 않는다.** `sequence_advances()` 가 따로 돌려주고
+    CLI 가 `참고` 로 찍는다. 종료 코드에는 영향이 없다. 정보를 숨기면 다음
+    사람이 같은 조사를 처음부터 반복한다.
+  - ★ 로컬 리허설은 **정확한 일치를 그대로 유지**한다. 그쪽은 앞서는 일이
+    애초에 없어서, 통일하면 더 강했던 보장을 이유 없이 버린다.
+- 배운 것: ★ **판정 기준은 그 검사의 목적과 같아야 한다.** 4층은 "값이 같은지"를
+  보려고 만든 게 아니라 **PK 충돌을 막으려고** 만들었다. 기준이 목적보다 넓으면
+  거짓 양성이 나오고, 거짓 양성이 반복되면 운영자가 그 층을 읽지 않게 된다.
+  **경고 피로는 검사를 없애는 것과 같은 결과**를 낸다.
+
+  그리고 **로컬 리허설이 초록이라는 것이 운영에서 맞다는 뜻은 아니다.** 복구
+  메커니즘이 다르면(논리 백업 vs PITR) 같은 코드가 다른 답을 낸다. ADR-014 가
+  `포기한 것` 에 "이 리허설이 증명하는 것은 논리 백업의 왕복"이라고 적어둔 것이
+  정확히 이 지점이었다.
+- 소요: 조사 15분 + 구현·테스트 50분
+
+## 2026-11-26 — RPO 5분은 측정값이 아니라 격자 간격이었다
+
+- 증상: ADR-020 결정 3 이 `RPO 5분` 을 약속했는데, 실측하니 **5분 13초**,
+  두 번째 표본은 **8분 5초**였다.
+- 기대 동작: 자동 백업 + PITR 로 RPO 5분이면, 장애 시점에서 5분 이내의 지점으로
+  되돌릴 수 있어야 한다.
+- 재현 절차:
+
+      aws rds describe-db-instances --db-instance-identifier pokehelper-prod-db --query "DBInstances[0].LatestRestorableTime" --output text --profile pokehelper
+      powershell -Command "[DateTime]::UtcNow.ToString('o')"
+
+  두 값의 차이가 그 순간의 유실 구간이다.
+- 원인: **격자 간격을 RPO 로 잘못 썼다.** `LatestRestorableTime` 은 5분 격자로
+  갱신된다(관측값의 초가 전부 `:46` 으로 고정). 거기에 **발행 지연**이 더해지므로
+  실제 유실 구간은 `5분 + 지연` 이다. 관측:
+
+  | 측정 시각(UTC) | 복원 가능 시각 | 유실 구간 |
+  |---|---|---|
+  | 12:36:58 | 12:31:46 | 5분 13초 |
+  | 13:04:51 | 12:56:46 | **8분 5초** |
+
+  ★ 표본 하나였을 때는 "5분 13초 ≈ 약속대로"로 읽혔다. 둘이 되자 **표본 하나는
+  RPO 가 아니라 측정 순간의 위치**임이 드러났다.
+- 해결: ADR-020 의 표를 `RPO 약 5분(격자) + 발행 지연 / 관측 최악 8분 5초` 로
+  고친다. 내림해서 "5분 달성"으로 쓰지 않는다.
+- ★ 같이 드러난 것 — **RTO 34분 중 22분은 복원이 아니었다.**
+
+  | 이벤트 | UTC | 누적 |
+  |---|---|---|
+  | 복원 명령 | 13:04:51 | 0 |
+  | `Restored from DB instance … to 12:56:46` | 13:15:19 | 10분 28초 |
+  | `DB instance restarted` | 13:15:38 | **10분 47초** |
+  | `Backing up DB instance` | 13:17:19 | 12분 28초 |
+  | `Finished DB Instance backup` → `available` | 13:38:57 | **34분 6초** |
+
+  실제 복원은 11분에 끝났고, `status: available` 이 34분에서야 나온 것은 **RDS 가
+  복원 직후 자동 백업을 한 번 돌리기 때문**이다. 런북이 `available` 을 기다리면
+  RTO 34분, 접속 가능 시점을 기다리면 11분이다 — **같은 복구인데 3배 차이**.
+
+  ★ 다만 `backing-up` 중에 접속이 됐는지는 **확인하지 않았다.** 이벤트 시각으로
+  추론한 것뿐이다. 다음 리허설에서는 상태를 폴링하는 대신 **`psql` 접속을
+  폴링**하면 바로 측정된다.
+
+  전환(시크릿 교체 → `--force-new-deployment` → 응답 확인)은 **4분 53초**.
+  합계 약 **39분**으로 RTO 1시간 약속 안에는 들어온다.
+- 배운 것: ★ **설계 문서의 숫자에는 그것이 목표인지 측정값인지를 적는다.**
+  결정 3 의 `RPO 5분 / RTO 1시간` 은 둘 다 어림이었는데, 표에 그렇게 적혀
+  있어서 측정값처럼 읽혔다. 9일 뒤 재검토 조건이 발동했을 때 비교할 기준이
+  없었다.
+
+  그리고 **AWS 가 보고하는 상태 하나를 RTO 의 끝으로 삼으면 안 된다.**
+  `available` 은 "쓸 수 있다"가 아니라 "AWS 가 할 일을 다 했다"였다.
+
+## 2026-11-26 — 증거를 보겠다면서 증거가 생길 시간을 주지 않았다
+
+- 증상: 측정 절차가 두 번 연속으로 **아무 증거도 못 잡았다.**
+  1. `aws rds wait db-instance-available` 이 `Max attempts exceeded` 로 떨어져
+     복원 완료 시각을 놓쳤다. 다시 재니 **64.5분**으로 나왔는데, 루프 첫
+     폴링에서 이미 `available` 이었으므로 그건 복원 시간이 아니라 **내가
+     확인한 시각**이었다.
+  2. 전환 후 복원본의 `DatabaseConnections` 가 **전 구간 0.0** 이었다. 그런데
+     `/api/v1/meta/usage` 는 200 을 돌려줬다.
+- 기대 동작: 복원 소요 시간과 "복원본에서 서비스되고 있다"는 사실이 측정으로
+  남아야 한다.
+- 재현 절차: 2번을 재현한다 — 요청을 던진 **직후** 창을 '지금'에서 끊는다.
+
+      curl.exe -s -o NUL -w "usage=%{http_code}" https://paoriprofessor.click/api/v1/meta/usage
+      aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DatabaseConnections --dimensions Name=DBInstanceIdentifier,Value=pokehelper-prod-db-restore --start-time 2026-11-26T14:51:00Z --end-time 2026-11-26T15:06:00Z --period 60 --statistics Maximum --output table --profile pokehelper
+
+- 원인: 둘 다 **측정 창과 사건 발생 시점을 같게 잡았다.**
+  1. `aws rds wait` 의 기본 한도는 30초 × 60회 = **30분**이다. 그 숫자를
+     확인하지 않고 "10~20분이면 끝난다"는 예측에 맞춰 절차를 짰다. 한도를
+     넘으면 측정이 거기서 끊긴다.
+  2. 앱은 **접속을 지연 생성**한다 (`app/db/session.py` — `create_async_engine`
+     은 첫 쿼리까지 접속하지 않는다). 그리고 `/health` 는 **DB 를 건드리지
+     않는다**(순수 liveness). 그래서 새 태스크가 떠서 ALB 가 healthy 로 올린
+     뒤에도 **접속이 하나도 없다.** 첫 접속은 우리가 curl 을 친 그 순간
+     생겼고, RDS 의 1분 샘플에는 **다음 분**에 찍힌다. 창을 그 분에서 끊었다.
+
+  ★ Redis 캐시 가능성은 코드로 배제했다 — `app/api/v1/meta.py` 에 캐시·Redis
+  참조가 없다. 추측 둘 중 하나를 코드로 지운 뒤 남은 하나를 실험으로 확인했다.
+- 해결:
+  1. 복원 완료 시각은 벽시계가 아니라 **RDS 이벤트**를 1차 출처로 쓴다 —
+     `aws rds describe-events --source-identifier … --source-type db-instance`.
+     그쪽에 `Restored from …` / `DB instance restarted` / `Finished DB Instance
+     backup` 이 초 단위로 남아 있었다.
+  2. 부하를 먼저 주고 **150초 기다린 뒤** 창을 끊는다. 그렇게 하니
+     `pokehelper-prod-db` 0.0 / `pokehelper-prod-db-restore` 1.0 → 2.0 으로
+     깔끔하게 갈라졌다 (2.0 은 curl 5회에 풀이 늘어난 것).
+- 배운 것: ★ **증거가 생기는 데 걸리는 시간을 절차에 넣는다.** 지표에는
+  샘플링 간격이 있고, 애플리케이션에는 지연 초기화가 있고, CLI waiter 에는
+  한도가 있다. 이 셋 중 하나만 빠뜨려도 "확인했는데 아무것도 없다"가 나온다.
+
+  그리고 **`200 OK` 는 어느 DB 인지 말해주지 않는다.** 1·2·3층이 완전히
+  일치하는 복원본이면 응답도 똑같다. 전환을 증명하려면 **응답이 아니라 접속**을
+  봐야 했다.
+- 소요: 40분 (두 번의 헛 측정 포함)
+
+## 2026-11-26 — 복구 가능 구간이 API 마다 다르게 보였다
+
+- 증상: `describe-db-instances` 의 `EarliestRestorableTime` 이 `None` 이었다.
+- 기대 동작: 자동 백업이 7일로 켜져 있으면 복구 가능 구간의 시작이 나와야 한다.
+- 재현 절차:
+
+      aws rds describe-db-instances --db-instance-identifier pokehelper-prod-db --query "DBInstances[0].{latest:LatestRestorableTime,earliest:EarliestRestorableTime}" --output table --profile pokehelper
+      aws rds describe-db-instance-automated-backups --db-instance-identifier pokehelper-prod-db --query "DBInstanceAutomatedBackups[].{status:Status,earliest:RestoreWindow.EarliestTime,latest:RestoreWindow.LatestTime}" --output table --profile pokehelper
+
+- 원인: ★ **모른다.** 같은 시점에 자동 백업 API 는 값을 돌려줬다
+  (`2026-11-24T01:32:40Z` ~ `2026-11-26T12:51:46Z`, `active`). 왜 한쪽만 비는지
+  확인하지 못했고, **그럴듯한 설명을 적지 않는다** — ADR 에 틀린 원인이 박히면
+  나중에 그게 근거로 인용된다.
+- 해결: PITR 가능 구간은 `describe-db-instance-automated-backups` 로 확인한다.
+  런북에 그 명령을 적었다.
+- 배운 것: 한 API 가 비어 있다고 사실이 없는 것은 아니다. ★ 그리고 **보존
+  기간은 되돌릴 수 있는 기간이 아니다** — 설정은 7일인데 실제 구간은 2.5일
+  (인스턴스가 그만큼만 살았다). "백업 7일 보존"을 "7일 전으로 돌아갈 수 있다"로
+  읽으면 틀린다.
+- 소요: 10분

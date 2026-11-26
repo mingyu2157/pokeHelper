@@ -26,7 +26,12 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.db_state import DatabaseState, compare, env_from_dsn
+from scripts.db_state import (
+    DatabaseState,
+    compare,
+    env_from_dsn,
+    sequence_advances,
+)
 
 
 def state(**overrides: dict[str, object]) -> DatabaseState:
@@ -127,6 +132,9 @@ class TestLayerFourCatchesSequenceDrift:
 
     행도 맞고 체크섬도 맞고 제약도 맞는데, 시퀀스만 뒤처져 있으면 복구는
     성공해 보이고 **다음 쓰기에서 터진다.**
+
+    ★ 이 층만 정확한 일치가 아니라 **방향**으로 판정한다 (ADR-023).
+      판정 규칙 자체는 `TestSequencesAreJudgedByDirection` 가 본다.
     """
 
     def test_sequence_is_behind(self) -> None:
@@ -147,6 +155,145 @@ class TestLayerFourCatchesSequenceDrift:
         assert compare(unused, unused) == []
 
 
+class TestSequencesAreJudgedByDirection:
+    """★ 경계값 분석 — 4층의 판정 경계는 `복원본 == 원본` 이다 (ADR-023).
+
+    양쪽에서 1 씩 집는다. 같으면 안전, 1 앞서면 안전, 1 뒤처지면 차이.
+    **경계 자체(같음)가 안전 쪽에 포함**되는 것이 이 규칙의 핵심이다.
+
+    왜 방향인가: 이 층이 막으려는 것은 "값이 다른 것"이 아니라 **PK 충돌**이다.
+    앞선 시퀀스는 ID 를 건너뛸 뿐 충돌하지 않는다. 판정 기준을 목적과 일치시킨다.
+    """
+
+    @staticmethod
+    def _sequences(value: str) -> dict[str, str]:
+        return {"regulations_id_seq": value}
+
+    def test_equal_is_safe(self) -> None:
+        assert compare(state(), state()) == []
+
+    def test_one_ahead_is_not_a_difference(self) -> None:
+        after = state(sequences=self._sequences("8"))  # 원본 7
+        assert compare(state(), after) == []
+
+    def test_one_behind_is_a_difference(self) -> None:
+        after = state(sequences=self._sequences("6"))  # 원본 7
+        differences = compare(state(), after)
+        assert any("뒤처짐" in line for line in differences)
+
+    def test_far_ahead_is_still_not_a_difference(self) -> None:
+        """★ 32 라는 수에 결합하지 않는다. PostgreSQL 내부 상수(SEQ_LOG_VALS)는
+        바뀔 수 있고, 안전 조건은 '앞섰다' 하나뿐이다."""
+        assert compare(state(), state(sequences=self._sequences("999999"))) == []
+
+    def test_a_disappeared_sequence_is_still_a_difference(self) -> None:
+        """방향 판정은 **양쪽에 다 있는** 키에만 적용된다."""
+        differences = compare(state(), state(sequences={}))
+        assert any("4 시퀀스" in line and "사라짐" in line for line in differences)
+
+    def test_an_appeared_sequence_is_still_a_difference(self) -> None:
+        differences = compare(state(sequences={}), state())
+        assert any("4 시퀀스" in line and "생김" in line for line in differences)
+
+
+class TestUnusedSequenceIsPositionZero:
+    """동등 분할 — `<unused>` 는 숫자가 아닌 특수 클래스다. **0 으로 본다.**
+
+    한 번도 쓰지 않은 시퀀스는 다음에 1 을 내준다. 그래서 원본이 7 인데
+    복원본이 `<unused>` 면 **1 부터 다시 시작해 PK 충돌**이다 — 가장 위험한
+    경우인데, 문자열 비교로는 그냥 "다름"이고 방향 비교로는 자칫 빠진다.
+    """
+
+    def test_used_to_unused_is_a_difference(self) -> None:
+        after = state(sequences={"regulations_id_seq": "<unused>"})
+        differences = compare(state(), after)
+        assert any("뒤처짐" in line for line in differences)
+
+    def test_unused_to_used_is_safe(self) -> None:
+        before = state(sequences={"regulations_id_seq": "<unused>"})
+        assert compare(before, state()) == []
+
+    def test_unused_on_both_sides_is_safe(self) -> None:
+        unused = state(sequences={"regulations_id_seq": "<unused>"})
+        assert compare(unused, unused) == []
+
+
+class TestUnreadableSequenceValueFailsClosed:
+    """부정 테스트 / 오류 추정 — 판정할 수 없는 값은 **통과시키지 않는다.**
+
+    `pg_sequences` 가 예상 밖 문자열을 돌려주면 방향을 알 수 없다. 조용히
+    넘기면 뒤처짐을 놓치므로 차이로 올린다. fail-closed.
+    """
+
+    def test_unparseable_restored_value_is_reported(self) -> None:
+        after = state(sequences={"regulations_id_seq": "???"})
+        differences = compare(state(), after)
+        assert any("읽을 수 없음" in line for line in differences)
+
+    def test_unparseable_source_value_is_reported(self) -> None:
+        before = state(sequences={"regulations_id_seq": "???"})
+        differences = compare(before, state())
+        assert any("읽을 수 없음" in line for line in differences)
+
+    def test_an_unreadable_value_is_not_counted_as_an_advance(self) -> None:
+        """참고 출력에도 올라가지 않는다 — 앞섰다고 말할 근거가 없다."""
+        assert sequence_advances(state(), state(sequences={"regulations_id_seq": "???"})) == []
+
+
+class TestAdvancesAreReportedWithoutFailing:
+    """★ 규칙을 테스트가 집행한다 — "거짓 양성은 없애되 사실은 버리지 않는다".
+
+    앞선 시퀀스는 차이가 아니지만, 정보를 숨기면 다음 사람이 같은 조사를
+    처음부터 반복한다. 그래서 `compare` 에서는 빠지고 `sequence_advances` 에는
+    남아야 한다. **두 경로가 동시에 성립하는지**를 한 테스트에서 단정한다.
+    """
+
+    def test_an_advance_is_absent_from_differences_and_present_in_notes(self) -> None:
+        after = state(sequences={"regulations_id_seq": "39"})  # 원본 7
+        assert compare(state(), after) == []
+        notes = sequence_advances(state(), after)
+        assert len(notes) == 1
+        assert "regulations_id_seq" in notes[0]
+        assert "+32" in notes[0]
+
+    def test_a_regression_is_not_reported_as_an_advance(self) -> None:
+        after = state(sequences={"regulations_id_seq": "1"})
+        assert sequence_advances(state(), after) == []
+        assert compare(state(), after) != []
+
+    def test_identical_sequences_produce_no_notes(self) -> None:
+        assert sequence_advances(state(), state()) == []
+
+
+class TestTheProductionCaseThatCausedThisRule:
+    """★ 골든(동결) 오라클 — 2026-11-26 RDS PITR 리허설의 **실측값**.
+
+    이 두 줄이 ADR-023 을 쓰게 만든 원인이다. 운영에서 실제로 나온 값이므로
+    기대값을 추측하지 않는다.
+
+        meta_snapshots_id_seq  3   → 35   (+32)
+        pokemon_meta_id_seq    150 → 166  (+16)
+
+    둘 다 `0 ≤ 차 ≤ 32` 이고 둘 다 앞섰다. 규칙이 바뀌면 이 케이스가 먼저 깨진다.
+    """
+
+    MEASURED_BEFORE = {"meta_snapshots_id_seq": "3", "pokemon_meta_id_seq": "150"}
+    MEASURED_AFTER = {"meta_snapshots_id_seq": "35", "pokemon_meta_id_seq": "166"}
+
+    def test_the_measured_restore_now_passes(self) -> None:
+        before = state(sequences=self.MEASURED_BEFORE)
+        after = state(sequences=self.MEASURED_AFTER)
+        assert compare(before, after) == []
+
+    def test_both_advances_are_still_reported(self) -> None:
+        notes = sequence_advances(
+            state(sequences=self.MEASURED_BEFORE), state(sequences=self.MEASURED_AFTER)
+        )
+        assert len(notes) == 2
+        assert any("+32" in note for note in notes)
+        assert any("+16" in note for note in notes)
+
+
 class TestEveryLayerIsActuallyWired:
     """전수 조합 — ★ 다섯 필드 **각각**이 차이를 만들어내는지 하나씩 본다.
 
@@ -159,7 +306,10 @@ class TestEveryLayerIsActuallyWired:
         [
             ("row_counts", {"pokemon": 1, "moves": 516}),
             ("checksums", {"pokemon": "zzz", "moves": "bbb"}),
-            ("sequences", {"regulations_id_seq": "999"}),
+            # ★ 뒤처진 값이어야 한다. 앞선 값(999)은 ADR-023 이후 **정상**이므로
+            #   이 테스트가 공짜로 통과한다. 층이 연결됐는지 보려면 불안전한
+            #   방향으로 깨뜨려야 한다.
+            ("sequences", {"regulations_id_seq": "1"}),
             ("indexes", {"ix_pokemon_name_ko": "CREATE INDEX ... (name_en)"}),
             ("constraints", {"ck_pokemon_base_hp": "CHECK (true)"}),
         ],
